@@ -17,6 +17,12 @@
        fixed, so a wider aspect ratio widens the view (Hor+) with no camera code changes. The split screen
        ratios are untouched.
 
+     - From 3840 pixels wide the game sets a "4K mode" flag (0x1212c39, at 0x7fb657: (field & 0xff00) > 0xeff),
+       read at about 55 sites. With it the scene renders at half width with checkerboard and a compute resolve
+       (the Pro path); without it, at full resolution with 4-sample depth as in the 1080p mode. The separate
+       "Native 4K rendering (no checkerboard)" patch keeps the flag false; with checkerboard, one R32Uint resolve
+       buffer stays 1920x2160 (half of 3840), which this file does not size.
+
      Not handled: the 2D layer (HUD, menus) is a 1920x1080 canvas set up at three inlined sites
      ([obj+0x2c]=1920.0f, [obj+0x30]=1080.0f, int16 rect at +0x34: 0x4f17c0, 0x5c6fad, 0x7515b4); its elements
      sit at absolute 1920-space positions, so widening the canvas alone moves right-anchored elements.
@@ -114,6 +120,12 @@
             <Line Type="bytes" Address="0x00a4b5b9" Value="000a0000" Pattern="9c 00 01 0f 45 ce 69 d9 c0 03 00 00 20 c2 0f 44" At="8"/>
             <!-- half-resolution height multiple -->
             <Line Type="bytes" Address="0x00a4b5c4" Value="38040000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
+        </PatchList>
+    </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Native 4K rendering (no checkerboard)" Note="From 3840 pixels wide the game switches to its 4K mode, which renders the scene at half width with checkerboard reconstruction (the Pro path). This keeps the 1080p mode at any size: the scene renders at full resolution with 4-sample depth, sharper and heavier on the GPU (over 100 FPS at 5120x2160 on an RTX 4090). Untick it for checkerboard. It changes nothing below 3840 pixels wide." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <PatchList>
+            <!-- 4K mode flag 0x1212c39 = ((field & 0xff00) > 0xeff): 0xeff -> 0xff00 keeps it false -->
+            <Line Type="bytes" Address="0x00bfb659" Value="00ff0000" Pattern="8b 05 49 ef a1 00 b9 00 ff 00 00 23 48 3c 81 f9" At="16"/>
         </PatchList>
     </Metadata>
 </Patch>

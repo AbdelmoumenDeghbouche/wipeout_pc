@@ -417,13 +417,22 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(game_profile('CUSA07671')[1:3], (WIPEOUT, '01.00'))
         self.assertEqual(game_profile('CUSA05670')[1], WIPEOUT)
         names = [m.get('Name') for m in ET.parse(WIPEOUT).getroot().iter('Metadata')]
-        self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160'])
-        self.assertEqual(selected_patches(WIPEOUT, '01.00', ''), [])  # off until a resolution is chosen
+        self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160',
+                                 'Native 4K rendering (no checkerboard)'])
+        # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
+        self.assertEqual(selected_patches(WIPEOUT, '01.00', ''), ['Native 4K rendering (no checkerboard)'])
         self.assertTrue(compile_patches(WIPEOUT, names[1:], '01.00', SEGMENTS))
+
+    def test_wipeout_native_4k_keeps_the_4k_mode_flag_false(self):
+        # (field & 0xff00) > imm: 0xff00 can never be exceeded, the original 0xeff is from 3840 wide.
+        self.assertEqual(compile_patches(WIPEOUT, ['Native 4K rendering (no checkerboard)'], '01.00', SEGMENTS),
+                         [(0x7fb659, (0xff00).to_bytes(4, 'little'))])
 
     def test_wipeout_resolution_patches_size_output_half_buffers_and_aspect(self):
         size = lambda value: int.from_bytes(bytes.fromhex(value), 'little')
         for meta in ET.parse(WIPEOUT).getroot().iter('Metadata'):
+            if not meta.get('Name').startswith('Resolution Patch'):
+                continue
             width, height = (int(n) for n in meta.get('Name').split(' - ')[1].split('x'))
             lines = {line.get('Address'): line.get('Value') for line in meta.iter('Line')}
             self.assertEqual(size(lines['0x00bfa2e8']), width, meta.get('Name'))        # output width
