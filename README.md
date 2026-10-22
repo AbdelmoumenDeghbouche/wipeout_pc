@@ -99,6 +99,10 @@ python scripts/pkg_extract.py <base.pkg> D:\games\CUSA07671
 python scripts/pkg_extract.py <update.pkg> D:\games\CUSA07671-patch
 ```
 
+Extraction first reads the PKG to calculate its SHA-256. A retry keeps only files recorded as
+complete for that exact package whose size and modification time have not changed. Older
+extractions without this record are extracted again once, even when file sizes match.
+
 Then move the update's files over the base game folder, or pass the update folder with
 `GOW3_PATCH_DIR`. A folder dumped with GoldHEN works the same way.
 

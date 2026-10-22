@@ -17,6 +17,7 @@ Usage:
 import argparse
 import hashlib
 import hmac
+import json
 import os
 import struct
 import sys
@@ -274,8 +275,39 @@ def main():
     print("\ndone: %s -> %s" % (args.pkg, os.path.abspath(args.out)))
 
 
+def _pkg_digest(path):
+    digest = hashlib.sha256()
+    with open(path, 'rb') as stream:
+        for chunk in iter(lambda: stream.read(1 << 20), b''):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _extraction_state(out):
+    try:
+        with open(os.path.join(out, '.pkg_extracted'), encoding='utf-8') as stream:
+            state = json.load(stream)
+        if isinstance(state, dict) and isinstance(state.get('files'), dict):
+            return state
+    except (OSError, ValueError):
+        pass
+    return {}
+
+
+def _write_extraction_state(out, state):
+    path = os.path.join(out, '.pkg_extracted')
+    with open(path + '.part', 'w', encoding='utf-8') as stream:
+        json.dump(state, stream)
+    os.replace(path + '.part', path)
+
+
+def _file_stamp(path):
+    stat = os.stat(path)
+    return [stat.st_size, stat.st_mtime_ns]
+
+
 def extract(pkg, out, progress=None, items=None):
-    """Unpacks `pkg` (a path or Pkg) into `out`; resumable (complete files are kept).
+    """Unpacks `pkg` (a path or Pkg) into `out`; resumes files recorded for the same PKG.
     progress(done_bytes, total_bytes, mb_per_s) is called as data is written."""
     if not isinstance(pkg, Pkg):
         pkg = Pkg(pkg)
@@ -285,6 +317,12 @@ def extract(pkg, out, progress=None, items=None):
     total = sum(pkg.inodes[i]["size"] for _, i, t in items if t == PFS_FILE)
     out = os.path.abspath(out)
     os.makedirs(os.path.join(out, "sce_sys"), exist_ok=True)
+    digest = _pkg_digest(pkg.path)
+    state = _extraction_state(out)
+    if state.get('sha256') != digest:
+        state = dict(sha256=digest, files={})
+    state['complete'] = False
+    _write_extraction_state(out, state)
     # PKG metadata entries -> sce_sys (as shadPS4 does); the PFS copy wins where both exist.
     for e in pkg.entries:
         if e["id"] < 0x400:
@@ -309,7 +347,8 @@ def extract(pkg, out, progress=None, items=None):
         node = pkg.inodes[ino]
         if node["flags"] & 0x1:
             raise ValueError("%s: PFS-compressed file not supported" % rel)
-        if os.path.isfile(dst) and os.path.getsize(dst) == node["size"]:
+        if (os.path.isfile(dst) and os.path.getsize(dst) == node["size"]
+                and state['files'].get(rel) == _file_stamp(dst)):
             done += node["size"]
             continue
         os.makedirs(os.path.dirname(dst), exist_ok=True)
@@ -328,19 +367,23 @@ def extract(pkg, out, progress=None, items=None):
                 if progress:
                     progress(done, total, done / 1048576 / max(time.time() - t0, 1e-6))
         os.replace(tmp, dst)
-    # Marks a finished unpack (the launcher and run.py skip work when it matches the PKG).
-    with open(os.path.join(out, ".pkg_extracted"), "w", encoding="utf-8") as fo:
-        fo.write("%s\n%d\n" % (os.path.abspath(pkg.path), os.path.getsize(pkg.path)))
+        # Record each installed file: a new PKG may be interrupted over an older dump.
+        state['files'][rel] = _file_stamp(dst)
+        _write_extraction_state(out, state)
+    state['complete'] = True
+    _write_extraction_state(out, state)
     return out
 
 
 def is_extracted(pkg_path, out):
     """True when `out` holds a finished unpack of this PKG."""
     try:
-        with open(os.path.join(out, ".pkg_extracted"), encoding="utf-8") as fi:
-            lines = fi.read().splitlines()
-        return int(lines[1]) == os.path.getsize(pkg_path) and os.path.isfile(os.path.join(out, "eboot.bin"))
-    except (OSError, ValueError, IndexError):
+        state = _extraction_state(out)
+        return (state.get('complete') is True and state.get('sha256') == _pkg_digest(pkg_path)
+                and os.path.isfile(os.path.join(out, 'eboot.bin'))
+                and all(_file_stamp(os.path.join(out, rel)) == stamp
+                        for rel, stamp in state['files'].items()))
+    except OSError:
         return False
 
 
