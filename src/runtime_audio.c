@@ -303,7 +303,7 @@ static ABI int32_t audio_last_time(int32_t handle, uint64_t *time) {
 #define A3D_NOT_READY ((int32_t)0x80EA0007)
 #define A3D_INVALID_OBJECT ((int32_t)0x80EA0008)
 #define A3D_QUEUE 8 /* finished frames held between PortAdvance and PortPush */
-enum { A3D_PCM=1, A3D_POSITION=2, A3D_GAIN=3, A3D_RESET_STATE=9 };
+enum { A3D_PCM=1, A3D_POSITION=3, A3D_GAIN=5, A3D_RESET_STATE=7 };
 typedef struct { uint64_t size; uint32_t granularity, rate, max_objects, queue_depth, buffer_mode, pad, beds; } A3dParams;
 typedef struct { uint32_t id, pad; const void *value; uint64_t size; } A3dAttribute;
 typedef struct { uint32_t format, pad; const void *samples; uint32_t count; } A3dPcm;
