@@ -2,6 +2,7 @@ import datetime
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 import paths  # noqa: F401  (puts scripts/ on sys.path)
 import save_backup
@@ -111,6 +112,98 @@ class SaveBackupTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 save_backup.restore(self.user, name, now=self.tick())
         self.assertEqual(self.save.read_text(), 'v')
+
+    def test_failed_copy_does_not_publish_or_prune(self):
+        write(self.save, 'old')
+        for _ in range(save_backup.KEEP):
+            save_backup.backup(self.user, now=self.tick())
+        previous = save_backup.list_backups(self.user)
+        write(self.save, 'current')
+        extra = self.save.parent / 'extra.bin'
+        write(extra, 'extra')
+
+        for error in (OSError('disk full'), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                def interrupted(source, destination, **kwargs):
+                    write(Path(destination) / 'partial.bin', 'incomplete')
+                    raise error
+
+                with mock.patch.object(save_backup.shutil, 'copytree', side_effect=interrupted):
+                    with self.assertRaises(type(error)) as caught:
+                        save_backup.backup(self.user, now=self.tick())
+                self.assertIs(caught.exception, error)
+                self.assertEqual(save_backup.list_backups(self.user), previous)
+                self.assertEqual(sorted(p.name for p in save_backup.backups_dir(self.user).iterdir()),
+                                 sorted(previous))
+                self.assertEqual(self.save.read_text(), 'current')
+                self.assertEqual(extra.read_text(), 'extra')
+
+    def test_copy_is_not_listed_until_complete(self):
+        write(self.save, 'old')
+        old = save_backup.backup(self.user, now=self.tick())
+        write(self.save, 'new')
+        copytree = save_backup.shutil.copytree
+
+        def copying(source, destination, *args, **kwargs):
+            self.assertEqual(save_backup.list_backups(self.user), [old.name])
+            result = copytree(source, destination, *args, **kwargs)
+            self.assertEqual(save_backup.list_backups(self.user), [old.name])
+            return result
+
+        with mock.patch.object(save_backup.shutil, 'copytree', side_effect=copying):
+            made = save_backup.backup(self.user, now=self.tick())
+        self.assertEqual(save_backup.list_backups(self.user), [made.name, old.name])
+        relative = self.save.relative_to(self.user / 'savedata')
+        self.assertEqual((made / relative).read_text(), 'new')
+
+    def test_abandoned_copy_is_not_listed_or_restored(self):
+        write(self.save, 'current')
+        pending = save_backup.backups_dir(self.user) / '.backup-pending-abandoned'
+        write(pending / 'partial.bin', 'incomplete')
+        self.assertEqual(save_backup.list_backups(self.user), [])
+        with self.assertRaises(ValueError):
+            save_backup.restore(self.user, pending.name, now=self.tick())
+        self.assertEqual(self.save.read_text(), 'current')
+        save_backup.backup(self.user, now=self.tick(), keep=1)
+        self.assertTrue((pending / 'partial.bin').is_file())
+
+    def test_failed_publication_preserves_previous_backup(self):
+        write(self.save, 'old')
+        old = save_backup.backup(self.user, now=self.tick())
+        write(self.save, 'current')
+        error = PermissionError('cannot publish backup')
+        with mock.patch.object(Path, 'rename', side_effect=error):
+            with self.assertRaises(PermissionError) as caught:
+                save_backup.backup(self.user, now=self.tick(), keep=1)
+        self.assertIs(caught.exception, error)
+        self.assertEqual(save_backup.list_backups(self.user), [old.name])
+        self.assertEqual(list(save_backup.backups_dir(self.user).iterdir()), [old])
+        self.assertEqual(self.save.read_text(), 'current')
+
+    def test_failed_safety_backup_does_not_restore(self):
+        write(self.save, 'old')
+        old = save_backup.backup(self.user, now=self.tick())
+        write(self.save, 'current')
+
+        def interrupted(source, destination, **kwargs):
+            write(Path(destination) / 'partial.bin', 'incomplete')
+            raise OSError('disk full')
+
+        with mock.patch.object(save_backup.shutil, 'copytree', side_effect=interrupted):
+            with self.assertRaises(OSError):
+                save_backup.restore(self.user, old.name, now=self.tick())
+        self.assertEqual(self.save.read_text(), 'current')
+        self.assertEqual(save_backup.list_backups(self.user), [old.name])
+
+    def test_legacy_backup_without_marker_is_restorable(self):
+        write(self.save, 'current')
+        legacy = save_backup.backups_dir(self.user) / '20251009-180000'
+        relative = self.save.relative_to(self.user / 'savedata')
+        write(legacy / relative, 'legacy')
+        self.assertEqual(save_backup.list_backups(self.user), [legacy.name])
+        safety = save_backup.restore(self.user, legacy.name, now=self.tick())
+        self.assertEqual(self.save.read_text(), 'legacy')
+        self.assertEqual((safety / relative).read_text(), 'current')
 
 
 if __name__ == '__main__':
