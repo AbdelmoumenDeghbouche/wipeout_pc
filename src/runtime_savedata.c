@@ -15,7 +15,9 @@
 #include <errno.h>
 #include <sys/stat.h>
 #include <unistd.h>
-#ifndef _WIN32
+#ifdef _WIN32
+#include <windows.h>
+#else
 #include <ftw.h>
 #endif
 
@@ -89,10 +91,24 @@ static int valid_name(const char *name, size_t max) {
     for (size_t i=0;i<n;++i) if (name[i]=='/' || name[i]=='\\' || (name[i]=='.' && (i==0 || name[i-1]=='.'))) return 0;
     return 1;
 }
-static void write_param(const char *meta, const Param *p) {
-    char path[700]; snprintf(path,sizeof(path),"%s/param.bin",meta);
-    FILE *f=fopen(path,"wb");
-    if (f) { Param copy=*p; copy.mtime=time(NULL); fwrite(&copy,sizeof(copy),1,f); fclose(f); }
+static int write_param(const char *meta, const Param *p) {
+    char path[700], pending[705];
+    snprintf(path,sizeof(path),"%s/param.bin",meta);
+    snprintf(pending,sizeof(pending),"%s.part",path);
+    FILE *f=fopen(pending,"wb");
+    if (!f) return -1;
+    Param copy=*p; copy.mtime=time(NULL);
+    int failed=fwrite(&copy,sizeof(copy),1,f)!=1;
+    if (fclose(f)) failed=1;
+    if (!failed) {
+#ifdef _WIN32
+        failed=!MoveFileExA(pending,path,MOVEFILE_REPLACE_EXISTING);
+#else
+        failed=rename(pending,path)!=0;
+#endif
+    }
+    if (failed) remove(pending);
+    return failed ? -1 : 0;
 }
 static int read_param(const char *meta, Param *p) {
     char path[700]; snprintf(path,sizeof(path),"%s/param.bin",meta);
@@ -154,7 +170,13 @@ static int32_t mount(int32_t user, const char *title, const DirName *dir, uint32
     }
     if (slot<0) { pthread_mutex_unlock(&lock); return ERR_MOUNT_FULL; }
     if (!exists && (make_dirs(host) || make_dirs(meta))) { pthread_mutex_unlock(&lock); return ERR_INTERNAL; }
-    if (!exists) { Param empty={0}; write_param(meta,&empty); }
+    if (!exists) {
+        Param empty={0};
+        if (write_param(meta,&empty)) {
+            rmdir(meta); rmdir(host);
+            pthread_mutex_unlock(&lock); return ERR_INTERNAL;
+        }
+    }
     slots[slot].used=1;
     snprintf(slots[slot].host,sizeof(slots[slot].host),"%s",host);
     snprintf(slots[slot].meta,sizeof(slots[slot].meta),"%s",meta);
@@ -198,7 +220,8 @@ static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const 
     pthread_mutex_lock(&lock);
     int slot=slot_of(point);
     if (slot<0) { pthread_mutex_unlock(&lock); return ERR_NOT_MOUNTED; }
-    Param p; read_param(slots[slot].meta,&p);
+    Param p;
+    int read_failed=type && read_param(slots[slot].meta,&p);
     switch (type) {
     case 0: if (size<sizeof(Param)) goto bad; memcpy(&p,buffer,sizeof(p)); break;     /* ALL */
     case 1: snprintf(p.title,sizeof(p.title),"%.*s",(int)size,(const char *)buffer); break;
@@ -207,9 +230,9 @@ static ABI int32_t save_set_param(const MountPoint *point, uint32_t type, const 
     case 4: if (size<4) goto bad; memcpy(&p.user_param,buffer,4); break;
     default: goto bad;
     }
-    write_param(slots[slot].meta,&p);
+    int32_t r=(read_failed || write_param(slots[slot].meta,&p)) ? ERR_INTERNAL : 0;
     pthread_mutex_unlock(&lock);
-    return 0;
+    return r;
 bad:
     pthread_mutex_unlock(&lock);
     return ERR_PARAMETER;
@@ -293,23 +316,28 @@ static ABI int32_t save_search(const SearchCond *cond, SearchResult *result) {
 static ABI int32_t memory_setup(int32_t user, uint64_t size, const Param *param) {
     if (!initialized) return ERR_NOT_INITIALIZED;
     if (!size) return ERR_PARAMETER;
-    char base[600], dir[640];
+    char base[600], dir[640], path[720];
     root(user,NULL,base,sizeof(base));
     snprintf(dir,sizeof(dir),"%s.memory",base);
     if (make_dirs(dir)) return ERR_INTERNAL;
     pthread_mutex_lock(&lock);
-    snprintf(memory_path,sizeof(memory_path),"%s/memory.dat",dir);
-    FILE *f=fopen(memory_path,"r+b");
-    if (!f) f=fopen(memory_path,"w+b");
+    snprintf(path,sizeof(path),"%s/memory.dat",dir);
+    FILE *f=fopen(path,"r+b");
+    if (!f) f=fopen(path,"w+b");
     int32_t r=ERR_INTERNAL;
     if (f) {
-        fseek(f,0,SEEK_END);
-        if ((uint64_t)ftell(f)<size && ftruncate(fileno(f),(off_t)size)) goto done;
-        memory_size=size; r=0;
+        if (fseek(f,0,SEEK_END)) goto done;
+        long length=ftell(f);
+        if (length<0 || ((uint64_t)length<size && ftruncate(fileno(f),(off_t)size))) goto done;
+        r=0;
     done:
-        fclose(f);
+        if (fclose(f)) r=ERR_INTERNAL;
     }
-    if (!r && param) write_param(dir,param);
+    if (!r && param && write_param(dir,param)) r=ERR_INTERNAL;
+    if (!r) {
+        snprintf(memory_path,sizeof(memory_path),"%s",path);
+        memory_size=size;
+    }
     pthread_mutex_unlock(&lock);
     if (!r) printf("Runtime: save data memory ready (%llu bytes)\n",(unsigned long long)size);
     return r;
