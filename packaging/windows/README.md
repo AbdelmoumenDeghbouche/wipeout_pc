@@ -5,6 +5,8 @@ on Linux. Players: see `README-Windows.txt` (it ships in the package).
 
 ## Build
 
+For editing in WSL2 while building and debugging natively on Windows, see [the WSL2 workflow](../../docs/windows-debug-wsl.md). `GOW3_BUILD_TYPE=Debug bash build.sh` selects a debug build; the default remains `RelWithDebInfo`.
+
 Install [MSYS2](https://www.msys2.org) (`winget install MSYS2.MSYS2`), open the
 **MSYS2 CLANG64** shell and install the toolchain and libraries (the counterpart of
 `shell.nix`):
