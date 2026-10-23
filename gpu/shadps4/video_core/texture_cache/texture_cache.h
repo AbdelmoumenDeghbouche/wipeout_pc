@@ -391,6 +391,9 @@ private:
     };
     /// Records the copy of a GPU-modified image into a deferred staging allocation.
     std::optional<PendingDownload> RecordImageDownload(ImageId image_id);
+    /// gow3: records mip 0 of `image` into a staging allocation laid out as guest memory
+    /// expects it (re-tiled for tiled images); returns it and its size.
+    std::pair<Vulkan::StagingBufferRef, u32> RecordGuestLayoutDownload(Image& image, bool deferred);
 
     /// Thread function for copying downloaded images out to CPU memory.
     void DownloadedImagesThread(const std::stop_token& token);
