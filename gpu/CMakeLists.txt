@@ -208,12 +208,13 @@ if (WIN32)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     target_link_options(gow3-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
-    # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test savedata-test).
+    # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test savedata-test savedata-mount-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)
     add_executable(services-test EXCLUDE_FROM_ALL ../tests/test_services.c ../src/compat_win.c)
     add_executable(savedata-test EXCLUDE_FROM_ALL ../tests/test_savedata.c ../src/runtime_file.c ../src/compat_win.c)
-    foreach(test mp3-test videodec-test services-test savedata-test)
+    add_executable(savedata-mount-test EXCLUDE_FROM_ALL ../tests/test_savedata_mounts.c ../src/runtime_file.c ../src/compat_win.c)
+    foreach(test mp3-test videodec-test services-test savedata-test savedata-mount-test)
         set_target_properties(${test} PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
         target_compile_options(${test} PRIVATE -Wall -Wextra -Werror)
         target_include_directories(${test} PRIVATE .. ../src)
