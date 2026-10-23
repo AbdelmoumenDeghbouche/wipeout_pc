@@ -31,7 +31,8 @@ typedef struct stat HostStat;
 #endif
 #define ERR(n) ((int32_t)(UINT32_C(0x80020000)|(n)))
 #define MAX_FILES 1024
-#define MAX_MOUNTS 16
+/* Five defaults, eight asset overrides, pause menu and sixteen save slots. */
+#define MAX_MOUNTS 32
 
 typedef struct { int64_t sec, nsec; } GuestTimespec;
 typedef struct {
