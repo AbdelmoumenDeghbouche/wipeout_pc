@@ -329,15 +329,28 @@ std::optional<TextureCache::PendingDownload> TextureCache::RecordImageDownload(I
     if (False(image.flags & ImageFlagBits::GpuModified)) {
         return std::nullopt;
     }
-    const u32 download_size = image.info.pitch * image.info.size.height * image.info.size.depth *
-                              image.info.resources.layers * (image.info.num_bits / 8);
+    const auto [download, download_size] = RecordGuestLayoutDownload(image, true);
+    return PendingDownload{image.info.guest_address, download_size, download};
+}
+
+// gow3: a tiled image goes back to guest memory re-tiled. Written row by row, the CPU found
+// its texels at the wrong addresses: WipEout's 3x1 auto-exposure texture (Thin2DThin, read by
+// the CPU every frame) gave the game wrong exposure values and races came out overexposed.
+std::pair<Vulkan::StagingBufferRef, u32> TextureCache::RecordGuestLayoutDownload(Image& image,
+                                                                                 bool deferred) {
+    const bool tiled = image.info.props.is_tiled;
+    const u32 download_size =
+        tiled ? u32(image.info.guest_size)
+              : image.info.pitch * image.info.size.height * image.info.size.depth *
+                    image.info.resources.layers * (image.info.num_bits / 8);
     ASSERT(download_size <= image.info.guest_size);
-    const auto download =
-        runtime.GetStagingPool().Request(download_size, MemoryType::HostCached, 16, true);
-    const vk::BufferImageCopy image_download = {
-        .bufferOffset = download.offset,
-        .bufferRowLength = image.info.pitch,
-        .bufferImageHeight = image.info.size.height,
+    const auto download = runtime.GetStagingPool().Request(
+        download_size, MemoryType::HostCached,
+        tiled ? u32(runtime.GetInstance().StorageMinAlignment()) : 16, deferred);
+    vk::BufferImageCopy image_download = {
+        .bufferOffset = tiled ? 0 : download.offset,
+        .bufferRowLength = tiled ? image.info.mips_layout[0].pitch : image.info.pitch,
+        .bufferImageHeight = tiled ? image.info.mips_layout[0].height : image.info.size.height,
         .imageSubresource =
             {
                 .aspectMask = image.info.props.is_depth ? vk::ImageAspectFlagBits::eDepth
@@ -349,8 +362,13 @@ std::optional<TextureCache::PendingDownload> TextureCache::RecordImageDownload(I
         .imageOffset = {0, 0, 0},
         .imageExtent = {image.info.size.width, image.info.size.height, image.info.size.depth},
     };
-    runtime.DownloadImage(&image, download.buffer, std::span{&image_download, 1});
-    return PendingDownload{image.info.guest_address, download_size, download};
+    if (tiled) {
+        tile_manager.TileImage(image, std::span{&image_download, 1}, download.buffer,
+                               download.offset);
+    } else {
+        runtime.DownloadImage(&image, download.buffer, std::span{&image_download, 1});
+    }
+    return {download, download_size};
 }
 
 void TextureCache::DownloadImageMemory(ImageId image_id, bool sync) {
@@ -360,27 +378,7 @@ void TextureCache::DownloadImageMemory(ImageId image_id, bool sync) {
     if (False(image.flags & ImageFlagBits::GpuModified)) {
         return;
     }
-    const u32 download_size = image.info.pitch * image.info.size.height * image.info.size.depth *
-                              image.info.resources.layers * (image.info.num_bits / 8);
-    ASSERT(download_size <= image.info.guest_size);
-    const auto download =
-        runtime.GetStagingPool().Request(download_size, MemoryType::HostCached, 16, !sync);
-    const vk::BufferImageCopy image_download = {
-        .bufferOffset = download.offset,
-        .bufferRowLength = image.info.pitch,
-        .bufferImageHeight = image.info.size.height,
-        .imageSubresource =
-            {
-                .aspectMask = image.info.props.is_depth ? vk::ImageAspectFlagBits::eDepth
-                                                        : vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = image.info.resources.layers,
-            },
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {image.info.size.width, image.info.size.height, image.info.size.depth},
-    };
-    runtime.DownloadImage(&image, download.buffer, std::span{&image_download, 1});
+    const auto [download, download_size] = RecordGuestLayoutDownload(image, !sync);
     if (sync) {
         scheduler.Finish();
         download.Invalidate();
