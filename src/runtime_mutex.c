@@ -1,4 +1,4 @@
-/* Linux pthread-backed opaque PS4 mutex handles. No guest threads yet. */
+/* PS4 mutex and condition handles backed by host pthreads. */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include <stdio.h>
@@ -8,7 +8,15 @@
 #include <errno.h>
 #include <time.h>
 typedef struct { int type; } GuestAttr;
-typedef struct { pthread_mutex_t native; } GuestMutex;
+/* Dump libc updates m_flags at +0x20 in its 0x50-byte FreeBSD mutex object. */
+typedef struct {
+    uint8_t guest_lock[0x20];
+    uint32_t guest_flags;
+    uint8_t guest_state[0x2c];
+    pthread_mutex_t native;
+} GuestMutex;
+_Static_assert(offsetof(GuestMutex,guest_flags)==0x20,"guest mutex flags offset");
+_Static_assert(offsetof(GuestMutex,native)==0x50,"host mutex follows guest state");
 static size_t created, locks, unlocks;
 static int32_t orbis_error(int e) {
     if (!e) return 0;
@@ -48,7 +56,7 @@ static ABI int32_t mutex_init(GuestMutex **out, GuestAttr **attr, const char *na
     if (!out || (attr && !*attr)) return orbis_error(EINVAL);
     int type = attr ? (*attr)->type : 1;
     if (type < 1 || type > 4) return orbis_error(EINVAL);
-    GuestMutex *mutex = malloc(sizeof(*mutex));
+    GuestMutex *mutex = calloc(1,sizeof(*mutex));
     if (!mutex) return orbis_error(ENOMEM);
     pthread_mutexattr_t native_attr;
     int e = pthread_mutexattr_init(&native_attr);
@@ -58,6 +66,7 @@ static ABI int32_t mutex_init(GuestMutex **out, GuestAttr **attr, const char *na
     if (!e) e = pthread_mutex_init(&mutex->native, &native_attr);
     pthread_mutexattr_destroy(&native_attr);
     if (e) { free(mutex); return orbis_error(e); }
+    mutex->guest_flags=(uint32_t)type;
     *out = mutex; ++created; return 0;
 }
 static pthread_mutex_t static_init = PTHREAD_MUTEX_INITIALIZER;
