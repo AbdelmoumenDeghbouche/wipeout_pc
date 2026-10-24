@@ -56,7 +56,7 @@ not depend on the frame rate.
 | Title ID | Region | Version | State |
 |---|---|---|---|
 | CUSA07671 | US | 01.00 + update 01.07 | Development target |
-| CUSA05670 | EU | — | playable |
+| CUSA05670 | EU | — | Playable (five races tested, #19) |
 
 The base game and the update are merged into one folder (the update's files replace the base
 game's). One `eboot.bin` runs all three games: WipEout 2048, WipEout HD and WipEout Fury.
