@@ -332,7 +332,8 @@ def main():
         # can need more than 16 GB of RAM, and the game then closes when the page file cannot grow.
         import guest_memory
         if warning := guest_memory.memory_warning(env.get('GOW3_DMEM_MB'), guest_memory.physical_memory_mb(),
-                                                  env.get('GOW3_STREAM_MEMORY', 'cached')):
+                                                  env.get('GOW3_STREAM_MEMORY', 'cached'),
+                                                  neo=env.get('GOW3_NEO', '').startswith('1')):
             print(warning, flush=True)
 
         # The in-game restart starts this script again once this process is gone.
