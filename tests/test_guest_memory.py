@@ -25,6 +25,16 @@ class GuestMemoryTest(unittest.TestCase):
         self.assertIsNone(guest_memory.memory_warning('8128', RAM_16_GB, 'cached'))
         self.assertIsNone(guest_memory.memory_warning(None, RAM_16_GB, 'cached'))
 
+    def test_pro_budget_and_explicit_overrides(self):
+        for value in (None, '5056', '4000', '20000', 'abc'):
+            with self.subTest(value=value):
+                self.assertEqual(guest_memory.pool_mb(value, neo=True), 5568 + 1024)
+        self.assertEqual(guest_memory.pool_mb('5568', neo=True), 5568 + 1024)
+        self.assertEqual(guest_memory.pool_mb('11200', neo=True), 11200 + 1024)
+        warning = guest_memory.memory_warning('11200', RAM_16_GB, 'cached', neo=True)
+        self.assertIn('12224 MiB', warning)
+        self.assertIsNone(guest_memory.memory_warning(None, RAM_16_GB, neo=True))
+
     def test_device_advice_is_not_repeated(self):
         warning = guest_memory.memory_warning('11200', 12000, 'device')
         self.assertNotIn('GPU memory', warning)

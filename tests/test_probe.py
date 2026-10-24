@@ -173,6 +173,35 @@ class CpuFeaturesTests(unittest.TestCase):
 
 
 @unittest.skipUnless(HOST_EXE.exists(), 'build native probe first')
+class GuestMemoryBudgetTests(unittest.TestCase):
+    def test_base_and_pro_direct_memory_budget(self):
+        for neo, minimum in (('0', 5056), ('1', 5568)):
+            for requested in (None, '5056', '5568', '11200', '4000', '20000', 'abc'):
+                with self.subTest(neo=neo, requested=requested):
+                    expected = int(requested) if requested in ('5568', '11200') else minimum
+                    # Call GetDirectMemorySize, compare its 64-bit result, then name the outcome.
+                    code = (b'\x48\x83\xec\x08\xff\x15' + struct.pack('<i', 0x100 - 10)
+                            + b'\x48\x83\xc4\x08\x48\xb9' + struct.pack('<Q', expected << 20)
+                            + b'\x48\x39\xc8\x75\x06\xff\x25' + struct.pack('<i', 0x108 - 35)
+                            + b'\xff\x25' + struct.pack('<i', 0x110 - 41))
+                    data = package(code, [(0x100 + i * 8, 1, i, 0) for i in range(3)],
+                                   ['pO96TwzOm5E#libkernel', 'memory-budget-matches',
+                                    'memory-budget-mismatch'], capabilities=1)
+                    env = host_env()
+                    env['GOW3_NEO'] = neo
+                    env.pop('GOW3_DMEM_MB', None)
+                    if requested is not None:
+                        env['GOW3_DMEM_MB'] = requested
+                    with tempfile.TemporaryDirectory() as tmp:
+                        path = Path(tmp) / 'boot.bin'
+                        path.write_bytes(data)
+                        result = subprocess.run([str(HOST_EXE.resolve()), str(path), '--cpu-only'],
+                                                capture_output=True, text=True, env=env, timeout=10)
+                    self.assertEqual(result.returncode, 20, result.stdout + result.stderr)
+                    self.assertIn('first unsupported PS4 import: memory-budget-matches', result.stdout)
+
+
+@unittest.skipUnless(HOST_EXE.exists(), 'build native probe first')
 class GamepadAndMountTests(unittest.TestCase):
     def test_gamepad_mode_prints_exactly_one_line(self):
         # With or without a controller attached: "Gamepad: none" or the described pad.
