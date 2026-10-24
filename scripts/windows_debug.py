@@ -111,7 +111,7 @@ def main():
              '$env:PYTHONUTF8="1"; ')
     logs = ROOT / 'out' / 'windows-debug'
     if args.action == 'check':
-        command = (f'& {ps_quote(bash)} -lc "set -e; clang --version; cmake --version; ninja --version; lldb --version"; '
+        command = (f'& {ps_quote(bash)} -lc "set -e; clang --version; cmake --version; ninja --version; gdb --version"; '
                    'if ($LASTEXITCODE) { exit $LASTEXITCODE }; '
                    f'& {ps_quote(python)} --version; exit $LASTEXITCODE')
         powershell(setup + command, logs / 'check.log')
@@ -133,7 +133,9 @@ def main():
                    f'& {ps_quote(bash)} --login {ps_quote(driver_windows)}; '
                    'if ($LASTEXITCODE) { exit $LASTEXITCODE }; '
                    f'Set-Location -LiteralPath {ps_quote(windows_dir)}; '
-                   f'& {ps_quote(python)} -B -m unittest discover -s tests -p "test_savedata*.py"; exit $LASTEXITCODE')
+                   f'& {ps_quote(python)} -B -m unittest discover -s tests -p "test_savedata*.py"; '
+                   'if ($LASTEXITCODE) { exit $LASTEXITCODE }; '
+                   f'& {ps_quote(python)} -B -m unittest discover -s tests -p "test_windows_debugger.py"; exit $LASTEXITCODE')
         powershell(setup + command, logs / 'build.log')
     elif args.action == 'run':
         if not args.game or not (args.game / 'eboot.bin').is_file():
@@ -145,7 +147,10 @@ def main():
         powershell(setup + command, logs / 'run.log')
     else:
         executable = windows_dir + '\\out\\gow3-probe.exe'
-        command = setup + f'& {ps_quote(msys + "\\clang64\\bin\\lldb.exe")} {ps_quote(executable)} -o "process attach --name gow3-probe.exe --waitfor"; exit $LASTEXITCODE'
+        command = (setup + '$games=@(Get-Process -Name gow3-probe -ErrorAction SilentlyContinue | '
+                   f'Where-Object {{$_.Path -eq {ps_quote(executable)}}}); '
+                   'if ($games.Count -ne 1) { throw "Start exactly one debug game with the run command first" }; '
+                   f'& {ps_quote(msys + "\\clang64\\bin\\gdb.exe")} -nx -q {ps_quote(executable)} -p $games[0].Id; exit $LASTEXITCODE')
         encoded = base64.b64encode(command.encode('utf-16-le')).decode('ascii')
         subprocess.run(['powershell.exe', '-NoProfile', '-EncodedCommand', encoded], check=True)
 
