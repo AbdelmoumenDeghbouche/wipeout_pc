@@ -329,28 +329,49 @@ std::optional<TextureCache::PendingDownload> TextureCache::RecordImageDownload(I
     if (False(image.flags & ImageFlagBits::GpuModified)) {
         return std::nullopt;
     }
-    const u32 download_size = image.info.pitch * image.info.size.height * image.info.size.depth *
-                              image.info.resources.layers * (image.info.num_bits / 8);
-    ASSERT(download_size <= image.info.guest_size);
-    const auto download =
-        runtime.GetStagingPool().Request(download_size, MemoryType::HostCached, 16, true);
-    const vk::BufferImageCopy image_download = {
-        .bufferOffset = download.offset,
-        .bufferRowLength = image.info.pitch,
-        .bufferImageHeight = image.info.size.height,
-        .imageSubresource =
-            {
-                .aspectMask = image.info.props.is_depth ? vk::ImageAspectFlagBits::eDepth
-                                                        : vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
+    const auto [download, download_size] = RecordGuestLayoutDownload(image, true);
+    return PendingDownload{image.info.guest_address, download_size, download};
+}
+
+// gow3: as upstream shadPS4 (TextureCache::DownloadImageMemory, 91e6afa6), every mip goes
+// through TileManager::TileImage, which re-tiles tiled images and copies linear ones as they
+// are. Written row by row, a tiled image's texels landed at the wrong guest addresses:
+// WipEout's 3x1 auto-exposure texture (Thin2DThin, read by the CPU every frame) gave the game
+// wrong exposure values and races came out overexposed (#9).
+std::pair<Vulkan::StagingBufferRef, u32> TextureCache::RecordGuestLayoutDownload(Image& image,
+                                                                                 bool deferred) {
+    u32 copy_size = 0;
+    boost::container::small_vector<vk::BufferImageCopy, 8> buffer_copies;
+    for (u32 mip = 0; mip < image.info.resources.levels; ++mip) {
+        const u32 width = std::max(image.info.size.width >> mip, 1u);
+        const u32 height = std::max(image.info.size.height >> mip, 1u);
+        const u32 depth =
+            image.info.props.is_volume ? std::max(image.info.size.depth >> mip, 1u) : 1u;
+        const auto [mip_size, mip_pitch, mip_height, mip_offset] = image.info.mips_layout[mip];
+        buffer_copies.push_back(vk::BufferImageCopy{
+            .bufferOffset = mip_offset,
+            .bufferRowLength = mip_pitch,
+            .bufferImageHeight = mip_height,
+            .imageSubresource{
+                .aspectMask = image.aspect_mask & ~vk::ImageAspectFlagBits::eStencil,
+                .mipLevel = mip,
                 .baseArrayLayer = 0,
                 .layerCount = image.info.resources.layers,
             },
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {image.info.size.width, image.info.size.height, image.info.size.depth},
-    };
-    runtime.DownloadImage(&image, download.buffer, std::span{&image_download, 1});
-    return PendingDownload{image.info.guest_address, download_size, download};
+            .imageOffset = {0, 0, 0},
+            .imageExtent = {mip_pitch ? std::min(mip_pitch, width) : width,
+                            mip_height ? std::min(mip_height, height) : height, depth},
+        });
+        copy_size += mip_size;
+    }
+    ASSERT(copy_size <= image.info.guest_size);
+    // The tiling shader writes the whole guest image range, at a storage buffer offset.
+    const bool tiled = image.info.props.is_tiled;
+    const auto download = runtime.GetStagingPool().Request(
+        tiled ? u32(image.info.guest_size) : copy_size, MemoryType::HostCached,
+        tiled ? u32(runtime.GetInstance().StorageMinAlignment()) : 16, deferred);
+    tile_manager.TileImage(image, buffer_copies, download.buffer, download.offset);
+    return {download, copy_size};
 }
 
 void TextureCache::DownloadImageMemory(ImageId image_id, bool sync) {
@@ -360,27 +381,7 @@ void TextureCache::DownloadImageMemory(ImageId image_id, bool sync) {
     if (False(image.flags & ImageFlagBits::GpuModified)) {
         return;
     }
-    const u32 download_size = image.info.pitch * image.info.size.height * image.info.size.depth *
-                              image.info.resources.layers * (image.info.num_bits / 8);
-    ASSERT(download_size <= image.info.guest_size);
-    const auto download =
-        runtime.GetStagingPool().Request(download_size, MemoryType::HostCached, 16, !sync);
-    const vk::BufferImageCopy image_download = {
-        .bufferOffset = download.offset,
-        .bufferRowLength = image.info.pitch,
-        .bufferImageHeight = image.info.size.height,
-        .imageSubresource =
-            {
-                .aspectMask = image.info.props.is_depth ? vk::ImageAspectFlagBits::eDepth
-                                                        : vk::ImageAspectFlagBits::eColor,
-                .mipLevel = 0,
-                .baseArrayLayer = 0,
-                .layerCount = image.info.resources.layers,
-            },
-        .imageOffset = {0, 0, 0},
-        .imageExtent = {image.info.size.width, image.info.size.height, image.info.size.depth},
-    };
-    runtime.DownloadImage(&image, download.buffer, std::span{&image_download, 1});
+    const auto [download, download_size] = RecordGuestLayoutDownload(image, !sync);
     if (sync) {
         scheduler.Finish();
         download.Invalidate();
