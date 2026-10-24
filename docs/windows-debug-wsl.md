@@ -2,15 +2,17 @@
 
 El código se edita en WSL2. Una copia dedicada en Windows conserva el build incremental, y el juego usa directamente el driver Vulkan de Windows. No requiere Docker ni Vulkan acelerado dentro de WSL2.
 
+Si solo tienes Windows, utiliza el [flujo nativo](windows-debug.md). Ambos usan el mismo script; WSL2 es opcional.
+
 ## Preparación
 
-Instala MSYS2 y las dependencias de [compilación Windows](../packaging/windows/README.md), además de `mingw-w64-clang-x86_64-gdb`. Instala Python 3.12 de Windows y ejecuta con ese Python:
+Instala MSYS2 y las dependencias de [compilación Windows](../packaging/windows/README.md), además de `mingw-w64-clang-x86_64-gdb`. Instala Python 3.10+ de Windows y ejecuta con ese Python:
 
 ```powershell
 python -m pip install pillow iced-x86==1.21.0 cryptography
 ```
 
-El script busca MSYS2 en `%LOCALAPPDATA%\Programs\msys64` y Python en `%LOCALAPPDATA%\Programs\Python\Python312\python.exe`. Si están en otro lugar, usa `--msys2-root` y `--windows-python` con sus rutas Windows.
+El script detecta MSYS2 mediante `MSYS2_ROOT`, `C:\msys64` o `%LOCALAPPDATA%\Programs\msys64`. Detecta Python en el `PATH` de Windows o sus instalaciones bajo `%LOCALAPPDATA%\Programs\Python`. Para otras ubicaciones, usa `--msys2-root` y `--windows-python` con sus rutas Windows.
 
 Desde el repositorio en WSL2:
 
@@ -20,7 +22,7 @@ python3 scripts/windows_debug.py check
 python3 scripts/windows_debug.py build
 ```
 
-El agente necesita ejecutar estos comandos con permisos ampliados para acceder a la interoperabilidad Windows y escribir en la carpeta Windows. No hace falta desactivar globalmente el sandbox ni ampliar la herencia de variables de entorno.
+WSL2 necesita tener habilitada la interoperabilidad Windows y acceso de escritura a la carpeta de compilación. Si una herramienta ejecuta los comandos dentro de un sandbox, debe permitir esos accesos para este flujo.
 
 ## Qué se copia y qué se compila
 

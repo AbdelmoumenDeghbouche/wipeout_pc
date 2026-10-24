@@ -2,6 +2,7 @@ out/
 /pkg/
 __pycache__/
 user/
+/user-debug/
 *.mp4
 gow3.ini
 fsr4_shaders/

@@ -7,8 +7,56 @@ import unittest
 from unittest import mock
 import os
 import sys
+from argparse import Namespace
 
 import windows_debug
+
+
+class PortableWindowsDebugTests(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.root = Path(self.temp.name) / 'checkout with spaces'
+        self.root.mkdir()
+        self.msys = Path(self.temp.name) / 'MSYS2 custom'
+        bash = self.msys / 'usr/bin/bash.exe'
+        bash.parent.mkdir(parents=True)
+        bash.write_bytes(b'')
+        self.args = Namespace(action='build', windows_dir=None, windows_python=None,
+                              msys2_root=str(self.msys))
+
+    def test_native_windows_uses_checkout_and_current_python_without_wsl(self):
+        with mock.patch.object(windows_debug.sys, 'platform', 'win32'), \
+                mock.patch.object(windows_debug, 'ROOT', self.root), \
+                mock.patch.dict(os.environ, {'LOCALAPPDATA': str(self.root)}), \
+                mock.patch.object(windows_debug, 'powershell', side_effect=AssertionError('no discovery shell')), \
+                mock.patch.object(windows_debug.subprocess, 'check_output', side_effect=AssertionError('no WSL')):
+            directory, target, msys, python = windows_debug.settings(self.args)
+        self.assertEqual((directory, target), (str(self.root), self.root))
+        self.assertEqual(msys, str(self.msys))
+        self.assertEqual(python, sys.executable)
+
+    def test_native_windows_refuses_mirroring_arguments(self):
+        with mock.patch.object(windows_debug.sys, 'platform', 'win32'):
+            self.args.action = 'sync'
+            with self.assertRaises(ValueError):
+                windows_debug.settings(self.args)
+            self.args.action = 'build'
+            self.args.windows_dir = str(self.root)
+            with self.assertRaises(ValueError):
+                windows_debug.settings(self.args)
+
+    def test_native_game_path_does_not_call_wslpath(self):
+        with mock.patch.object(windows_debug.sys, 'platform', 'win32'), \
+                mock.patch.object(windows_debug.subprocess, 'check_output', side_effect=AssertionError('no WSL')):
+            self.assertEqual(windows_debug.winpath(self.root), str(self.root.resolve()))
+
+    def test_discovers_standard_msys2_installation(self):
+        with mock.patch.dict(os.environ, {'MSYS2_ROOT': ''}), \
+                mock.patch.object(windows_debug.shutil, 'which', return_value=None), \
+                mock.patch.object(windows_debug, 'host_path',
+                                  side_effect=lambda name: self.msys if name == 'C:\\msys64' else self.root):
+            self.assertEqual(windows_debug.find_msys2(str(self.root), None), 'C:\\msys64')
 
 
 @unittest.skipUnless(sys.platform == 'linux', 'WSL-side synchronization tests')

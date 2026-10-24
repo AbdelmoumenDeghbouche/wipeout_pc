@@ -5,7 +5,7 @@ on Linux. Players: see `README-Windows.txt` (it ships in the package).
 
 ## Build
 
-For editing in WSL2 while building and debugging natively on Windows, see [the WSL2 workflow](../../docs/windows-debug-wsl.md). `GOW3_BUILD_TYPE=Debug bash build.sh` selects a debug build; the default remains `RelWithDebInfo`.
+For a source-debugging workflow entirely on Windows, see [Debugging on Windows](../../docs/windows-debug.md). The [WSL2 workflow](../../docs/windows-debug-wsl.md) is optional. `GOW3_BUILD_TYPE=Debug bash build.sh` selects a debug build; the default remains `RelWithDebInfo`.
 
 Install [MSYS2](https://www.msys2.org) (`winget install MSYS2.MSYS2`), open the
 **MSYS2 CLANG64** shell and install the toolchain and libraries (the counterpart of
@@ -34,7 +34,7 @@ For a source launcher, install Windows Python 3.10+ from python.org with Tk supp
 PowerShell at the repository root:
 
 ```powershell
-python -m pip install pillow iced-x86==1.21.0
+python -m pip install pillow iced-x86==1.21.0 cryptography
 python launcher/gow3_launcher_win.py
 ```
 
