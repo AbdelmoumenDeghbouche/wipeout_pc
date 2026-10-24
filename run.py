@@ -364,7 +364,9 @@ def main():
                 presence = discord_presence.Presence(pid=process.pid) if discord_presence else None
             except (OSError, RuntimeError):
                 print('Discord presence unavailable; the game will continue', flush=True)
-            return process.wait()
+            status = process.wait()
+            print(f'Game process exited: {status} (0x{status & 0xffffffff:08X})', flush=True)
+            return status
         finally:
             if presence:
                 presence.close()
