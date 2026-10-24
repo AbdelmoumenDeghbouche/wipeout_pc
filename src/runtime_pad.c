@@ -491,10 +491,13 @@ static void sample_host(PadData *d) {
     if (!k) return;
     const SDL_MouseButtonFlags mouse=SDL_GetMouseState(NULL,NULL);
     const bool wheel[2]={wheel_held(0,d->timestamp),wheel_held(1,d->timestamp)};
+    const uint32_t pad_buttons=d->buttons;
     for (size_t i=0;i<key_map.count;++i)
         if (source_down(key_map.entries[i].source,k,mouse,wheel)) d->buttons|=key_map.entries[i].ps;
-    if (d->buttons & BTN_L2) d->l2=255;
-    if (d->buttons & BTN_R2) d->r2=255;
+    /* A keyboard key mapped to L2/R2 is a binary press; the gamepad trigger stays analog. */
+    const uint32_t from_keyboard=d->buttons & ~pad_buttons;
+    if (from_keyboard & BTN_L2) d->l2=255;
+    if (from_keyboard & BTN_R2) d->r2=255;
     if (!qte_play(k,d->timestamp)) {
         key_axis(&d->left_x,k[SDL_SCANCODE_A],k[SDL_SCANCODE_D]);
         key_axis(&d->left_y,k[SDL_SCANCODE_W],k[SDL_SCANCODE_S]);
