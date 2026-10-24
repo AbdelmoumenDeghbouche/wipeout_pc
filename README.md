@@ -8,6 +8,8 @@ graphics are translated to Vulkan by the shadPS4 video core. There is no CPU emu
 > **Status: early development. Menus and races (HD and 2048) play above 60 FPS.**
 > See [Progress](#progress).
 
+For contributors: [build and debug on Windows](docs/windows-debug.md), or optionally [edit from WSL2](docs/windows-debug-wsl.md). Debugging scripts and tests are versioned; GDB and the compiler are installed as development dependencies.
+
 ## Download and play (Windows)
 
 1. Download `wipeout-windows.zip` from the

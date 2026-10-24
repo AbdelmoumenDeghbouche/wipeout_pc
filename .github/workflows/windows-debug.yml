@@ -1,0 +1,40 @@
+name: Windows debug tools
+
+on:
+  pull_request:
+    paths:
+      - scripts/windows_debug.py
+      - tests/test_windows_debug*.py
+      - .github/workflows/windows-debug.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  debugger:
+    runs-on: windows-2025
+    strategy:
+      matrix:
+        python: ['3.10', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: CLANG64
+          update: true
+          pacboy: toolchain:p gdb:p
+      - uses: actions/setup-python@v5
+        id: python
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Test Windows paths and debugger lifetime without game files
+        shell: msys2 {0}
+        env:
+          WINPYTHON: ${{ steps.python.outputs.python-path }}
+        run: |
+          clang --version
+          gdb --version
+          WINPYTHON=$(cygpath -u "$WINPYTHON")
+          "$WINPYTHON" -B -m unittest discover -s tests -p test_windows_debug.py
+          "$WINPYTHON" -B -m unittest discover -s tests -p test_windows_debugger.py
