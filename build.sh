@@ -100,6 +100,8 @@ if [[ ${1:-} == --test ]]; then
     out/runtime-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -Isrc tests/test_file_mods.c -o out/file-mods-test
     out/file-mods-test
+    "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_mutex.c -o out/mutex-test
+    python3 -B -m unittest discover -s tests -p test_mutex.py
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_savedata.c src/runtime_file.c -o out/savedata-test
     python3 -B -m unittest discover -s tests -p test_savedata.py
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_savedata_mounts.c src/runtime_file.c -o out/savedata-mount-test
