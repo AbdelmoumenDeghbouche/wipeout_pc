@@ -12,6 +12,7 @@ installed RAM is compared instead.
 import sys
 
 DMEM_RETAIL_MB = 5056  # runtime_memory.c pool_size_bytes default
+DMEM_PRO_MB = DMEM_RETAIL_MB + 512
 FLEX_SPAN_MB = 1024    # runtime_memory.c FLEX_SPAN
 # The texture fix (on by default) and the 480p/720p patches ask for DMEM + 2048 MB: games that
 # run at those sizes are not warned, only the resolution patches above 1080p.
@@ -21,14 +22,15 @@ DMEM_DEFAULT_MB = DMEM_RETAIL_MB + 2048
 HEADROOM_MB = {'device': 2048, 'cached': 4096, 'host': 4096}
 
 
-def pool_mb(dmem_mb):
-    """The section runtime_memory.c commits for GOW3_DMEM_MB (out of range: the retail size)."""
+def pool_mb(dmem_mb, neo=False):
+    """The section runtime_memory.c commits, with at least the selected model's budget."""
+    minimum = DMEM_PRO_MB if neo else DMEM_RETAIL_MB
     try:
         mb = int(dmem_mb) if dmem_mb else 0
     except ValueError:
         mb = 0
-    if mb < DMEM_RETAIL_MB or mb > 16384:
-        mb = DMEM_RETAIL_MB
+    if mb < minimum or mb > 16384:
+        mb = minimum
     return mb + FLEX_SPAN_MB
 
 
@@ -51,9 +53,9 @@ def physical_memory_mb():
     return status.ullTotalPhys >> 20
 
 
-def memory_warning(dmem_mb, physical_mb, stream_memory='cached'):
+def memory_warning(dmem_mb, physical_mb, stream_memory='cached', neo=False):
     """A warning when the pool and the probe's headroom need more than the installed RAM."""
-    pool = pool_mb(dmem_mb)
+    pool = pool_mb(dmem_mb, neo=neo)
     if physical_mb is None or pool <= DMEM_DEFAULT_MB + FLEX_SPAN_MB:
         return None
     stream = stream_memory if stream_memory in HEADROOM_MB else 'cached'

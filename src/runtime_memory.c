@@ -23,14 +23,17 @@
 #include <sys/mman.h>
 #include <unistd.h>
 #endif
-/* sceKernelGetDirectMemorySize on retail PS4: 5056 MiB. GOW3_DMEM_MB raises it (the resolution
- * patches above 1080p need about 4 GiB more; run.sh sets it). */
+/* Compatibility budgets: retain the base pool and add 512 MiB for Neo so WipEout's
+ * startup allocations fit. These are not the SDK/procparam-specific console split.
+ * GOW3_DMEM_MB can raise either model's budget. */
 static uint64_t pool_size_bytes(void) {
     static uint64_t size;
     if (!size) {
+        const char *neo = getenv("GOW3_NEO");
+        uint64_t minimum = neo && *neo=='1' ? 5568 : 5056;
         const char *env = getenv("GOW3_DMEM_MB");
         uint64_t mb = env ? strtoull(env, NULL, 10) : 0;
-        if (mb < 5056 || mb > 16384) mb = 5056;
+        if (mb < minimum || mb > 16384) mb = minimum;
         size = mb * 1024 * 1024;
     }
     return size;
