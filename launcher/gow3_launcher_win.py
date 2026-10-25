@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.8'
+VERSION = '0.2.9'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -387,7 +387,7 @@ def heading_font(size, fallback=None, every_language=False):
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
-             'stale_readback'}
+             'stale_readback', 'music', 'music_shuffle'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
 INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
@@ -396,17 +396,21 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
                 'anisotropy': '0', 'vibration': '100', 'mouse_prompt_distance': '48', 'mouse_lock': '1',
-                'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100'}
+                'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100', 'music': '1', 'music_shuffle': '1',
+                'music_volume': '100'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'graphics', 'performance', 'game', 'controls', 'mods', 'advanced')
-PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'mods': ('refresh_lists',)}
+PAGES = ('home', 'graphics', 'performance', 'game', 'music', 'controls', 'mods', 'advanced')
+PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
+                'mods': ('refresh_lists',)}
+# The custom soundtrack's file types, as src/runtime_music.c.
+MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
-                'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
+                'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -681,6 +685,16 @@ LANGUAGES = [('18', ('English', 'Английский'), 1 | 4 | 8), ('1', ('Eng
              ('15', ('Norwegian',), 1), ('16', ('Polish',), 1), ('19', ('Turkish',), 1),
              ('0', ('Japanese', 'Японский'), 4), ('9', ('Korean',), 8), ('10', ('Chinese (Traditional)',), 8),
              ('11', ('Chinese (Simplified)',), 16)]
+
+
+def music_songs(folder):
+    """The songs the game plays from `folder` (subfolders too), in the order of its Music tab."""
+    folder = Path(folder)
+    try:
+        found = [p for p in folder.rglob('*') if p.suffix.lower() in MUSIC_TYPES and p.is_file()]
+    except OSError:
+        return []
+    return sorted(found, key=lambda p: p.relative_to(folder).as_posix().lower())
 
 
 def game_languages(folder):
@@ -1113,6 +1127,9 @@ def game_environment(s):
         env['GOW3_PATCHES_ONLY'] = '1'
     if s['user_dir']:
         env['GOW3_USER_DIR'] = s['user_dir']
+    env.pop('GOW3_MUSIC_DIR', None)
+    if s.get('music_dir'):
+        env['GOW3_MUSIC_DIR'] = s['music_dir']
     if not WINDOWS:
         env['GOW3_FSR4_DIR'] = str(fsr4_folder())
     env['GOW3_MODS_DIR'] = s['mods_dir'] or str(DATA_DIR / 'mods')
@@ -1528,6 +1545,20 @@ class Launcher:
         self.ttk.Label(parent, text=text, style='Muted.TLabel', wraplength=self.px(680), justify='left').grid(
             row=self.next_row(parent), column=0, columnspan=2, sticky='w', pady=self.px((top, 0)))
 
+    def slider(self, parent, key, low, high, unit):
+        """A gow3.ini number on a slider, with its value beside it."""
+        holder = self.ttk.Frame(parent)
+        amount = self.var(key, 'ini')
+        self.tk.Scale(holder, from_=low, to=high, orient='horizontal', variable=amount, showvalue=False,
+                      length=self.px(260), width=self.px(12), sliderlength=self.px(18), bg=ACCENT, troughcolor=CARD,
+                      activebackground=ACCENT_HI, highlightthickness=0, bd=0, sliderrelief='flat').pack(side='left')
+        value = self.ttk.Label(holder, width=7)
+        value.pack(side='left', padx=self.px(10))
+        show = lambda *_a: value.configure(text=f'{amount.get()}{unit}')
+        amount.trace_add('write', show)
+        show()
+        return holder
+
     def section(self, parent, title, top=20):
         """A section heading with a line under it."""
         r = self.next_row(parent)
@@ -1593,7 +1624,7 @@ class Launcher:
         self.side = side
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'graphics': _('Graphics', 'Графика'), 'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'controls': _('Controls', 'Управление'), 'mods': _('Mods', 'Моды'), 'advanced': _('Advanced', 'Дополнительно')}
+                  'game': _('Game', 'Игра'), 'music': _('Music'), 'controls': _('Controls', 'Управление'), 'mods': _('Mods', 'Моды'), 'advanced': _('Advanced', 'Дополнительно')}
         for name in PAGES:
             item = tk.Label(side, text='    ' + titles[name], bg=BG, fg=TEXT, anchor='w',
                             font=self.heading_font(11, UI_FONT),
@@ -1630,6 +1661,7 @@ class Launcher:
         self.build_graphics()
         self.build_performance()
         self.build_game()
+        self.build_music_page()
         self.build_controls()
         self.build_mods_page()
         self.build_advanced()
@@ -1643,7 +1675,7 @@ class Launcher:
         if self.capture_wheel:
             return self.capture_wheel(event)
         page = self.pages.get(self.current_page)
-        if hasattr(page, 'scroll') and not isinstance(event.widget, (self.tk.Text, self.ttk.Combobox)) \
+        if hasattr(page, 'scroll') and not isinstance(event.widget, (self.tk.Text, self.tk.Listbox, self.ttk.Combobox)) \
                 and 'popdown' not in str(event.widget):
             page.scroll({4: -1, 5: 1}.get(event.num) or int(-event.delta / 120))
 
@@ -1854,15 +1886,55 @@ class Launcher:
         self.section(f, _('Language'))
         self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app',
                                                                   lambda: game_languages(self.meta_dir())))
-        self.section(f, _('Music'))
-        music = self.ttk.Button(f, text=_('Open the music folder'), command=lambda: self.open_path(self.user_dir() / 'music'))
-        self.row(f, _('Your own music'), music,
-                 _("MP3, OGG, FLAC, WAV or M4A files in this folder (subfolders too) play shuffled instead of the "
-                   "game's music. Empty folder: the game's music."))
         self.build_patches(f)
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
+
+    def build_music_page(self):
+        """Your own music: a guide, the folder, the switches (gow3.ini, also in the in-game Music tab)
+        and the songs found."""
+        tk, ttk = self.tk, self.ttk
+        f = self.scrolled_page('music', _('Music'), _("Play your own songs in the game instead of its music."))
+        self.section(f, _('How it works'), top=4)
+        self.note(f, _("1. Put your songs in the music folder below: MP3, OGG, FLAC, WAV or M4A. Subfolders are fine.\n"
+                       "2. Click PLAY. Your songs play in menus and races instead of the game's music. The sound "
+                       "effects stay. Set how loud with Music volume below.\n"
+                       "3. In the game, press Insert (or R3 + L2) and open the Music tab: pick a song, skip to the "
+                       "next one or turn shuffle off."), top=8)
+        self.section(f, _('Settings'))
+        self.folder(f, 'music_dir', _('Music folder'), _('Choose your music folder'),
+                    _('Empty: the music folder next to your saves.'), on_change=self.refresh_music)
+        self.check(f, 'music', 'ini', _('Play my music'), _("Off: the game's own music, even with songs in the folder."))
+        self.check(f, 'music_shuffle', 'ini', _('Shuffle'), _('Off: the songs play in the order of the list below.'))
+        self.row(f, _('Music volume'), self.slider(f, 'music_volume', 0, 200, '%'),
+                 _("100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
+                   "sound alike."))
+        head = ttk.Frame(f)
+        head.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=self.px((24, 0)))
+        ttk.Label(head, text=_('Songs').upper(), style='Section.TLabel').pack(side='left')
+        ttk.Button(head, text=_('Refresh', 'Обновить'), style='Link.TButton', command=self.refresh_music).pack(side='right')
+        tk.Frame(f, bg=LINE, height=self.px(1)).grid(row=self.next_row(f), column=0, columnspan=2, sticky='we',
+                                                     pady=self.px((2, 10)))
+        self.music_count = ttk.Label(f, text='', style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.music_count.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w')
+        self.music_list = tk.Listbox(f, height=12, bg=CARD, fg=TEXT, borderwidth=0, highlightthickness=0,
+                                     activestyle='none', font=self.font(UI_FONT, 10))
+        self.music_list.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=self.px((8, 0)))
+
+    def music_dir(self):
+        return Path(self.var('music_dir', 'app').get() or self.user_dir() / 'music')
+
+    def refresh_music(self):
+        if not hasattr(self, 'music_list'):
+            return
+        folder = self.music_dir()
+        songs = music_songs(folder)
+        self.music_list.delete(0, 'end')
+        for song in songs:
+            self.music_list.insert('end', song.stem.replace('_', ' '))
+        self.music_count.configure(text=_('{} songs in {}').format(len(songs), folder) if songs else
+                                   _('No songs yet in {}. Put your music there, then click Refresh.').format(folder))
 
     def build_save_backups(self, f):
         """run.py backs the saves up before every start; one of them can be restored here."""
@@ -2043,19 +2115,6 @@ class Launcher:
             title = _(PS_BUTTON_NAMES.get(button) or ACTION_NAMES[button])
             ttk.Label(table, text=title, width=-14).grid(row=r, column=1, sticky='w', padx=self.px((0, 12)))
 
-        def slider(key, low, high, unit, parent=None):
-            holder = ttk.Frame(parent or f)
-            amount = self.var(key, 'ini')
-            tk.Scale(holder, from_=low, to=high, orient='horizontal', variable=amount, showvalue=False,
-                     length=self.px(260), width=self.px(12), sliderlength=self.px(18), bg=ACCENT, troughcolor=CARD,
-                     activebackground=ACCENT_HI, highlightthickness=0, bd=0, sliderrelief='flat').pack(side='left')
-            value = ttk.Label(holder, width=7)
-            value.pack(side='left', padx=self.px(10))
-            show = lambda *_a: value.configure(text=f'{amount.get()}{unit}')
-            amount.trace_add('write', show)
-            show()
-            return holder
-
         # The in-game icons first, then the device: its section is shown, the other hidden (show_device).
         page = f
         self.row(page, _('In-game button icons'), self.choice(page, 'glyph_style', 'app', GLYPH_STYLES),
@@ -2116,14 +2175,14 @@ class Launcher:
                  hint=_('How the stick-rotation prompts are answered. Keyboard: type the turn instead, half turns '
                         'from the top D S A (clockwise) or A S D, from the bottom A W D or D W A, full turns D S A W '
                         'or A S D W; a key out of turn starts again. Adaptive mouse: draw the turn with the mouse.'))
-        self.row(f, _('Mouse prompt distance'), slider('mouse_prompt_distance', 16, 200, ' px'),
+        self.row(f, _('Mouse prompt distance'), self.slider(f, 'mouse_prompt_distance', 16, 200, ' px'),
                  _('Adaptive mouse: how far the mouse moves for one step of a rotation. Also in the in-game menu.'))
         self.row(f, _('Right stick style'), self.choice(f, 'mouse_aim_style', 'ini', AIM_STYLES),
                  hint=_('Aiming with the mouse while L2 is held (Head of Helios, Bow of Apollo). Relative: the stick '
                         'follows the movement and goes back to neutral when the mouse stops. Absolute: where the mouse '
                         'was when L2 was pressed is the centre, and the stick points from it to the mouse. Also in '
                         'the in-game menu.'))
-        self.row(f, _('Right stick sensitivity'), slider('mouse_aim_sensitivity', 10, 200, '%'),
+        self.row(f, _('Right stick sensitivity'), self.slider(f, 'mouse_aim_sensitivity', 10, 200, '%'),
                  _('Aiming with the mouse while L2 is held: lower needs more mouse movement for the same stick, '
                    'higher less. Also in the in-game menu.'))
         self.check(f, 'mouse_lock', 'ini', _('Keep the mouse in the game window'),
@@ -2141,7 +2200,7 @@ class Launcher:
             ttk.Radiobutton(names, text=PAD_STYLE_NAMES[value], value=value, variable=self.pad_style,
                             command=self.relabel_pad_controls).pack(side='left', padx=self.px((0, 14)))
         self.row(f, _('Controller type'), names)
-        self.row(f, _('Vibration'), slider('vibration', 0, 100, '%', f), _("Strength of the gamepad's vibration; 0% turns it off."))
+        self.row(f, _('Vibration'), self.slider(f, 'vibration', 0, 100, '%'), _("Strength of the gamepad's vibration; 0% turns it off."))
         table = mapping_table(f)
         for r, (button, _key, pad) in enumerate(CONTROLS, start=1):
             game_button(table, r, button)
@@ -2957,6 +3016,8 @@ class Launcher:
             path = DATA_DIR / 'user'
         elif key == 'mods_dir' and not path:
             path = DATA_DIR / 'mods'
+        elif key == 'music_dir' and not path:
+            path = self.user_dir() / 'music'
         elif key == 'patches_dir' and not path:
             path = DATA_DIR / 'patches'
         path = Path(path or DATA_DIR)

@@ -70,12 +70,19 @@ not depend on the frame rate.
 
 ## Your own music
 
-Put your own music files (MP3, OGG, FLAC, WAV, M4A, ...) in the `music` folder of the saves
-folder (`user\music` next to `WipEout.exe`; the launcher's **Game** page has an **Open the music
-folder** button). Subfolders count too. The files play shuffled, in menus and races, instead of
-the game's music, as on a PS4 playing your own music. The game's sound effects stay. The volume
-follows the game's music volume, and the track name shows in the lower right corner. To get the
-game's music back, empty the folder. `GOW3_MUSIC_DIR` can point to another folder.
+Play your own songs instead of the game's music, as on a PS4 playing your own music. The game's
+sound effects stay.
+
+1. In the launcher, open the **Music** page. Put your songs (MP3, OGG, FLAC, WAV, M4A, ...) in the
+   music folder: `user\music` next to `WipEout.exe`, or any folder you choose there. Subfolders
+   count too. The page lists the songs it finds.
+2. Click **PLAY**. Your songs play in menus and races, shuffled. The song name shows in the lower
+   right corner when a song starts.
+3. In the game, press Insert (or R3 + L2) and open the **Music** tab: pick a song, go to the
+   previous or next one, switch shuffle or your music off, and set the **Music volume**.
+
+Each song is leveled, so loud and quiet songs sound alike; Music volume 100% is about as loud as
+the game's own music. Without the launcher, `GOW3_MUSIC_DIR` points to another folder.
 
 ## Supported game versions
 

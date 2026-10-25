@@ -911,10 +911,24 @@ EXTRA = {
         'Screenshots': 'Capturas de tela',
         'Open the screenshots folder': 'Abrir a pasta das capturas',
         'Music': 'Música',
-        'Open the music folder': 'Abrir a pasta de música',
-        'Your own music': 'Sua própria música',
-        "MP3, OGG, FLAC, WAV or M4A files in this folder (subfolders too) play shuffled instead of the game's music. Empty folder: the game's music.":
-            'Arquivos MP3, OGG, FLAC, WAV ou M4A nesta pasta (subpastas também) tocam em ordem aleatória no lugar da música do jogo. Pasta vazia: a música do jogo.',
+        'Play your own songs in the game instead of its music.': 'Toque suas próprias músicas no jogo no lugar da música dele.',
+        'How it works': 'Como funciona',
+        "1. Put your songs in the music folder below: MP3, OGG, FLAC, WAV or M4A. Subfolders are fine.\n2. Click PLAY. Your songs play in menus and races instead of the game's music. The sound effects stay. Set how loud with Music volume below.\n3. In the game, press Insert (or R3 + L2) and open the Music tab: pick a song, skip to the next one or turn shuffle off.":
+            '1. Coloque suas músicas na pasta de música abaixo: MP3, OGG, FLAC, WAV ou M4A. Subpastas também servem.\n2. Clique em JOGAR. Suas músicas tocam nos menus e nas corridas no lugar da música do jogo. Os efeitos sonoros continuam. Ajuste o volume em Volume da música abaixo.\n3. No jogo, aperte Insert (ou R3 + L2) e abra a aba Music: escolha uma música, pule para a próxima ou desligue o modo aleatório.',
+        'Music folder': 'Pasta de música',
+        'Choose your music folder': 'Escolha sua pasta de música',
+        'Empty: the music folder next to your saves.': 'Vazio: a pasta de música ao lado dos seus saves.',
+        'Play my music': 'Tocar minhas músicas',
+        "Off: the game's own music, even with songs in the folder.": 'Desligado: a música do próprio jogo, mesmo com músicas na pasta.',
+        'Shuffle': 'Aleatório',
+        'Music volume': 'Volume da música',
+        "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
+            '100%: mais ou menos o volume da música do próprio jogo. Cada música é nivelada, então músicas baixas e altas soam parecidas.',
+        'Off: the songs play in the order of the list below.': 'Desligado: as músicas tocam na ordem da lista abaixo.',
+        'Songs': 'Músicas',
+        '{} songs in {}': '{} músicas em {}',
+        'No songs yet in {}. Put your music there, then click Refresh.':
+            'Ainda não há músicas em {}. Coloque suas músicas lá e clique em Atualizar.',
         'F12 in the game': 'F12 no jogo',
         "Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves.": 'Salva a imagem do jogo, sem o overlay, em PNG na pasta screenshots dos saves.',
         'Vibration': 'Vibração',
@@ -1216,10 +1230,24 @@ EXTRA = {
         'Screenshots': 'Capturas de pantalla',
         'Open the screenshots folder': 'Abrir la carpeta de capturas',
         'Music': 'Música',
-        'Open the music folder': 'Abrir la carpeta de música',
-        'Your own music': 'Tu propia música',
-        "MP3, OGG, FLAC, WAV or M4A files in this folder (subfolders too) play shuffled instead of the game's music. Empty folder: the game's music.":
-            'Los archivos MP3, OGG, FLAC, WAV o M4A de esta carpeta (también subcarpetas) suenan en orden aleatorio en lugar de la música del juego. Carpeta vacía: la música del juego.',
+        'Play your own songs in the game instead of its music.': 'Pon tus propias canciones en el juego en lugar de su música.',
+        'How it works': 'Cómo funciona',
+        "1. Put your songs in the music folder below: MP3, OGG, FLAC, WAV or M4A. Subfolders are fine.\n2. Click PLAY. Your songs play in menus and races instead of the game's music. The sound effects stay. Set how loud with Music volume below.\n3. In the game, press Insert (or R3 + L2) and open the Music tab: pick a song, skip to the next one or turn shuffle off.":
+            '1. Pon tus canciones en la carpeta de música de abajo: MP3, OGG, FLAC, WAV o M4A. Las subcarpetas también valen.\n2. Haz clic en JUGAR. Tus canciones suenan en los menús y las carreras en lugar de la música del juego. Los efectos de sonido se mantienen. Ajusta el volumen en Volumen de la música abajo.\n3. En el juego, pulsa Insert (o R3 + L2) y abre la pestaña Music: elige una canción, salta a la siguiente o desactiva el orden aleatorio.',
+        'Music folder': 'Carpeta de música',
+        'Choose your music folder': 'Elige tu carpeta de música',
+        'Empty: the music folder next to your saves.': 'Vacío: la carpeta de música junto a tus partidas guardadas.',
+        'Play my music': 'Reproducir mi música',
+        "Off: the game's own music, even with songs in the folder.": 'Desactivado: la música del propio juego, aunque haya canciones en la carpeta.',
+        'Shuffle': 'Aleatorio',
+        'Music volume': 'Volumen de la música',
+        "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
+            '100%: más o menos el volumen de la música del propio juego. Cada canción se nivela, así que las canciones suaves y fuertes suenan parecido.',
+        'Off: the songs play in the order of the list below.': 'Desactivado: las canciones suenan en el orden de la lista de abajo.',
+        'Songs': 'Canciones',
+        '{} songs in {}': '{} canciones en {}',
+        'No songs yet in {}. Put your music there, then click Refresh.':
+            'Aún no hay canciones en {}. Pon tu música ahí y haz clic en Actualizar.',
         'F12 in the game': 'F12 en el juego',
         "Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves.":
             'Guarda la imagen del juego, sin el overlay, como PNG en la carpeta screenshots de las partidas.',

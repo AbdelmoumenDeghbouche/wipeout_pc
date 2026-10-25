@@ -31,9 +31,10 @@ Settings
   and 5120x2160 are in the port's in-game menu, under Performance, and apply on the next start.
   The HUD and menus stay 16:9 in the middle of wider screens. 4K and 5120x2160 need a lot of
   video memory.
-- Your own music: put MP3, OGG, FLAC, WAV or M4A files in user\music (the Game page has an
-  "Open the music folder" button). They play shuffled instead of the game's music, at the
-  game's music volume. Empty the folder to get the game's music back.
+- Your own music: the launcher's Music page shows the music folder (user\music, or one you
+  choose) and the songs in it: MP3, OGG, FLAC, WAV or M4A. They play instead of the game's
+  music. In the game, Insert (or R3 + L2) > Music picks a song, skips, switches shuffle and
+  your music off, and sets the music volume.
 - "Native 4K rendering (no checkerboard)" on the Game page is on by default: from 3840 pixels
   wide the game renders at full resolution instead of checkerboard.
 

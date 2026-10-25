@@ -744,11 +744,28 @@ class GameLanguageTest(unittest.TestCase):
         self.assertNotEqual(env.get('GOW3_READBACKS'), '2')
 
 
+class MusicTest(unittest.TestCase):
+    def test_songs_are_the_audio_files_in_the_games_order(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'Album').mkdir()
+            for name in ('b.MP3', 'Album/a.flac', 'cover.jpg', 'A_song.ogg'):
+                (root / name).write_bytes(b'')
+            self.assertEqual([p.relative_to(root).as_posix() for p in launcher.music_songs(root)],
+                             ['A_song.ogg', 'Album/a.flac', 'b.MP3'])
+        self.assertEqual(launcher.music_songs(Path(tmp) / 'gone'), [])
+
+    def test_the_music_folder_goes_to_the_game(self):
+        self.assertNotIn('GOW3_MUSIC_DIR', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
+        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'music_dir': 'D:/Music'})
+        self.assertEqual(env['GOW3_MUSIC_DIR'], 'D:/Music')
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.8')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.9'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.7'))
+        self.assertEqual(launcher.VERSION, '0.2.9')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.10'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.8'))
 
     def test_first_start_is_in_english(self):
         # The translations are partial; 'System' stays a choice in Advanced.
