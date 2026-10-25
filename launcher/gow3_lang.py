@@ -920,6 +920,7 @@ EXTRA = {
         'Empty: the music folder next to your saves.': 'Vazio: a pasta de música ao lado dos seus saves.',
         'Play my music': 'Tocar minhas músicas',
         "Off: the game's own music, even with songs in the folder.": 'Desligado: a música do próprio jogo, mesmo com músicas na pasta.',
+        'Settings': 'Configurações',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
         "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
@@ -1239,6 +1240,7 @@ EXTRA = {
         'Empty: the music folder next to your saves.': 'Vacío: la carpeta de música junto a tus partidas guardadas.',
         'Play my music': 'Reproducir mi música',
         "Off: the game's own music, even with songs in the folder.": 'Desactivado: la música del propio juego, aunque haya canciones en la carpeta.',
+        'Settings': 'Ajustes',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
         "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
