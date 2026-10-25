@@ -19,6 +19,8 @@ struct Target {
     VAddr address{};
     vk::Format format{};
     u32 width{}, height{};
+    u32 pitch{}, tile_mode{}, bank_swizzle{};
+    bool alt_tile{};
     bool operator==(const Target&) const = default;
 };
 
@@ -58,14 +60,17 @@ std::array<std::atomic<VAddr>, 16> display_list{};
 std::atomic<u32> display_count{0};
 
 Target ToTarget(const VideoCore::ImageInfo& info) {
-    return {info.guest_address, info.pixel_format, info.size.width, info.size.height};
+    return {info.guest_address, info.pixel_format, info.size.width, info.size.height,
+            info.pitch, u32(info.tile_mode), info.bank_swizzle, info.alt_tile};
 }
 
 std::string Describe(const Target& t) {
     if (!t.address) {
         return "-";
     }
-    return std::format("{:#x} {} {}x{}", t.address, vk::to_string(t.format), t.width, t.height);
+    return std::format("{:#x} {} {}x{} pitch {} tile {} alt {} bank {}", t.address,
+                       vk::to_string(t.format), t.width, t.height, t.pitch, t.tile_mode,
+                       t.alt_tile, t.bank_swizzle);
 }
 
 void AddSampled(Entry& entry) {

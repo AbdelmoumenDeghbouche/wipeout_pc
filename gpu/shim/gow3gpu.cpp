@@ -170,7 +170,13 @@ u64 PS4_SYSV_ABI sceKernelReadTsc() { return runtime_read_tsc(); }
 u64 PS4_SYSV_ABI sceKernelGetProcessTime() { return runtime_process_time_us(); }
 u64 PS4_SYSV_ABI sceKernelGetProcessTimeCounter() { return runtime_process_time_counter(); }
 u64 PS4_SYSV_ABI sceKernelGetProcessTimeCounterFrequency() { return 1'000'000'000; }
-s32 PS4_SYSV_ABI sceKernelIsNeoMode() { return 0; } // base PS4
+s32 PS4_SYSV_ABI sceKernelIsNeoMode() {
+    static const bool neo = [] {
+        const char* value = std::getenv("GOW3_NEO");
+        return value && *value == '1';
+    }();
+    return neo;
+}
 s32 PS4_SYSV_ABI sceKernelGetCompiledSdkVersion(s32* ver) {
     if (!ver) return ORBIS_KERNEL_ERROR_EINVAL;
     *ver = s32(g_sdk_version);

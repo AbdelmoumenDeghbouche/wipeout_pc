@@ -38,6 +38,7 @@ ImageInfo::ImageInfo(const Libraries::VideoOut::BufferAttributeGroup& group,
                      VAddr cpu_address) noexcept {
     const auto& attrib = group.attrib;
     props.is_tiled = attrib.tiling_mode == TilingMode::Tile;
+    alt_tile = props.is_tiled && Libraries::Kernel::sceKernelIsNeoMode();
     tile_mode =
         props.is_tiled ? AmdGpu::TileMode::Display2DThin : AmdGpu::TileMode::DisplayLinearAligned;
     array_mode = AmdGpu::GetArrayMode(tile_mode);
