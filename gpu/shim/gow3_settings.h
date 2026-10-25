@@ -82,6 +82,12 @@ struct Values {
     std::atomic<int> mouse_aim_style{0};
     /// L2 aim sensitivity in percent, 10 to 200: lower needs more mouse for the same stick. Live.
     std::atomic<int> mouse_aim_sensitivity{100};
+    /// Custom soundtrack (src/runtime_music.c): the player's songs instead of the game's music, and
+    /// in random order. Live.
+    std::atomic<bool> music{true};
+    std::atomic<bool> music_shuffle{true};
+    /// Their loudness in percent, 0 to 200; 100 is about the game's own music. Live.
+    std::atomic<int> music_volume{100};
     // Startup: run.py turns them into patches and environment variables; "Apply and restart".
     std::atomic<int> render_resolution{0};
     std::atomic<int> engine_fps{120};

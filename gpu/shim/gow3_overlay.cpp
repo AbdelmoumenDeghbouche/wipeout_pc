@@ -22,6 +22,14 @@
 
 extern Gow3ActorSlot gow3_actor_slots[2];
 extern "C" void runtime_restart(void); // src/probe.c: starts run.py again, ends this process
+extern "C" { // src/runtime_music.c: the custom soundtrack's songs
+int runtime_music_songs(void); // -1 while the music folder is read
+const char* runtime_music_song(int song);
+const char* runtime_music_folder(void);
+int runtime_music_playing(void);
+void runtime_music_play(int song);
+void runtime_music_step(int direction);
+}
 #include "common/elf_info.h"
 #include "imgui.h"
 #include "imgui_internal.h" // RegisterUserTexture (save pictures)
@@ -554,6 +562,65 @@ void OverlayTab() {
     }
 }
 
+// The custom soundtrack: on/off, shuffle, skip, and the songs of the music folder (click one to play it).
+void MusicTab() {
+    auto& s = Gow3Settings::Get();
+    if (BeginRows("##music")) {
+        CheckRow("Play my music", s.music, "Your songs instead of the game's music. Off: the game's music.");
+        CheckRow("Shuffle", s.music_shuffle, "Random order. Off: the songs play in the order of the list.");
+        SliderRow("Music volume", s.music_volume, 0, 200, "%d%%",
+                  "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
+                  "sound alike.");
+        ImGui::EndTable();
+    }
+    const int songs = runtime_music_songs();
+    ImGui::PushTextWrapPos(0.0f);
+    if (songs < 0) {
+        ImGui::TextDisabled("Reading the music folder...");
+    } else if (songs == 0) {
+        ImGui::TextDisabled("No songs yet. Put MP3, OGG, FLAC, WAV or M4A files in this folder, then restart "
+                            "the game (launcher: Music page):");
+        ImGui::TextUnformatted(runtime_music_folder());
+    }
+    ImGui::PopTextWrapPos();
+    if (songs <= 0) {
+        return;
+    }
+    const auto turn_on = [&] {
+        if (!s.music) {
+            s.music = true;
+            dirty = true;
+        }
+    };
+    const int playing = runtime_music_playing();
+    ImGui::Text("Now playing: %s", s.music && playing >= 0 ? runtime_music_song(playing) : "-");
+    if (ImGui::Button("Previous")) {
+        turn_on();
+        runtime_music_step(-1);
+    }
+    Help("The song before this one.");
+    ImGui::SameLine();
+    if (ImGui::Button("Next")) {
+        turn_on();
+        runtime_music_step(1);
+    }
+    Help("Skip to the next song.");
+    char title[48];
+    std::snprintf(title, sizeof(title), "Songs (%d)", songs);
+    ImGui::SeparatorText(title);
+    // In the tab's own scrolling area, not a child: the keyboard and gamepad move from the
+    // buttons into the list and back.
+    for (int song = 0; song < songs; ++song) {
+        ImGui::PushID(song);
+        if (ImGui::Selectable(runtime_music_song(song), s.music && song == playing)) {
+            turn_on();
+            runtime_music_play(song);
+        }
+        Help("Play this song.");
+        ImGui::PopID();
+    }
+}
+
 // Startup options changed since this launch (applied by "Apply and restart").
 int RestartChanges() {
     const auto& s = Gow3Settings::Get();
@@ -582,7 +649,7 @@ void Menu() {
         return;
     }
     footer_help = nullptr;
-    constexpr int TabCount = 4;
+    constexpr int TabCount = 5;
     const ImGuiIO& io = ImGui::GetIO();
     if (!io.WantTextInput) {
         const int step = ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false) || ImGui::IsKeyPressed(ImGuiKey_E, false) ? 1
@@ -595,7 +662,7 @@ void Menu() {
     }
     const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetTextLineHeightWithSpacing() * 2.0f;
     if (ImGui::BeginTabBar("##tabs")) {
-        static const char* const tabs[TabCount] = {"Game", "Image", "Performance", "Overlay"};
+        static const char* const tabs[TabCount] = {"Game", "Image", "Performance", "Overlay", "Music"};
         for (int tab = 0; tab < TabCount; ++tab) {
             const ImGuiTabItemFlags flags = requested_tab == tab ? ImGuiTabItemFlags_SetSelected : 0;
             if (!ImGui::BeginTabItem(tabs[tab], nullptr, flags)) {
@@ -610,7 +677,8 @@ void Menu() {
                 case 0: GameTab(); break;
                 case 1: ImageTab(); break;
                 case 2: PerformanceTab(); break;
-                default: OverlayTab(); break;
+                case 3: OverlayTab(); break;
+                default: MusicTab(); break;
                 }
             }
             ImGui::EndChild();

@@ -53,7 +53,7 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         return;
     }
     if (key == "menu_tab") {
-        v.menu_tab = i >= 0 && i <= 3 ? i : 0;
+        v.menu_tab = i >= 0 && i <= 4 ? i : 0;
         return;
     }
     const char* cheat_keys[] = {"cheat_health", "cheat_magic", "cheat_item", "cheat_rage", "cheat_orbs",
@@ -126,6 +126,12 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.mouse_prompt_distance = value.empty() ? 48 : std::clamp(i, 16, 200);
     } else if (key == "mouse_lock") {
         v.mouse_lock = value.empty() || i != 0;
+    } else if (key == "music") {
+        v.music = value.empty() || i != 0;
+    } else if (key == "music_shuffle") {
+        v.music_shuffle = value.empty() || i != 0;
+    } else if (key == "music_volume") {
+        v.music_volume = value.empty() ? 100 : std::clamp(i, 0, 200);
     } else if (key == "mouse_aim_style") {
         v.mouse_aim_style = std::clamp(i, 0, 1);
     } else if (key == "mouse_aim_sensitivity") {
@@ -331,9 +337,10 @@ void Save() {
                  v.engine_fps.load(), int(v.deferred_readback.load()), int(v.stale_readback.load()),
                  int(v.restart_unconfirmed.load()));
     std::fprintf(file, "anisotropy=%d\nvibration=%d\nmouse_prompt_distance=%d\nmouse_lock=%d\nmouse_aim_style=%d\n"
-                       "mouse_aim_sensitivity=%d\n",
+                       "mouse_aim_sensitivity=%d\nmusic=%d\nmusic_shuffle=%d\nmusic_volume=%d\n",
                  v.anisotropy.load(), v.vibration.load(), v.mouse_prompt_distance.load(), int(v.mouse_lock.load()),
-                 v.mouse_aim_style.load(), v.mouse_aim_sensitivity.load());
+                 v.mouse_aim_style.load(), v.mouse_aim_sensitivity.load(), int(v.music.load()),
+                 int(v.music_shuffle.load()), v.music_volume.load());
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");

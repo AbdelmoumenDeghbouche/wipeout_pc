@@ -1,8 +1,11 @@
 /* Custom soundtrack. Audio files in <user>/music (or GOW3_MUSIC_DIR), subfolders included, play
- * shuffled and looped instead of the game's music, as on a PS4 playing the user's own music: the
- * game's BGM port (sceAudioOut type 1) carries only its music. FFmpeg decodes the files to 48 kHz
- * stereo float on their own thread. Their level follows the game's music (mean square over ~8 s),
- * so the in-game music volume still applies. */
+ * instead of the game's music, as on a PS4 playing the user's own music: the game's BGM port
+ * (sceAudioOut type 1) carries only its music. FFmpeg decodes the files to 48 kHz stereo float on
+ * their own thread. Each song is leveled (mean square over ~8 s) to about the game's race music
+ * times "music_volume"; following the game's own level made them fade with it (title screen,
+ * loading). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
+ * tab) turn them off or play the list in order; the Music tab picks a song or skips
+ * (runtime_music_play, runtime_music_step). */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include "gpu/gow3gpu.h"
@@ -25,13 +28,21 @@ static size_t head, tail; /* frames written and read so far */
 static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t space=PTHREAD_COND_INITIALIZER;
 static pthread_once_t once=PTHREAD_ONCE_INIT;
-static char **files;
+static char dir[1024];
+static char **files, **names; /* sorted by path; names: file name without extension, '_' as space */
 static size_t file_count, file_cap;
-static volatile int enabled; /* the files replace the game's music */
-static double game_ms, ours_ms;
-static char notice[600]; /* "Now playing" once the ring reaches frame notice_at */
+static volatile int scanned;  /* files and names are complete */
+static volatile int playable=1; /* 0: none of the files could be played */
+static size_t *order, pos;    /* play order (file indexes): order[pos] is being decoded. Under lock: */
+static int order_shuffled;
+static long jump=-1;          /* the song the menu asked for */
+static volatile int skipping; /* the decoder drops what it decodes until it takes the jump */
+static char notice[600];      /* "Now playing" once the ring reaches frame notice_at */
 static size_t notice_at;
+static long notice_file=-1, playing=-1;
 static int notice_pending;
+static double ours_ms;
+#define LEVEL 0.03 /* target RMS per channel at 100%: songs land near the game's race music (0.018-0.03) */
 
 static int audio_file(const char *name) {
     static const char *const types[]={"mp3","ogg","oga","opus","flac","wav","m4a","aac","wma"};
@@ -44,12 +55,12 @@ static int audio_file(const char *name) {
     for (size_t i=0;i<sizeof(types)/sizeof(*types);++i) if (!strcmp(ext,types[i])) return 1;
     return 0;
 }
-static void scan(const char *dir, int depth) {
-    DIR *d=opendir(dir);
+static void scan(const char *folder, int depth) {
+    DIR *d=opendir(folder);
     if (!d) return;
     for (struct dirent *e; (e=readdir(d));) {
         char path[1024]; struct stat s;
-        if (e->d_name[0]=='.' || snprintf(path,sizeof(path),"%s/%s",dir,e->d_name)>=(int)sizeof(path) || stat(path,&s)) continue;
+        if (e->d_name[0]=='.' || snprintf(path,sizeof(path),"%s/%s",folder,e->d_name)>=(int)sizeof(path) || stat(path,&s)) continue;
         if (S_ISDIR(s.st_mode)) { if (depth<8) scan(path,depth+1); continue; }
         if (!audio_file(e->d_name)) continue;
         if (file_count==file_cap) {
@@ -61,11 +72,37 @@ static void scan(const char *dir, int depth) {
     }
     closedir(d);
 }
+static int compare(const void *a, const void *b) {
+    const unsigned char *x=*(const unsigned char *const *)a, *y=*(const unsigned char *const *)b;
+    for (; *x && tolower(*x)==tolower(*y); ++x, ++y) {}
+    return tolower(*x)-tolower(*y);
+}
+static char *display_name(const char *path) {
+    const char *slash=strrchr(path,'/');
+    char *name=strdup(slash ? slash+1 : path);
+    if (!name) return NULL;
+    char *dot=strrchr(name,'.');
+    if (dot) *dot=0;
+    for (char *c=name; *c; ++c) if (*c=='_') *c=' ';
+    return name;
+}
+/* The play order from `first` on (under lock): shuffled, or the list's order. */
+static void arrange(int shuffle, size_t first) {
+    for (size_t i=0;i<file_count;++i) order[i]=i;
+    pos=first;
+    if (shuffle) {
+        for (size_t i=file_count;i>1;--i) { size_t j=(size_t)rand()%i, t=order[i-1]; order[i-1]=order[j]; order[j]=t; }
+        for (size_t i=0;i<file_count;++i) if (order[i]==first) { order[i]=order[0]; order[0]=first; break; }
+        pos=0;
+    }
+    order_shuffled=shuffle;
+}
 
 static void push(const float *pcm, int frames) {
     pthread_mutex_lock(&lock);
-    for (size_t i=0;i<(size_t)frames;) {
-        while (head-tail>=RING) pthread_cond_wait(&space,&lock);
+    for (size_t i=0;i<(size_t)frames && !skipping;) {
+        while (head-tail>=RING && !skipping) pthread_cond_wait(&space,&lock);
+        if (skipping) break;
         size_t at=head%RING, n=(size_t)frames-i;
         if (n>RING-(head-tail)) n=RING-(head-tail);
         if (n>RING-at) n=RING-at;
@@ -89,24 +126,20 @@ static void convert(SwrContext *swr, const AVFrame *frame) {
     int n=swr_convert(swr,planes,cap,frame ? (const uint8_t *const *)frame->extended_data : NULL,frame ? frame->nb_samples : 0);
     if (n>0) push(out,n);
 }
-static void announce(const AVFormatContext *format, const AVStream *stream, const char *path) {
+static void announce(const AVFormatContext *format, const AVStream *stream, size_t file) {
     const AVDictionaryEntry *title=av_dict_get(format->metadata,"title",NULL,0), *artist=av_dict_get(format->metadata,"artist",NULL,0);
     if (!title) title=av_dict_get(stream->metadata,"title",NULL,0);
     if (!artist) artist=av_dict_get(stream->metadata,"artist",NULL,0);
-    char name[256], text[600];
-    const char *slash=strrchr(path,'/');
-    snprintf(name,sizeof(name),"%s",slash ? slash+1 : path);
-    char *dot=strrchr(name,'.');
-    if (dot) *dot=0;
-    for (char *c=name; *c; ++c) if (*c=='_') *c=' ';
+    char text[sizeof(notice)];
     if (title && artist) snprintf(text,sizeof(text),"Now playing: %s - %s",artist->value,title->value);
-    else snprintf(text,sizeof(text),"Now playing: %s",title ? title->value : name);
+    else snprintf(text,sizeof(text),"Now playing: %s",title ? title->value : names[file]);
     pthread_mutex_lock(&lock); /* shown once the ring plays this file's first frame */
-    memcpy(notice,text,sizeof(notice)); notice_at=head; notice_pending=1;
+    if (!skipping) { memcpy(notice,text,sizeof(notice)); notice_at=head; notice_file=(long)file; notice_pending=1; }
     pthread_mutex_unlock(&lock);
 }
 /* Decodes one file into the ring; 0 if it cannot be played. */
-static int play(const char *path) {
+static int play(size_t file) {
+    const char *path=files[file];
     AVFormatContext *format=NULL; AVCodecContext *codec=NULL; SwrContext *swr=NULL;
     AVPacket *packet=av_packet_alloc(); AVFrame *frame=av_frame_alloc();
     const AVCodec *decoder=NULL;
@@ -120,15 +153,18 @@ static int play(const char *path) {
            && swr_init(swr)>=0;
     }
     if (ok) {
-        announce(format,format->streams[stream],path);
-        while (av_read_frame(format,packet)>=0) {
+        printf("Music: %s\n",path);
+        announce(format,format->streams[stream],file);
+        while (!skipping && av_read_frame(format,packet)>=0) {
             if (packet->stream_index==stream && avcodec_send_packet(codec,packet)>=0)
                 while (avcodec_receive_frame(codec,frame)>=0) convert(swr,frame);
             av_packet_unref(packet);
         }
-        avcodec_send_packet(codec,NULL);
-        while (avcodec_receive_frame(codec,frame)>=0) convert(swr,frame);
-        convert(swr,NULL);
+        if (!skipping) {
+            avcodec_send_packet(codec,NULL);
+            while (avcodec_receive_frame(codec,frame)>=0) convert(swr,frame);
+            convert(swr,NULL);
+        }
     } else {
         printf("Music: cannot play %s\n",path);
     }
@@ -136,28 +172,80 @@ static int play(const char *path) {
     av_frame_free(&frame); av_packet_free(&packet);
     return ok;
 }
-static void *decode(void *dir) {
+static void *decode(void *unused) {
+    (void)unused;
     scan(dir,0);
+    if (file_count) {
+        qsort(files,file_count,sizeof(*files),compare);
+        names=malloc(file_count*sizeof(*names));
+        order=malloc(file_count*sizeof(*order));
+        if (!names || !order) file_count=0;
+        for (size_t i=0;i<file_count;++i) if (!(names[i]=display_name(files[i]))) names[i]=files[i];
+    }
+    scanned=1;
     if (!file_count) return NULL;
-    printf("Music: %zu files in %s replace the game's music\n",file_count,(const char *)dir);
-    enabled=1;
+    printf("Music: %zu files in %s replace the game's music\n",file_count,dir);
     srand((unsigned)time(NULL));
-    for (int played=1; played;) {
-        played=0;
-        for (size_t i=file_count;i>1;--i) { size_t j=(size_t)rand()%i; char *t=files[i-1]; files[i-1]=files[j]; files[j]=t; }
-        for (size_t i=0;i<file_count;++i) played|=play(files[i]);
+    pthread_mutex_lock(&lock);
+    arrange(gow3gpu_music_shuffle(),(size_t)rand()%file_count);
+    pthread_mutex_unlock(&lock);
+    for (size_t failures=0; failures<file_count;) {
+        pthread_mutex_lock(&lock);
+        const size_t file=order[pos];
+        pthread_mutex_unlock(&lock);
+        failures=play(file) ? 0 : failures+1;
+        pthread_mutex_lock(&lock);
+        const int shuffle=gow3gpu_music_shuffle();
+        if (jump>=0) {
+            const size_t song=(size_t)jump;
+            jump=-1; skipping=0; failures=0;
+            if (shuffle!=order_shuffled) arrange(shuffle,song);
+            else for (size_t i=0;i<file_count;++i) if (order[i]==song) pos=i;
+        } else if (shuffle!=order_shuffled) {
+            arrange(shuffle,shuffle ? (size_t)rand()%file_count : (file+1)%file_count);
+        } else if (++pos==file_count) {
+            arrange(shuffle,shuffle ? (size_t)rand()%file_count : 0); /* the next round */
+        }
+        pthread_mutex_unlock(&lock);
     }
     printf("Music: none of the files plays; the game's music is back\n");
-    enabled=0;
+    playable=0;
     return NULL;
 }
 static void start(void) {
-    static char dir[1024];
     const char *custom=getenv("GOW3_MUSIC_DIR");
     if (custom && *custom) snprintf(dir,sizeof(dir),"%s",custom);
     else snprintf(dir,sizeof(dir),"%s/music",runtime_file_user_dir());
     pthread_t thread;
-    if (!pthread_create(&thread,NULL,decode,dir)) pthread_detach(thread);
+    if (pthread_create(&thread,NULL,decode,NULL)) scanned=1;
+    else pthread_detach(thread);
+}
+
+int runtime_music_songs(void) { pthread_once(&once,start); return scanned ? (int)file_count : -1; }
+const char *runtime_music_song(int song) { return scanned && song>=0 && (size_t)song<file_count ? names[song] : ""; }
+const char *runtime_music_folder(void) { pthread_once(&once,start); return dir; }
+int runtime_music_playing(void) {
+    pthread_mutex_lock(&lock);
+    const long song=playing;
+    pthread_mutex_unlock(&lock);
+    return (int)song;
+}
+void runtime_music_play(int song) {
+    if (!scanned || song<0 || (size_t)song>=file_count) return;
+    pthread_mutex_lock(&lock);
+    jump=song; skipping=1; tail=head; notice_pending=0; /* drop what was decoded ahead */
+    pthread_cond_broadcast(&space);
+    pthread_mutex_unlock(&lock);
+}
+void runtime_music_step(int direction) {
+    if (!scanned || !file_count) return;
+    pthread_mutex_lock(&lock);
+    const size_t now=playing>=0 ? (size_t)playing : order[pos];
+    size_t k=pos;
+    for (size_t i=0;i<file_count;++i) if (order[i]==now) k=i;
+    const size_t song=order[(k+(direction>0 ? 1 : file_count-1))%file_count];
+    pthread_mutex_unlock(&lock);
+    runtime_music_play((int)song);
 }
 
 int runtime_music_bgm(float *pcm, int frames, int channels) {
@@ -165,22 +253,25 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     char text[sizeof(notice)];
     int show=0;
     pthread_once(&once,start);
-    if (!enabled || channels<2 || frames<=0 || frames>2048) return 0;
-    double game=0, ours=0;
-    for (int i=0;i<frames*channels;++i) game+=(double)pcm[i]*pcm[i];
+    if (!scanned || !file_count || !playable || channels<2 || frames<=0 || frames>2048) return 0;
+    if (!gow3gpu_music_on()) return 0; /* the game's music; the ring waits where it stopped */
     pthread_mutex_lock(&lock);
     size_t n=head-tail;
     if (n>(size_t)frames) n=(size_t)frames;
     for (size_t i=0;i<n;++i,++tail) { music[i*2]=ring[(tail%RING)*2]; music[i*2+1]=ring[(tail%RING)*2+1]; }
-    if (notice_pending && tail>=notice_at) { memcpy(text,notice,sizeof(text)); notice_pending=0; show=1; }
+    if (notice_pending && tail>=notice_at) { memcpy(text,notice,sizeof(text)); playing=notice_file; notice_pending=0; show=1; }
     pthread_cond_signal(&space);
     pthread_mutex_unlock(&lock);
     if (show) { printf("Music: %s\n",text); gow3gpu_notice(text); }
+    double ours=0;
     for (size_t i=0;i<n*2;++i) ours+=(double)music[i]*music[i];
-    const double a=frames/(48000.0*8);
-    game_ms+=a*(game/frames-game_ms);
-    if (n==(size_t)frames) ours_ms+=a*(ours/frames-ours_ms); /* not the gaps between files */
-    double gain=ours_ms>1e-12 ? sqrt(game_ms/ours_ms) : 0;
+    if (n==(size_t)frames) { /* not the gaps between files; the first sound sets the level at once */
+        const double now=ours/frames;
+        /* Louder: within ~0.5 s (a loud song after a quiet one); quieter: over ~8 s (quiet parts stay quiet). */
+        ours_ms=ours_ms>0 ? ours_ms+frames/(48000.0*(now>ours_ms ? 0.5 : 8.0))*(now-ours_ms) : now;
+    }
+    const double target=LEVEL*gow3gpu_music_volume()/100.0;
+    double gain=ours_ms>1e-12 ? target*sqrt(2.0/ours_ms) : 0;
     if (gain>1) gain=1;
     memset(pcm,0,(size_t)frames*(size_t)channels*sizeof(float));
     for (size_t i=0;i<n;++i) {
