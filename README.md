@@ -5,7 +5,7 @@ style of [bbport](https://github.com/deadinside28/bloodborne_pc): the game's ori
 code runs directly on the PC's processor, a runtime replaces the PS4 system libraries, and the
 graphics are translated to Vulkan by the shadPS4 video core. There is no CPU emulator.
 
-> **Status: early development. Menus and races (HD and 2048) play above 60 FPS.**
+> **Status: playable, in active development. Menus and races (HD and 2048) play above 60 FPS.**
 > See [Progress](#progress).
 
 For contributors: [build and debug on Windows](docs/windows-debug.md), or optionally [edit from WSL2](docs/windows-debug-wsl.md). Debugging scripts and tests are versioned; GDB and the compiler are installed as development dependencies.
