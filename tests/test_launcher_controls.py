@@ -250,11 +250,12 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual(launcher.game_environment({**settings, 'parallel_warmup': False})['GOW3_PARALLEL_WARMUP'], '0')
         self.assertEqual(launcher.game_environment({**settings, 'background_warmup': False})['GOW3_BACKGROUND_WARMUP'], '0')
 
-    def test_temporal_upscaler_stays_off_with_a_saved_2_1_8_switch(self):
-        # 2.1.8 showed the experimental switch; a player who turned it on must not keep it on now that it is hidden.
-        for saved in (True, False, None):
+    def test_anti_aliasing_switch_reaches_the_game(self):
+        # Graphics > Temporal anti-aliasing (off by default); run.py keeps the upscaler out unless it is on.
+        self.assertFalse(launcher.APP_DEFAULTS['experimental_upscaler'])
+        for saved, value in ((True, '1'), (False, '0'), (None, '0')):
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'experimental_upscaler': saved})
-            self.assertEqual(env['GOW3_EXPERIMENTAL_UPSCALER'], '0')
+            self.assertEqual(env['GOW3_EXPERIMENTAL_UPSCALER'], value)
 
     def test_glyph_style_is_off_by_default(self):
         self.assertEqual(launcher.APP_DEFAULTS['glyph_style'], 'off')
