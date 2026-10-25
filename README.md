@@ -24,6 +24,20 @@ Requirements: Windows 10 or 11 (64-bit), a CPU with AVX, a GPU with Vulkan 1.3. 
 > This project is not affiliated with Sony Interactive Entertainment, XDev, Clever Beans or EPOS
 > Game Studios. WipEout is a trademark of Sony Interactive Entertainment.
 
+## Help make it better
+
+- ⭐ **Star the repo** if you like it. It helps other players find the port.
+- 🐞 **Found a bug?** [Open an issue](https://github.com/AbdelmoumenDeghbouche/wipeout_pc/issues/new/choose)
+  with your GPU, driver and `user/last_run.log`. Every report helps me fix the game, and I read
+  all of them.
+- 💡 **Want something?** Feature requests are welcome too. Open an issue and tell me what you
+  would like.
+- 🛠️ **Can test or code?** Reports from AMD, Intel, Linux and Steam Deck players help a lot, and
+  pull requests are welcome.
+
+Known problems are in the [open issues](https://github.com/AbdelmoumenDeghbouche/wipeout_pc/issues).
+Thanks to everyone who has played, tested and reported so far!
+
 ## Progress
 
 | Step | State |
@@ -36,7 +50,7 @@ Requirements: Windows 10 or 11 (64-bit), a CPU with AVX, a GPU with Vulkan 1.3. 
 | Game speed | Done: the game runs on real time at any frame rate |
 | Frame rate above 60 FPS | Done: up to 240 FPS, set by the frame rate limit (110–150 FPS in 2048 races on an RTX 4070 Laptop) |
 | Graphics: Metro Park terrain | Fixed (shader recompiler, #5) |
-| Render resolutions: 2560x1440, 2560x1080, 3440x1440, 5120x2160, native 4K without checkerboard | Done (`patches/WipEout_Omega_Collection.xml`, #2). The HUD stays 16:9 in the middle of wider screens |
+| Render resolutions: native 1080p, 2560x1440, 2560x1080, 3440x1440, 5120x2160 | Done: pick one in the in-game **Render resolution** menu (Insert key) (`patches/WipEout_Omega_Collection.xml`, #2). The HUD stays 16:9 in the middle of wider screens. 5120x2160 needs more than 8 GB of video memory |
 | HDR | Done; the darker picture when RCAS runs is fixed, waiting for a test (#4) |
 | Sound: music and effects (Audio3d) | Done; the effects are new, please report anything that sounds wrong |
 | Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |
@@ -174,7 +188,9 @@ Windows port of deadinside28's original:
   format and the symbol names (`tools/aerolib.inl`).
 
 Contributors to this port: **d4g** (render resolution patches, the Metro Park terrain fix),
-**benhaslett** (game clock measurements, Linux build fix) and **iannitram** (PS4 FPU state).
+**carlosmarind** (save and heap fixes, PS4 Pro mode work), **Extremenis** (the overexposed SDR
+fix), **ahmanwoods** (Audio3d IDs), **alhockly** (EU version test), **benhaslett** (game clock
+measurements, Linux build fix) and **iannitram** (PS4 FPU state).
 
 Also used: [LibAtrac9](https://github.com/Thealexbarney/LibAtrac9), [FFmpeg](https://ffmpeg.org),
 [SDL3](https://github.com/libsdl-org/SDL), [Dear ImGui](https://github.com/ocornut/imgui),
