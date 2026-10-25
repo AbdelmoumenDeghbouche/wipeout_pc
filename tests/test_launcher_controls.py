@@ -727,6 +727,23 @@ class GpuChoiceTest(unittest.TestCase):
         self.assertEqual(launcher.APP_DEFAULTS['gpu_id'], '')
 
 
+class GameLanguageTest(unittest.TestCase):
+    def test_the_list_follows_the_games_region(self):
+        def ids(region):
+            with mock.patch.object(launcher, 'game_sfo', return_value={'USER_DEFINED_PARAM_1': region}):
+                return [value for value, _text in launcher.game_languages('game')]
+        self.assertEqual(ids(2), ['1', '22', '20', '17'])  # CUSA07671
+        self.assertIn('16', ids(1))  # Polish in CUSA05670 (#38)
+        self.assertNotIn('1', ids(1))
+        all_names = [text for _value, text in launcher.game_languages(None)]
+        self.assertEqual(len(all_names), len(set(all_names)))
+
+    def test_precise_readbacks_are_not_passed_on(self):
+        # GOW3_READBACKS=2 deadlocks at boot (#37): a value saved by 0.2.6 is dropped.
+        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'readbacks': '2'})
+        self.assertNotEqual(env.get('GOW3_READBACKS'), '2')
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
         self.assertEqual(launcher.VERSION, '0.2.6')

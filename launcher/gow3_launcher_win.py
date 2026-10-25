@@ -669,13 +669,34 @@ OUTPUTS = [('1280x720', ('1280 × 720 (Steam Deck)',)), ('1920x1080', ('1920 × 
            ('2560x1440', ('2560 × 1440',)), ('3840x2160', ('3840 × 2160 (4K)',))]
 LIVE = [('auto', ('Auto (by graphics card)', 'Авто (по видеокарте)')), ('0', ('Off (faster)', 'Выключена (быстрее)')),
         ('1', ('On (change without restarting)', 'Включена (без перезапуска)'))]
-LANGUAGES = [('1', ('English', 'Английский')), ('8', ('Russian', 'Русский')), ('0', ('Japanese', 'Японский')),
-             ('2', ('French', 'Французский')), ('3', ('Spanish', 'Испанский')), ('4', ('German', 'Немецкий')),
-             ('5', ('Italian', 'Итальянский'))]
+# (PS4 system language ID, name, regions): the game's own table (eboot.bin 0x9B89A0) only takes a
+# language its region has, from USER_DEFINED_PARAM_1 of param.sfo: 1 Europe (CUSA05670),
+# 2 Americas (CUSA07671), 4 Japan, 8 Asia, 16 China. Any other ID gets the region's default.
+LANGUAGES = [('18', ('English', 'Английский'), 1 | 4 | 8), ('1', ('English', 'Английский'), 2),
+             ('2', ('French', 'Французский'), 1), ('22', ('French', 'Французский'), 2),
+             ('3', ('Spanish', 'Испанский'), 1), ('20', ('Spanish', 'Испанский'), 2),
+             ('4', ('German', 'Немецкий'), 1), ('5', ('Italian', 'Итальянский'), 1), ('6', ('Dutch',), 1),
+             ('7', ('Portuguese',), 1), ('17', ('Portuguese',), 2), ('8', ('Russian', 'Русский'), 1),
+             ('12', ('Finnish',), 1), ('13', ('Swedish',), 1), ('14', ('Danish',), 1),
+             ('15', ('Norwegian',), 1), ('16', ('Polish',), 1), ('19', ('Turkish',), 1),
+             ('0', ('Japanese', 'Японский'), 4), ('9', ('Korean',), 8), ('10', ('Chinese (Traditional)',), 8),
+             ('11', ('Chinese (Simplified)',), 16)]
+
+
+def game_languages(folder):
+    """The (ID, name) pairs the game in `folder` can show; every name once without a game."""
+    region = game_sfo(folder).get('USER_DEFINED_PARAM_1') if folder else None
+    region = region if isinstance(region, int) and region else 0xff
+    pairs = {}
+    for value, text, regions in LANGUAGES:
+        if regions & region:
+            pairs.setdefault(text, value)
+    return [(value, text) for text, value in pairs.items()]
 DRAW_PIPE = [('', ('Auto (8+ threads)', 'Авто (8+ потоков)')), ('1', ('On', 'Включён')),
              ('0', ('Off (more stable)', 'Выключен (стабильнее)'))]
-READBACKS = [('', ('Relaxed (default)', 'Relaxed (по умолчанию)')), ('0', ('Off', 'Выключены')),
-             ('2', ('Precise',))]
+# GOW3_READBACKS=2 (Precise) is not offered: the copy and recording threads deadlock on its read
+# faults at boot (#37), and with them off the race draws black.
+READBACKS = [('', ('Relaxed (default)', 'Relaxed (по умолчанию)')), ('0', ('Off', 'Выключены'))]
 # GOW3_NO_MSAA: '' leaves the game's own default, off on AMD's and Intel's Windows drivers
 # (video_core/amdgpu/gow3_msaa_default.h); no_msaa_options names the chosen card in Automatic.
 NO_MSAA = [('', ('Automatic',)), ('1', ('Off (fixes black lines)',)), ('0', ('On',))]
@@ -1103,8 +1124,9 @@ def game_environment(s):
     env['GOW3_DISCORD'] = '1' if s.get('discord_rpc') else '0'
     if s['hdr']:
         env['GOW3_HDR'] = '1'
-    for key, name in (('draw_pipe', 'GOW3_DRAW_PIPE'), ('readbacks', 'GOW3_READBACKS'), ('no_msaa', 'GOW3_NO_MSAA')):
-        if s.get(key):
+    for key, name, options in (('draw_pipe', 'GOW3_DRAW_PIPE', DRAW_PIPE), ('readbacks', 'GOW3_READBACKS', READBACKS),
+                               ('no_msaa', 'GOW3_NO_MSAA', NO_MSAA)):
+        if s.get(key) and s[key] in dict(options):
             env[name] = s[key]
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
@@ -1830,7 +1852,8 @@ class Launcher:
         self.section(f, _('Saves'))
         self.build_save_backups(f)
         self.section(f, _('Language'))
-        self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app', LANGUAGES))
+        self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app',
+                                                                  lambda: game_languages(self.meta_dir())))
         self.build_patches(f)
 
     def user_dir(self):
