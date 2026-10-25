@@ -282,7 +282,9 @@ const char* UpscalerLabel(int upscaler) {
     case Gow3Settings::UpscalerFsr4: return "FSR 4";
     case Gow3Settings::UpscalerFsr411: return "FSR 4.1.1";
     case Gow3Settings::UpscalerTaa: return "TAA";
-    case Gow3Settings::UpscalerDlss: return "DLSS";
+    // At native size (DLSS quality 0, and before the first DLSS frame) it is DLAA: anti-aliasing,
+    // no upscaling.
+    case Gow3Settings::UpscalerDlss: return Gow3Settings::Get().dlss_quality > 0 ? "DLSS" : "DLAA";
     default: return "";
     }
 }
@@ -1057,6 +1059,29 @@ bool HandleEvent(const SDL_Event& event) {
         }
         if (down && !event.key.repeat && capture_key && event.key.key == SDLK_F11) {
             Vulkan::FrameCapture::Request();
+            return true;
+        }
+        // Debug A/B (launcher Advanced > Diagnostics, GOW3_UPSCALER_KEY=1): F10 cycles the temporal
+        // upscaler live, off -> FSR 3.1 -> DLSS (when its DLLs loaded and NGX reports DLSS) -> off.
+        // Only with a session started with an upscaler (GOW3_UPSCALER not none); the overlay's
+        // Upscaler line shows the current one.
+        // Off when the session has no upscaler at all (GOW3_UPSCALER=none, as TemporalUpscaler
+        // decides it): switching would only change the overlay's label.
+        static const bool upscaler_key = [] {
+            const char* env = std::getenv("GOW3_UPSCALER_KEY");
+            const char* upscaler = std::getenv("GOW3_UPSCALER");
+            return env && *env == '1' && !(upscaler && std::strcmp(upscaler, "none") == 0);
+        }();
+        if (down && !event.key.repeat && upscaler_key && event.key.key == SDLK_F10) {
+            auto& s = Gow3Settings::Get();
+            const int now = s.upscaler.load();
+            const int next = now == Gow3Settings::UpscalerOff ? Gow3Settings::UpscalerFsr3
+                             : now == Gow3Settings::UpscalerFsr3 && s.dlss_supported
+                                 ? Gow3Settings::UpscalerDlss
+                                 : Gow3Settings::UpscalerOff;
+            s.upscaler.store(next);
+            std::printf("Upscaler: %s (F10)\n", next == Gow3Settings::UpscalerOff ? "off"
+                                                                                  : UpscalerLabel(next));
             return true;
         }
         if (down && !event.key.repeat &&
