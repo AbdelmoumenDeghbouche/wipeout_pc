@@ -29,6 +29,7 @@ enum class ConditionOp : u32 {
     LE,
     TRU,
     U,
+    O,
 };
 
 enum class AtomicOp : u32 {
@@ -245,7 +246,7 @@ public:
     void V_MOVRELSD_B32(const GcnInst& inst);
 
     // VOPC
-    void V_CMP_F32(ConditionOp op, bool set_exec, const GcnInst& inst);
+    void V_CMP_F32(ConditionOp op, bool set_exec, const GcnInst& inst, bool is_fp16 = false);
     void V_CMP_F64(ConditionOp op, bool set_exec, const GcnInst& inst);
     void V_CMP_U32(ConditionOp op, bool is_signed, bool set_exec, const GcnInst& inst);
     void V_CMP_U64(ConditionOp op, bool is_signed, bool set_exec, const GcnInst& inst);
@@ -354,6 +355,8 @@ public:
     void IMAGE_GET_LOD(const GcnInst& inst);
 
 private:
+    template <typename T>
+    [[nodiscard]] T ApplyDpp(const InstOperand& operand, T value);
     template <typename T = IR::U32>
     [[nodiscard]] T GetSrc(const InstOperand& operand);
     template <typename T = IR::U32, bool is_signed = false>

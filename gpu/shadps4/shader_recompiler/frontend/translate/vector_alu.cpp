@@ -107,6 +107,15 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_SUB_F16(inst);
     case Opcode::V_MUL_F16:
         return V_MUL_F16(inst);
+    case Opcode::V_FMAMK_F16:
+    case Opcode::V_FMAAK_F16: {
+        const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+        const auto src1 = GetSrc16<IR::F32>(inst.src[1]);
+        const auto k = GetSrc16<IR::F32>(inst.src[2]);
+        return SetDst16(inst.dst[0], inst.opcode == Opcode::V_FMAMK_F16
+                                        ? ir.FPFma(src0, k, src1)
+                                        : ir.FPFma(src0, src1, k));
+    }
     case Opcode::V_MAX_F16:
         return V_MAX_F16(inst);
     case Opcode::V_MIN_F16:
@@ -187,6 +196,26 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_RSQ_F32(inst);
     case Opcode::V_RSQ_F32:
         return V_RSQ_F32(inst);
+    case Opcode::V_RCP_F16:
+        return SetDst16(inst.dst[0], ir.FPRecip(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_SQRT_F16:
+        return SetDst16(inst.dst[0], ir.FPSqrt(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_RSQ_F16:
+        return SetDst16(inst.dst[0], ir.FPRecipSqrt(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_LOG_F16:
+        return SetDst16(inst.dst[0], ir.FPLog2(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_EXP_F16:
+        return SetDst16(inst.dst[0], ir.FPExp2(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_FLOOR_F16:
+        return SetDst16(inst.dst[0], ir.FPFloor(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_CEIL_F16:
+        return SetDst16(inst.dst[0], ir.FPCeil(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_TRUNC_F16:
+        return SetDst16(inst.dst[0], ir.FPTrunc(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_RNDNE_F16:
+        return SetDst16(inst.dst[0], ir.FPRoundEven(GetSrc16<IR::F32>(inst.src[0])));
+    case Opcode::V_FRACT_F16:
+        return SetDst16(inst.dst[0], ir.FPFract(GetSrc16<IR::F32>(inst.src[0])));
     case Opcode::V_SQRT_F32:
         return V_SQRT_F32(inst);
     case Opcode::V_SIN_F32:
@@ -278,6 +307,24 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_CMP_F32(ConditionOp::GE, true, inst);
     case Opcode::V_CMPX_TRU_F32:
         return V_CMP_F32(ConditionOp::TRU, true, inst);
+
+        //     V_CMP_{OP8}_F16
+    case Opcode::V_CMP_F_F16:
+        return V_CMP_F32(ConditionOp::F, false, inst, true);
+    case Opcode::V_CMP_LT_F16:
+        return V_CMP_F32(ConditionOp::LT, false, inst, true);
+    case Opcode::V_CMP_EQ_F16:
+        return V_CMP_F32(ConditionOp::EQ, false, inst, true);
+    case Opcode::V_CMP_LE_F16:
+        return V_CMP_F32(ConditionOp::LE, false, inst, true);
+    case Opcode::V_CMP_GT_F16:
+        return V_CMP_F32(ConditionOp::GT, false, inst, true);
+    case Opcode::V_CMP_LG_F16:
+        return V_CMP_F32(ConditionOp::LG, false, inst, true);
+    case Opcode::V_CMP_GE_F16:
+        return V_CMP_F32(ConditionOp::GE, false, inst, true);
+    case Opcode::V_CMP_O_F16:
+        return V_CMP_F32(ConditionOp::O, false, inst, true);
 
         //     V_CMP_{OP16}_F64
     case Opcode::V_CMP_F_F64:
@@ -417,6 +464,12 @@ void Translator::EmitVectorAlu(const GcnInst& inst) {
         return V_MAD_F32(inst);
     case Opcode::V_MAD_F32:
         return V_MAD_F32(inst);
+    case Opcode::V_MAD_F16: {
+        const auto src0 = GetSrc16<IR::F32>(inst.src[0]);
+        const auto src1 = GetSrc16<IR::F32>(inst.src[1]);
+        const auto src2 = GetSrc16<IR::F32>(inst.src[2]);
+        return SetDst16(inst.dst[0], ir.FPAdd(ir.FPMul(src0, src1), src2));
+    }
     case Opcode::V_MAD_I32_I24:
         return V_MAD_I32_I24(inst);
     case Opcode::V_MAD_U32_U24:
@@ -944,22 +997,15 @@ void Translator::V_CVT_F16_F32(const GcnInst& inst) {
         src0fp16 = ir.BitFieldExtract(packed, ir.Imm32(0U), ir.Imm32(16U));
     }
 
+    if (inst.dst[0].op_sel.op_sel) {
+        src0fp16 = ir.BitFieldInsert(GetSrc(inst.dst[0]), src0fp16,
+                                    ir.Imm32(16U), ir.Imm32(16U));
+    }
     SetDst(inst.dst[0], src0fp16);
 }
 
 void Translator::V_CVT_F32_F16(const GcnInst& inst) {
-    const IR::U32 src0 = GetSrc(inst.src[0]);
-
-    IR::F32 src0l;
-    if (profile.support_float16) {
-        const IR::U16 converted = ir.UConvert(16, src0);
-        src0l = ir.FPConvert(32, ir.BitCast<IR::F16>(converted));
-    } else {
-        const IR::Value unpacked = ir.Unpack2x16(AmdGpu::NumberFormat::Float, src0);
-        src0l = IR::F32{ir.CompositeExtract(unpacked, 0)};
-    }
-
-    SetDst(inst.dst[0], src0l);
+    SetDst(inst.dst[0], GetSrc16<IR::F32>(inst.src[0]));
 }
 
 void Translator::V_CVT_RPI_I32_F32(const GcnInst& inst) {
@@ -1172,9 +1218,9 @@ void Translator::V_MOVRELSD_B32(const GcnInst& inst) {
 
 // VOPC
 
-void Translator::V_CMP_F32(ConditionOp op, bool set_exec, const GcnInst& inst) {
-    const IR::F32 src0{GetSrc<IR::F32>(inst.src[0])};
-    const IR::F32 src1{GetSrc<IR::F32>(inst.src[1])};
+void Translator::V_CMP_F32(ConditionOp op, bool set_exec, const GcnInst& inst, bool is_fp16) {
+    const IR::F32 src0{is_fp16 ? GetSrc16<IR::F32>(inst.src[0]) : GetSrc<IR::F32>(inst.src[0])};
+    const IR::F32 src1{is_fp16 ? GetSrc16<IR::F32>(inst.src[1]) : GetSrc<IR::F32>(inst.src[1])};
     const IR::U1 result = [&] {
         switch (op) {
         case ConditionOp::F:
@@ -1193,6 +1239,8 @@ void Translator::V_CMP_F32(ConditionOp op, bool set_exec, const GcnInst& inst) {
             return ir.FPGreaterThanEqual(src0, src1);
         case ConditionOp::U:
             return ir.LogicalOr(ir.FPIsNan(src0), ir.FPIsNan(src1));
+        case ConditionOp::O:
+            return ir.LogicalNot(ir.LogicalOr(ir.FPIsNan(src0), ir.FPIsNan(src1)));
         default:
             UNREACHABLE();
         }
@@ -1933,13 +1981,9 @@ void Translator::V_MAD_MIXLO_F16(const GcnInst& inst) {
     const auto src2 = GetSrcMix(inst.src[2]);
 
     const IR::F32 result = ir.FPAdd(ir.FPMul(src0, src1), src2);
-    const IR::F16 result_f16 = ir.FPConvert(16, result);
-    const IR::U16 result_f16_u16 = ir.BitCast<IR::U16, IR::F16>(result_f16);
-
-    const IR::U32 old_value{GetSrc(inst.dst[0])};
-    const IR::U32 new_value{
-        ir.BitFieldInsert(old_value, ir.UConvert(32, result_f16_u16), ir.Imm32(0U), ir.Imm32(16U))};
-    SetDst(inst.dst[0], new_value);
+    auto dst = inst.dst[0];
+    dst.op_sel.op_sel = false;
+    SetDst16(dst, result);
 }
 
 void Translator::V_MAD_MIXHI_F16(const GcnInst& inst) {
@@ -1948,13 +1992,9 @@ void Translator::V_MAD_MIXHI_F16(const GcnInst& inst) {
     const auto src2 = GetSrcMix(inst.src[2]);
 
     const IR::F32 result = ir.FPAdd(ir.FPMul(src0, src1), src2);
-    const IR::F16 result_f16 = ir.FPConvert(16, result);
-    const IR::U16 result_f16_u16 = ir.BitCast<IR::U16, IR::F16>(result_f16);
-
-    const IR::U32 old_value{GetSrc(inst.dst[0])};
-    const IR::U32 new_value{ir.BitFieldInsert(old_value, ir.UConvert(32, result_f16_u16),
-                                              ir.Imm32(16U), ir.Imm32(16U))};
-    SetDst(inst.dst[0], new_value);
+    auto dst = inst.dst[0];
+    dst.op_sel.op_sel = true;
+    SetDst16(dst, result);
 }
 
 IR::U32 Translator::GetCarryIn(const GcnInst& inst) {

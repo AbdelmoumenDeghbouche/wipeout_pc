@@ -337,6 +337,27 @@ IR::VectorReg Translator::GetScratchVgpr(u32 offset) {
 }
 
 template <typename T>
+T Translator::ApplyDpp(const InstOperand& operand, T value) {
+    if (!operand.dpp) {
+        return value;
+    }
+    const auto& dpp = *operand.dpp;
+    // shortcut: full-mask quad permutations only; extend when other DPP controls are encountered.
+    ASSERT_MSG(dpp.op == DppCtrl::DppQuadPerm && dpp.row_mask == 0xf && dpp.bank_mask == 0xf,
+               "Unsupported DPP control: {}, row mask {}, bank mask {}", u32(dpp.op),
+               dpp.row_mask, dpp.bank_mask);
+    const auto lane = ir.LaneId();
+    const auto shift = ir.ShiftLeftLogical(ir.BitwiseAnd(lane, ir.Imm32(3u)), ir.Imm32(1u));
+    const auto source = ir.BitFieldExtract(ir.Imm32(u32(dpp.value)), shift, ir.Imm32(2u));
+    const auto index = ir.BitwiseOr(ir.BitwiseAnd(lane, ir.Imm32(~3u)), source);
+    if constexpr (std::is_same_v<T, IR::F32>) {
+        return ir.BitCast<IR::F32>(ir.Shuffle(ir.BitCast<IR::U32>(value), index));
+    } else {
+        return ir.Shuffle(value, index);
+    }
+}
+
+template <typename T>
 T Translator::GetSrc(const InstOperand& operand) {
     constexpr bool is_float = std::is_same_v<T, IR::F32>;
 
@@ -354,7 +375,7 @@ T Translator::GetSrc(const InstOperand& operand) {
         value = ir.GetScalarReg<T>(IR::ScalarReg(operand.code));
         break;
     case OperandField::VectorGPR:
-        value = ir.GetVectorReg<T>(IR::VectorReg(operand.code));
+        value = ApplyDpp(operand, ir.GetVectorReg<T>(IR::VectorReg(operand.code)));
         break;
     case OperandField::ConstZero:
         value = get_imm(0U);
@@ -447,6 +468,26 @@ T Translator::GetSrc(const InstOperand& operand) {
         UNREACHABLE_MSG("Unexpected operand: {}", std::to_underlying(operand.field));
     }
 
+    if (operand.sdwa_sel < SdwaSelector::Dword) {
+        const u32 selector = u32(operand.sdwa_sel);
+        const u32 width = selector < 4 ? 8 : 16;
+        const u32 offset = selector < 4 ? selector * 8 : (selector - 4) * 16;
+        const IR::U32 bits = [&]() {
+            if constexpr (is_float) {
+                return ir.BitCast<IR::U32>(value);
+            } else {
+                return value;
+            }
+        }();
+        const auto selected = ir.BitFieldExtract(bits, ir.Imm32(offset), ir.Imm32(width),
+                                                 operand.input_modifier.sext);
+        if constexpr (is_float) {
+            value = ir.BitCast<IR::F32>(selected);
+        } else {
+            value = selected;
+        }
+    }
+
     if constexpr (is_float) {
         if (operand.input_modifier.abs) {
             value = ir.FPAbs(value);
@@ -505,7 +546,17 @@ T Translator::GetSrc16(const InstOperand& operand) {
         }
     };
 
-    const auto op_sel = operand.op_sel.op_sel;
+    const auto op_sel = operand.sdwa_sel == SdwaSelector::Invalid
+                            ? operand.op_sel.op_sel : operand.sdwa_sel == SdwaSelector::Word1;
+
+    const auto get_bits_imm = [&](u32 bits) -> T {
+        if constexpr (is_float) {
+            return IR::F32{ir.CompositeExtract(
+                ir.Unpack2x16(number_format, ir.Imm32(bits)), op_sel ? 1 : 0)};
+        } else {
+            return get_imm(bits);
+        }
+    };
 
     T value{};
     switch (operand.field) {
@@ -516,7 +567,7 @@ T Translator::GetSrc16(const InstOperand& operand) {
         break;
     }
     case OperandField::VectorGPR: {
-        const auto v = ir.GetVectorReg<T>(IR::VectorReg(operand.code));
+        const auto v = ApplyDpp(operand, ir.GetVectorReg<T>(IR::VectorReg(operand.code)));
         value = cast(IR::F32{
             ir.CompositeExtract(ir.Unpack2x16(number_format, bitcast_to_u(v)), op_sel ? 1 : 0)});
         break;
@@ -525,13 +576,13 @@ T Translator::GetSrc16(const InstOperand& operand) {
         value = get_imm(0U);
         break;
     case OperandField::SignedConstIntPos:
-        value = get_imm(operand.code - SignedConstIntPosMin + 1);
+        value = get_bits_imm(operand.code - SignedConstIntPosMin + 1);
         break;
     case OperandField::SignedConstIntNeg:
-        value = get_imm(-s32(operand.code) + SignedConstIntNegMin - 1);
+        value = get_bits_imm(u32(-s32(operand.code) + SignedConstIntNegMin - 1));
         break;
     case OperandField::LiteralConst:
-        value = get_imm(operand.code);
+        value = get_bits_imm(operand.code);
         break;
     case OperandField::ConstFloatPos_1_0:
         value = get_imm(1.f);
@@ -569,14 +620,17 @@ T Translator::GetSrc16(const InstOperand& operand) {
         value = get_imm(0U);
         break;
     case OperandField::VccLo:
+    case OperandField::VccHi: {
+        const auto vcc = operand.field == OperandField::VccLo ? ir.GetVccLo() : ir.GetVccHi();
         if constexpr (is_float) {
             value = IR::F32{
-                ir.CompositeExtract(ir.Unpack2x16(number_format, ir.GetVccLo()), op_sel ? 1 : 0)};
+                ir.CompositeExtract(ir.Unpack2x16(number_format, vcc), op_sel ? 1 : 0)};
         } else {
             value = cast(IR::F32{ir.CompositeExtract(
-                ir.Unpack2x16(number_format, bitcast_to_u(ir.GetVccLo())), op_sel ? 1 : 0)});
+                ir.Unpack2x16(number_format, bitcast_to_u(vcc)), op_sel ? 1 : 0)});
         }
         break;
+    }
     default:
         UNREACHABLE_MSG("Unexpected operand: {}", std::to_underlying(operand.field));
     }
@@ -675,21 +729,20 @@ IR::F32 Translator::GetSrcMix(const InstOperand& operand) {
     case OperandField::ConstFloatNeg_4_0:
         value = get_imm(-4.0f);
         break;
-    case OperandField::VccLo: {
+    case OperandField::VccLo:
+    case OperandField::VccHi: {
+        const auto vcc = operand.field == OperandField::VccLo ? ir.GetVccLo() : ir.GetVccHi();
         if (!operand.op_sel.op_sel_hi) {
-            value = ir.BitCast<IR::F32>(ir.GetVccLo());
+            value = ir.BitCast<IR::F32>(vcc);
         } else if (operand.op_sel.op_sel) {
             value = IR::F32{
-                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, ir.GetVccLo()), 1)};
+                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, vcc), 1)};
         } else {
             value = IR::F32{
-                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, ir.GetVccLo()), 0)};
+                ir.CompositeExtract(ir.Unpack2x16(AmdGpu::NumberFormat::Float, vcc), 0)};
         }
         break;
     }
-    case OperandField::VccHi:
-        UNREACHABLE();
-        break;
     case OperandField::M0:
         UNREACHABLE();
         break;
@@ -937,7 +990,8 @@ pk_type<T> Translator::GetSrcPk(const InstOperand& operand) {
         break;
     }
     case OperandField::VccLo:
-        value = extract(ir.GetVccLo());
+    case OperandField::VccHi:
+        value = extract(operand.field == OperandField::VccLo ? ir.GetVccLo() : ir.GetVccHi());
         break;
     default:
         UNREACHABLE_MSG("Unexpected operand: {}", std::to_underlying(operand.field));
@@ -973,6 +1027,24 @@ void Translator::SetDst(const InstOperand& operand, const IR::U32F32& value) {
         }
         if (operand.output_modifier.clamp) {
             result = ir.FPSaturate(result);
+        }
+    }
+
+    if (operand.sdwa_sel < SdwaSelector::Dword) {
+        ASSERT(operand.field == OperandField::VectorGPR &&
+               operand.sdwa_dst != SdwaDstUnused::Invalid);
+        const u32 selector = u32(operand.sdwa_sel);
+        const u32 width = selector < 4 ? 8 : 16;
+        const u32 offset = selector < 4 ? selector * 8 : (selector - 4) * 16;
+        const IR::U32 bits = result.Type() == IR::Type::F32
+                                ? ir.BitCast<IR::U32>(IR::F32{result}) : IR::U32{result};
+        if (operand.sdwa_dst == SdwaDstUnused::Preserve) {
+            const auto previous = ir.GetVectorReg<IR::U32>(IR::VectorReg(operand.code));
+            result = ir.BitFieldInsert(previous, bits, ir.Imm32(offset), ir.Imm32(width));
+        } else {
+            const auto selected = ir.BitFieldExtract(bits, ir.Imm32(0u), ir.Imm32(width),
+                                                     operand.sdwa_dst == SdwaDstUnused::Sext);
+            result = ir.ShiftLeftLogical(selected, ir.Imm32(offset));
         }
     }
 
@@ -1021,6 +1093,10 @@ void Translator::SetDst16(const InstOperand& operand, const IR::U32F32& value) {
             UNREACHABLE();
         }
     };
+
+    if (operand.sdwa_sel != SdwaSelector::Invalid) {
+        return SetDst(operand, cast(result));
+    }
 
     const auto op_sel = operand.op_sel.op_sel;
 

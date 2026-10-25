@@ -701,6 +701,8 @@ void Translator::IMAGE_SAMPLE(const GcnInst& inst) {
     const auto flags = MimgModifierFlags(mimg.mod);
 
     const IR::Value texel = EmitImageSample(ir, inst, tsharp_reg, sampler_reg, addr_reg, false, pc);
+    IR::F32 low;
+    u32 components = 0;
     for (u32 i = 0; i < 4; i++) {
         if (((mimg.dmask >> i) & 1) == 0) {
             continue;
@@ -711,7 +713,19 @@ void Translator::IMAGE_SAMPLE(const GcnInst& inst) {
         } else {
             value = IR::F32{ir.CompositeExtract(texel, i)};
         }
-        ir.SetVectorReg(dest_reg++, value);
+        if (!mimg.d16) {
+            ir.SetVectorReg(dest_reg++, value);
+        } else if ((components++ & 1) == 0) {
+            low = value;
+        } else {
+            // Pro D16 sampling packs two enabled color channels into each VGPR.
+            ir.SetVectorReg(dest_reg++, ir.Pack2x16(AmdGpu::NumberFormat::Float,
+                                                   ir.CompositeConstruct(low, value)));
+        }
+    }
+    if (mimg.d16 && (components & 1)) {
+        ir.SetVectorReg(dest_reg, ir.Pack2x16(AmdGpu::NumberFormat::Float,
+                                             ir.CompositeConstruct(low, ir.Imm32(0.f))));
     }
 }
 
@@ -730,6 +744,14 @@ void Translator::IMAGE_GATHER(const GcnInst& inst) {
     ASSERT(!flags.test(MimgModifier::Pcf) || mimg.dmask & 1);
 
     const IR::Value texel = EmitImageSample(ir, inst, tsharp_reg, sampler_reg, addr_reg, true, pc);
+    if (mimg.d16) {
+        for (u32 i = 0; i < 4; i += 2) {
+            const auto pair = ir.CompositeConstruct(IR::F32{ir.CompositeExtract(texel, i)},
+                                                    IR::F32{ir.CompositeExtract(texel, i + 1)});
+            ir.SetVectorReg(dest_reg++, ir.Pack2x16(AmdGpu::NumberFormat::Float, pair));
+        }
+        return;
+    }
     for (u32 i = 0; i < 4; i++) {
         const IR::F32 value = IR::F32{ir.CompositeExtract(texel, i)};
         ir.SetVectorReg(dest_reg++, value);
