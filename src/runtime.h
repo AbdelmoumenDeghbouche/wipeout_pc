@@ -90,6 +90,9 @@ int runtime_mp3_decode(Mp3Decoder *decoder, const unsigned char *data, int size,
 uintptr_t runtime_videodec_resolve(const char *name);
 uintptr_t runtime_audio_resolve(const char *name);
 void runtime_audio_report(void);
+/* Custom soundtrack (runtime_music.c): replaces one buffer of the game's BGM port with the
+ * player's music; 0 = no music files, the game's music plays. */
+int runtime_music_bgm(float *pcm, int frames, int channels);
 uintptr_t runtime_pad_resolve(const char *name);
 void runtime_pad_report(void);
 /* probe --gamepad: prints one "Gamepad:" line for the first pad found (returns 1) or none (0). */

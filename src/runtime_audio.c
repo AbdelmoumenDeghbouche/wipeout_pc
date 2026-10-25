@@ -183,6 +183,11 @@ static int32_t output_port(int32_t handle, const void *data, int pace) {
     pthread_mutex_lock(&p->lock);
     size_t samples=(size_t)p->frames*(size_t)p->channels, bytes=samples*(size_t)p->sample_bytes;
     uint64_t period=(uint64_t)p->frames*1000000000u/48000u;
+    if (data && p->type==1 && p->is_float) { /* BGM: the player's own music (runtime_music.c) */
+        static float music[2048*8]; /* one BGM port, under its lock */
+        memcpy(music,data,bytes);
+        if (runtime_music_bgm(music,p->frames,p->channels)) data=music;
+    }
     if (data) {
         /* Apply per-channel volume and map PS4 8ch (L R C LFE SL SR BL BR) to SDL 7.1 order. */
         unsigned char converted[2048*8*4];
