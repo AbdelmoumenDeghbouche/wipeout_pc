@@ -50,9 +50,10 @@ Thanks to everyone who has played, tested and reported so far!
 | Game speed | Done: the game runs on real time at any frame rate |
 | Frame rate above 60 FPS | Done: up to 240 FPS, set by the frame rate limit (110–150 FPS in 2048 races on an RTX 4070 Laptop) |
 | Graphics: Metro Park terrain | Fixed (shader recompiler, #5) |
-| Render resolutions: native 1080p, 2560x1440, 2560x1080, 3440x1440, 5120x2160 | Done: pick one in the in-game **Render resolution** menu (Insert key) (`patches/WipEout_Omega_Collection.xml`, #2). The HUD stays 16:9 in the middle of wider screens. 5120x2160 needs more than 8 GB of video memory |
+| Render resolutions: native 1080p, 2560x1440, 3840x2160 (4K), 2560x1080, 3440x1440, 5120x2160 | Done: pick one in the in-game **Render resolution** menu (Insert key) (`patches/WipEout_Omega_Collection.xml`, #2, #48). The HUD stays 16:9 in the middle of wider screens. 4K and 5120x2160 need a lot of video memory: HD races at 4K can run out on 8 GB |
 | HDR | Done; the darker picture when RCAS runs is fixed, waiting for a test (#4) |
 | Sound: music and effects (Audio3d) | Done; the effects are new, please report anything that sounds wrong |
+| Your own music (custom soundtrack) | Done: see [Your own music](#your-own-music) (#47) |
 | Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |
 | Windows package (zip) | Done (`packaging/windows/package.sh`, Actions > Windows zip) |
 | Linux | Builds from source; no package yet |
@@ -66,6 +67,15 @@ it on. Without it they run at less than 1 FPS.
 The game times itself with the processor's time stamp counter (`rdtsc`), so the runtime gives
 it the real counter and its measured frequency (`src/runtime_kernel.c`). Its speed then does
 not depend on the frame rate.
+
+## Your own music
+
+Put your own music files (MP3, OGG, FLAC, WAV, M4A, ...) in the `music` folder of the saves
+folder (`user\music` next to `WipEout.exe`; the launcher's **Game** page has an **Open the music
+folder** button). Subfolders count too. The files play shuffled, in menus and races, instead of
+the game's music, as on a PS4 playing your own music. The game's sound effects stay. The volume
+follows the game's music volume, and the track name shows in the lower right corner. To get the
+game's music back, empty the folder. `GOW3_MUSIC_DIR` can point to another folder.
 
 ## Supported game versions
 

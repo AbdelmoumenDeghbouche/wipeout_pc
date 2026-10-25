@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.7'
+VERSION = '0.2.8'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -1854,6 +1854,11 @@ class Launcher:
         self.section(f, _('Language'))
         self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app',
                                                                   lambda: game_languages(self.meta_dir())))
+        self.section(f, _('Music'))
+        music = self.ttk.Button(f, text=_('Open the music folder'), command=lambda: self.open_path(self.user_dir() / 'music'))
+        self.row(f, _('Your own music'), music,
+                 _("MP3, OGG, FLAC, WAV or M4A files in this folder (subfolders too) play shuffled instead of the "
+                   "game's music. Empty folder: the game's music."))
         self.build_patches(f)
 
     def user_dir(self):

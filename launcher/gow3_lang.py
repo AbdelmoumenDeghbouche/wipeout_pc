@@ -910,6 +910,11 @@ EXTRA = {
         'Sharper floors and walls seen at an angle, at little cost on most graphics cards.': 'Chão e paredes vistos de lado ficam mais nítidos, com pouco custo na maioria das placas de vídeo.',
         'Screenshots': 'Capturas de tela',
         'Open the screenshots folder': 'Abrir a pasta das capturas',
+        'Music': 'Música',
+        'Open the music folder': 'Abrir a pasta de música',
+        'Your own music': 'Sua própria música',
+        "MP3, OGG, FLAC, WAV or M4A files in this folder (subfolders too) play shuffled instead of the game's music. Empty folder: the game's music.":
+            'Arquivos MP3, OGG, FLAC, WAV ou M4A nesta pasta (subpastas também) tocam em ordem aleatória no lugar da música do jogo. Pasta vazia: a música do jogo.',
         'F12 in the game': 'F12 no jogo',
         "Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves.": 'Salva a imagem do jogo, sem o overlay, em PNG na pasta screenshots dos saves.',
         'Vibration': 'Vibração',
@@ -1210,6 +1215,11 @@ EXTRA = {
             'Suelos y paredes vistos en ángulo se ven más nítidos, con poco coste en la mayoría de las tarjetas gráficas.',
         'Screenshots': 'Capturas de pantalla',
         'Open the screenshots folder': 'Abrir la carpeta de capturas',
+        'Music': 'Música',
+        'Open the music folder': 'Abrir la carpeta de música',
+        'Your own music': 'Tu propia música',
+        "MP3, OGG, FLAC, WAV or M4A files in this folder (subfolders too) play shuffled instead of the game's music. Empty folder: the game's music.":
+            'Los archivos MP3, OGG, FLAC, WAV o M4A de esta carpeta (también subcarpetas) suenan en orden aleatorio en lugar de la música del juego. Carpeta vacía: la música del juego.',
         'F12 in the game': 'F12 en el juego',
         "Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves.":
             'Guarda la imagen del juego, sin el overlay, como PNG en la carpeta screenshots de las partidas.',

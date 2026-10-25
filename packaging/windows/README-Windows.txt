@@ -27,10 +27,13 @@ Starting
 Settings
 - Frame rate: the game runs on real time, so it can go above 60 FPS (up to 240). The Frame
   rate limit on Home sets the cap.
-- Render resolution: 1920x1080 by default. 2560x1080 and 5120x2160 (21:9) are in the port's
-  in-game menu, under Performance, and apply on the next start. The other sizes in that list
-  come from the God of War III port and do nothing here yet. The HUD and menus stay 16:9 and
-  look stretched at 21:9.
+- Render resolution: 1920x1080 by default. 2560x1440, 3840x2160 (4K), 2560x1080, 3440x1440
+  and 5120x2160 are in the port's in-game menu, under Performance, and apply on the next start.
+  The HUD and menus stay 16:9 in the middle of wider screens. 4K and 5120x2160 need a lot of
+  video memory.
+- Your own music: put MP3, OGG, FLAC, WAV or M4A files in user\music (the Game page has an
+  "Open the music folder" button). They play shuffled instead of the game's music, at the
+  game's music volume. Empty the folder to get the game's music back.
 - "Native 4K rendering (no checkerboard)" on the Game page is on by default: from 3840 pixels
   wide the game renders at full resolution instead of checkerboard.
 
