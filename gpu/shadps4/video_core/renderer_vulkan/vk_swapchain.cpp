@@ -165,7 +165,7 @@ void Swapchain::FindPresentFormat() {
             return format == SURFACE_FORMAT_HDR;
         }) != formats.end();
     // Also make sure that user allowed us to use HDR
-    supports_hdr &= EmulatorSettings.IsHdrAllowed();
+    supports_hdr &= EmulatorSettings.IsHdrAllowed() && window.GetWindowInfo().hdr_enabled;
 
     // If there is a single undefined surface format, the device doesn't care, so we'll just use
     // RGBA sRGB.
