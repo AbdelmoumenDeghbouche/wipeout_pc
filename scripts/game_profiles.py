@@ -20,11 +20,11 @@ PROFILES = {
     'CUSA07671': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
                   'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240',
-                          'GOW3_ALLOWED_RESOLUTIONS': 'native;2560x1080;5120x2160'}},
+                          'GOW3_ALLOWED_RESOLUTIONS': 'native;1440p;2560x1080;3440x1440;5120x2160'}},
     'CUSA05670': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
                   'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240',
-                          'GOW3_ALLOWED_RESOLUTIONS': 'native;2560x1080;5120x2160'}},
+                          'GOW3_ALLOWED_RESOLUTIONS': 'native;1440p;2560x1080;3440x1440;5120x2160'}},
     'CUSA01623': {'name': 'God of War III', 'modules': ('libc.prx', 'libSceFios2.prx')},
 }
 DEFAULT = {'name': None, 'modules': ('libc.prx', 'libSceFios2.prx')}
