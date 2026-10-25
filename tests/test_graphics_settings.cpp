@@ -110,6 +110,10 @@ int main() {
         const auto filtered = G::ResolutionNames();
         assert(filtered.size() == 4 && filtered[0] == "native" && filtered[1] == "2560x1080" &&
                filtered[2] == "5120x2160" && filtered[3] == "3440x1440");
+        // Labels go by name: the second entry of the shorter list is 2560x1080, not 480p (#23).
+        assert(std::string_view(G::ResolutionLabel(filtered[1])) == "2560 × 1080 · 21:9 (beta)" &&
+               std::string_view(G::ResolutionLabel(filtered[2])) == "5120 × 2160 · 21:9 (beta)" &&
+               std::string_view(G::ResolutionLabel(filtered[3])) == "3440 × 1440 · 21:9 (beta)");
         _putenv_s("GOW3_ALLOWED_RESOLUTIONS", "nope");
         assert(G::ResolutionNames().front() == "native" && G::ResolutionNames().size() == 2);
         _putenv_s("GOW3_ALLOWED_RESOLUTIONS", "");

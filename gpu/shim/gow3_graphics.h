@@ -60,6 +60,25 @@ inline std::vector<std::string> ResolutionNames() {
         if (std::find(names.begin(), names.end(), name) == names.end()) names.emplace_back(name);
     return names;
 }
+/// The menu label of a resolution name (as the launcher, graphics_options.resolution_label: name, exact
+/// size, aspect ratio); a mod's "<width>x<height>" is its own label. By name, never by position:
+/// GOW3_ALLOWED_RESOLUTIONS makes ResolutionNames shorter than Resolutions.
+inline constexpr std::array<std::string_view, 22> ResolutionLabels = {
+    "Native · 1920 × 1080 · 16:9", "480p · 854 × 480 · 16:9",
+    "720p · 1280 × 720 · 16:9", "900p · 1600 × 900 · 16:9",
+    "1440p · 2560 × 1440 · 16:9",
+    "1800p · 3200 × 1800 · 16:9", "4K · 3840 × 2160 · 16:9",
+    "2560 × 1080 · 21:9 (beta)", "3440 × 1440 · 21:9 (beta)",
+    "3840 × 1600 · 21:9 (beta)", "5120 × 1440 · 32:9 (beta)",
+    "1920 × 1200 · 16:10 (beta)", "2560 × 1600 · 16:10 (beta)",
+    "1280 × 800 · 16:10", "1440 × 900 · 16:10",
+    "1360 × 768 · 16:9",
+    "1280 × 960 · 4:3", "1440 × 1080 · 4:3 (beta)", "1920 × 1440 · 4:3 (beta)",
+    "2048 × 1536 · 4:3 (beta)", "2560 × 1920 · 4:3 (beta)", "5120 × 2160 · 21:9 (beta)"};
+inline const char* ResolutionLabel(const std::string& name) {
+    const auto it = std::find(Resolutions.begin(), Resolutions.end(), name);
+    return it != Resolutions.end() ? ResolutionLabels[it - Resolutions.begin()].data() : name.c_str();
+}
 /// The size in pixels of a resolution name: the built-in ones (as scripts/graphics_options.py SIZES)
 /// or a mod's "<width>x<height>"; anything else is native.
 inline constexpr std::array<std::pair<std::string_view, std::pair<int, int>>, 7> ResolutionSizes = {{
