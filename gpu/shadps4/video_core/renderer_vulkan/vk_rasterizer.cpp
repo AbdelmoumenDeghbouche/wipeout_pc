@@ -293,6 +293,26 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
     if (gbuffer_draw) {
         camera_motion->OnGBufferPass(db_desc.first);
     }
+    // wipeout (GOW3_GAME_MOTION=1, game profile): the main scene pass draws R11G11B10 color,
+    // linear depth (color1) and the game's own motion vectors (color2, R16G16F), all full size,
+    // with the scene depth. It gives the upscaler depth, color and motion; no camera is needed.
+    static const bool game_motion = [] {
+        const char* env = std::getenv("GOW3_GAME_MOTION");
+        return env && env[0] == '1';
+    }();
+    if (game_motion && upscaler->Enabled() && std::popcount(key.mrt_mask) == 3 &&
+        db_desc.first && cb_descs[0].first && cb_descs[2].first) {
+        const auto& color = texture_cache.GetImage(cb_descs[0].first);
+        const auto& motion = texture_cache.GetImage(cb_descs[2].first);
+        const auto& depth = texture_cache.GetImage(db_desc.first);
+        if (color.info.pixel_format == vk::Format::eB10G11R11UfloatPack32 &&
+            motion.info.pixel_format == vk::Format::eR16G16Sfloat &&
+            color.info.size == depth.info.size && motion.info.size == depth.info.size) {
+            camera_motion->OnGBufferPass(db_desc.first);
+            camera_motion->OnGameMotion(cb_descs[2].first);
+            upscaler->OnSceneColor(cb_descs[0].first);
+        }
+    }
     if (upscaler->Enabled() && cb_descs[0].first) {
         upscaler->OnColorTarget(cb_descs[0].first);
     }
@@ -1041,6 +1061,9 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
 
     PrepareRenderState(pipeline);
     if (upscaler->Enabled() && std::popcount(pipeline->GetGraphicsKey().mrt_mask) == 1) {
+        // wipeout: before the first pass reading the finished scene (a color target means a
+        // pixel shader).
+        upscaler->OnPixelShader(pipeline->GetStage(Shader::SwStage::Fragment).pgm_hash);
         const auto& viewport = Regs().viewports[0];
         upscaler->OnDraw(pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash,
                          cb_descs[0].first, db_desc.first,

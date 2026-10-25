@@ -46,9 +46,14 @@ public:
         return debug_overlay || for_upscaler;
     }
 
-    /// Both cameras and the scene depth of the current frame are known.
+    /// Both cameras (or the game's own motion vectors) and the scene depth of the current frame
+    /// are known.
     [[nodiscard]] bool Ready() const noexcept {
-        return current.valid && previous.valid && depth_id;
+        return ((current.valid && previous.valid) || game_motion_id) && depth_id;
+    }
+    /// wipeout: this frame's motion vector target written by the game, or null.
+    [[nodiscard]] VideoCore::ImageId GameMotion() const noexcept {
+        return game_motion_id;
     }
     [[nodiscard]] VideoCore::ImageId Depth() const noexcept {
         return depth_id;
@@ -68,12 +73,20 @@ public:
     /// `motion_view` (RG16F storage, General), pixels, previous minus current.
     void RecordMotion(vk::CommandBuffer cmdbuf, vk::ImageView depth_view, vk::ImageView motion_view,
                       u32 width, u32 height);
+    /// wipeout: the same from the game's motion vectors, `game_view` (R16G16F, General layout,
+    /// UV units, current minus previous) instead of depth and cameras.
+    void RecordGameMotion(vk::CommandBuffer cmdbuf, vk::ImageView game_view,
+                          vk::ImageView motion_view, u32 width, u32 height);
 
     /// A bound constant buffer of 864 bytes: checks the scene constant signature.
     void OnConstants(const float* data);
 
     /// The G-buffer pass (5+ color targets): its depth is the scene depth.
     void OnGBufferPass(VideoCore::ImageId depth);
+    /// wipeout: the main scene pass writes motion vectors into `motion` (GOW3_GAME_MOTION=1).
+    void OnGameMotion(VideoCore::ImageId motion) noexcept {
+        game_motion_id = motion;
+    }
 
     /// The pass copying the finished frame (`frame`, the last target drawn) to the display: the
     /// frame's depth and camera are complete. Records the debug overlay, starts a new frame.
@@ -98,6 +111,8 @@ private:
     vk::UniqueDescriptorSetLayout motion_desc_layout;
     vk::UniquePipelineLayout motion_pipeline_layout;
     vk::UniquePipeline motion_pipeline;
+    vk::UniquePipeline game_motion_pipeline;
+    std::array<float, 2> game_motion_scale{-1.0f, -1.0f}; ///< times the size; GOW3_GAME_MOTION_SIGN
 
     ObjectMotion* object_motion = nullptr;
     Camera current, previous;
@@ -105,6 +120,7 @@ private:
     std::array<float, 2> jitter{}, previous_jitter{};
     std::array<u32, 2> render_size{};
     VideoCore::ImageId depth_id{};
+    VideoCore::ImageId game_motion_id{};
 
     vk::UniqueDescriptorSetLayout desc_layout;
     vk::UniquePipelineLayout pipeline_layout;

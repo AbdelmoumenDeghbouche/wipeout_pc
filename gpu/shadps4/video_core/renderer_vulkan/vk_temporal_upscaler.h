@@ -63,6 +63,9 @@ public:
 
     /// Before a compute dispatch: the post-processing combine shader triggers the upscale.
     void OnDispatch(u64 cs_hash);
+    /// wipeout: before a draw: a pixel shader (GOW3_UPSCALE_BEFORE_PS, the first pass reading the
+    /// finished scene) triggers the upscale instead of a compute shader.
+    void OnPixelShader(u64 ps_hash);
 
     /// Start of a frame in the command stream (display pass).
     bool OnFrameStart();
@@ -195,6 +198,7 @@ private:
     bool enabled = false;
     bool failed = false;
     u64 trigger_hash = 0x9a9cf8a9;
+    u64 ps_trigger_hash = 0; ///< wipeout: GOW3_UPSCALE_BEFORE_PS, 0 = off
     VideoCore::ImageId scene_color{};
     bool done_this_frame = false;
     u32 preset_file_frames = 0; ///< GOW3_PRESET_FILE polling
@@ -267,6 +271,7 @@ private:
     vk::UniqueDescriptorSetLayout merge_desc_layout;
     vk::UniquePipelineLayout merge_pipeline_layout;
     vk::UniquePipeline merge_pipeline;
+    vk::UniquePipeline merge_r11_pipeline; ///< wipeout: R11G11B10 scene color
     std::array<VideoCore::UniqueImage, 2> taa_history;
     std::array<vk::UniqueImageView, 2> taa_history_views;
     u32 taa_next = 0;

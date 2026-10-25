@@ -76,6 +76,11 @@ struct Dlss::Impl {
     std::optional<FeatureDesc> feature;
     std::string problem;
     bool eligible{true}, instance_ready{}, device_ready{}, initialized{}, available{};
+    // NGX starts at the first feature, not with the device: sessions that never use DLSS do not
+    // run NVIDIA's runtime at all (a first start with empty caches once lost the device there).
+    vk::Instance instance;
+    vk::PhysicalDevice physical;
+    vk::Device device;
 
     void Disable(std::string_view reason) {
         eligible = available = false;
@@ -177,14 +182,12 @@ void Dlss::Initialize(vk::Instance instance, vk::PhysicalDevice physical, vk::De
     if (!impl->eligible || !impl->device_ready || impl->initialized) {
         return;
     }
-    impl->initialized = true;
-    if (!impl->api->Initialize(instance, physical, device,
-                               VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr,
-                               VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceProcAddr)) {
-        return impl->Disable("NVIDIA NGX initialization failed (update the GPU driver)");
-    }
+    // Only remembered here; NGX itself starts in CreateFeature (Impl).
+    impl->instance = instance;
+    impl->physical = physical;
+    impl->device = device;
     impl->available = true;
-    std::printf("DLSS: ready\n");
+    std::printf("DLSS: available (NVIDIA NGX starts at first use)\n");
 }
 
 bool Dlss::Available() const {
@@ -203,10 +206,20 @@ bool Dlss::CreateFeature(vk::CommandBuffer command, const FeatureDesc& desc) {
     if (!impl->available) {
         return false;
     }
+    if (!impl->initialized) {
+        impl->initialized = true;
+        if (!impl->api->Initialize(impl->instance, impl->physical, impl->device,
+                                   VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr,
+                                   VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceProcAddr)) {
+            impl->Disable("NVIDIA NGX initialization failed (update the GPU driver)");
+            return false;
+        }
+        std::printf("DLSS: ready\n");
+    }
     impl->feature.reset();
     const Gow3DlssFeature feature{desc.input_width,  desc.input_height, desc.output_width,
                                 desc.output_height, desc.quality,      0,
-                                0,                  desc.hdr ? 1 : 0};
+                                desc.preset,        desc.hdr ? 1 : 0};
     if (!impl->api->CreateFeature(command, &feature)) {
         return false;
     }

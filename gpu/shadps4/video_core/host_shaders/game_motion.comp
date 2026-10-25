@@ -1,0 +1,29 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+// wipeout: the game's own motion vectors (color2 of the main scene pass, R16G16F) for the
+// upscaler, instead of camera_motion.comp. The game writes the current minus the previous screen
+// position in UV units, its length capped at 0.25; the lowest bit of y is a flag (ignored, one
+// half-float ulp). The upscaler wants pixels, previous minus current, without this frame's jitter:
+// the game's current position is the pixel centre, while the geometry there was shifted by the
+// jitter, so the unjittered current position is pixel - jitter.
+#version 450
+#extension GL_EXT_samplerless_texture_functions : require
+
+layout(local_size_x = 8, local_size_y = 8) in;
+
+layout(binding = 0) uniform texture2D game_motion;              // UV, current - previous
+layout(binding = 1, rg16f) uniform writeonly image2D motion_img; // pixels, previous - current
+
+layout(push_constant) uniform Constants {
+    vec2 size;   // pixels
+    vec2 jitter; // current viewport shift in render pixels (x right, y down)
+    vec2 scale;  // UV to pixels including the sign: (-width, -height) unless overridden
+};
+
+void main() {
+    const ivec2 pixel = ivec2(gl_GlobalInvocationID.xy);
+    if (pixel.x >= int(size.x) || pixel.y >= int(size.y)) {
+        return;
+    }
+    const vec2 v = texelFetch(game_motion, pixel, 0).rg;
+    imageStore(motion_img, pixel, vec4(v * scale + jitter, 0.0, 0.0));
+}
