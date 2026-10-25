@@ -627,6 +627,11 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     } else {
         auto& image = texture_cache.GetImage(image_id);
         if (frame_dump) {
+            std::printf("Frame dump: display %llx %ux%u pitch %u tile %u alt %u bank %u\n",
+                        static_cast<unsigned long long>(image.info.guest_address),
+                        image.info.size.width, image.info.size.height, image.info.pitch,
+                        u32(image.info.tile_mode), unsigned(image.info.alt_tile),
+                        unsigned(image.info.bank_swizzle));
             runtime.Transit(&image, vk::ImageLayout::eTransferSrcOptimal,
                             vk::PipelineStageFlagBits2::eTransfer, vk::AccessFlagBits2::eTransferRead);
             runtime.FlushBarriers();
