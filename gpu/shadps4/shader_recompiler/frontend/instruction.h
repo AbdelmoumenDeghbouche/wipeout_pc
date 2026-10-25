@@ -214,7 +214,8 @@ struct InstControlMIMG {
     u64 : 7;
     u64 slc : 1;
     u64 mod : 32;
-    u64 : 6;
+    u64 : 5;
+    u64 d16 : 1;
 };
 
 struct InstControlDS {

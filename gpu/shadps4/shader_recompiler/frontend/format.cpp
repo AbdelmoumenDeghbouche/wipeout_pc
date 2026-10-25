@@ -630,8 +630,12 @@ constexpr std::array<InstFormat, 59> InstructionFormatVOP2 = {{
     {InstClass::VectorFpArith16, InstCategory::VectorALU, 2, 1, ScalarType::Float16,
      ScalarType::Float16},
     {},
-    {},
-    {},
+    // 55 = V_FMAMK_F16 (the following literal supplies the third source)
+    {InstClass::VectorFpArith16, InstCategory::VectorALU, 2, 1, ScalarType::Float16,
+     ScalarType::Float16},
+    // 56 = V_FMAAK_F16
+    {InstClass::VectorFpArith16, InstCategory::VectorALU, 2, 1, ScalarType::Float16,
+     ScalarType::Float16},
     // 57 = V_MAX_F16
     {InstClass::VectorFpArith16, InstCategory::VectorALU, 2, 1, ScalarType::Float16,
      ScalarType::Float16},
@@ -1873,16 +1877,27 @@ constexpr std::array<InstFormat, 883> InstructionFormatVOP3 = {
      // 85 = V_SQRT_F16
      {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
       ScalarType::Float16},
+     // 86 = V_RSQ_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
+      ScalarType::Float16},
+     // 87 = V_LOG_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
+      ScalarType::Float16},
+     // 88 = V_EXP_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
+      ScalarType::Float16},
      {},
      {},
-     {},
-     {},
-     {},
-     {},
-     {},
-     {},
-     {},
-     {},
+     // 91 = V_FLOOR_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+     // 92 = V_CEIL_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+     // 93 = V_TRUNC_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+     // 94 = V_RNDNE_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+     // 95 = V_FRACT_F16
+     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
      {},
      {},
      {},
@@ -2405,7 +2420,7 @@ constexpr std::array<InstFormat, 35> InstructionFormatVOP3P = {{
      ScalarType::Float32},
 }};
 
-constexpr std::array<InstFormat, 86> InstructionFormatVOP1 = {{
+constexpr std::array<InstFormat, 96> InstructionFormatVOP1 = {{
     // 0 = V_NOP
     {InstClass::VectorMisc, InstCategory::VectorALU, 0, 1, ScalarType::Any, ScalarType::Any},
     // 1 = V_MOV_B32
@@ -2606,6 +2621,27 @@ constexpr std::array<InstFormat, 86> InstructionFormatVOP1 = {{
     // 85 = V_SQRT_F16
     {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
      ScalarType::Float16},
+    // 86 = V_RSQ_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
+     ScalarType::Float16},
+    // 87 = V_LOG_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
+     ScalarType::Float16},
+    // 88 = V_EXP_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16,
+     ScalarType::Float16},
+    {},
+    {},
+    // 91 = V_FLOOR_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+    // 92 = V_CEIL_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+    // 93 = V_TRUNC_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+    // 94 = V_RNDNE_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
+    // 95 = V_FRACT_F16
+    {InstClass::VectorFpTran16, InstCategory::VectorALU, 1, 1, ScalarType::Float16, ScalarType::Float16},
 }};
 
 constexpr std::array<InstFormat, 248> InstructionFormatVOPC = {{
