@@ -50,6 +50,9 @@ static inline int compat_mkdir(const char *path, int mode) { (void)mode; return 
 #define mkdir(path, mode) compat_mkdir(path, mode)
 
 /* pread/pwrite on CRT descriptors: positioned I/O that leaves the file offset unchanged. */
+#ifdef __cplusplus
+extern "C" {
+#endif
 ssize_t compat_pread(int fd, void *buffer, size_t size, int64_t offset);
 ssize_t compat_pwrite(int fd, const void *buffer, size_t size, int64_t offset);
 #define pread compat_pread
@@ -78,5 +81,8 @@ int compat_cpu_times(int who, int64_t *user_us, int64_t *kernel_us);
 typedef unsigned long long gow3_jmp_buf[32];
 __attribute__((returns_twice)) int gow3_setjmp(gow3_jmp_buf buffer);
 __attribute__((noreturn)) void gow3_longjmp(gow3_jmp_buf buffer, int value);
+#ifdef __cplusplus
+}
+#endif
 #endif
 #endif
