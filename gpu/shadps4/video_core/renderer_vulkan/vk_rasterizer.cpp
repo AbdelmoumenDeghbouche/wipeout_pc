@@ -247,6 +247,29 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         image.binding.is_target = 1u;
     }
 
+    // gow3: WipEout draws the scene into a display buffer, then its HUD over it, laid out for
+    // 16:9. On a wider buffer the HUD draws keep 16:9 in the middle instead of stretching.
+    // ponytail: the first draw into a new display buffer is taken as the scene; flips must
+    // rotate buffers (a buffer drawn twice in a row would center its second scene draw).
+    static const bool hud_16x9 = [] {
+        const char* value = std::getenv("GOW3_HUD_16X9");
+        return value && value[0] == '1';
+    }();
+    hud_x = {1.0f, 0.0f};
+    if (hud_16x9 && cb_descs[0].first &&
+        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
+        const VAddr address = regs.color_buffers[0].Address();
+        if (address != hud_buffer) {
+            hud_buffer = address;
+            hud_draws = 0;
+        }
+        const auto& size = texture_cache.GetImage(cb_descs[0].first).info.size;
+        const float inner = float(size.height) * 16.0f / 9.0f;
+        if (hud_draws++ > 0 && inner + 1.0f < float(size.width)) {
+            hud_x = {inner / float(size.width), (float(size.width) - inner) * 0.5f};
+        }
+    }
+
     if (GetEffectiveDepthStencilState(regs).needs_attachment) {
         const auto htile_address = regs.depth_htile_data_base.GetAddress();
         const auto& hint = DbExtent();
@@ -1052,8 +1075,8 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     }
 
     // gow3: screen-space (clip disabled) draws into the upscaler's output-size images.
-    push_data.xscale *= target_scale[0];
-    push_data.xoffset *= target_scale[0];
+    push_data.xscale *= hud_x[0] * target_scale[0];
+    push_data.xoffset = (push_data.xoffset * hud_x[0] + hud_x[1]) * target_scale[0];
     push_data.yscale *= target_scale[1];
     push_data.yoffset *= target_scale[1];
     if (motion_draw && motion_geometry) {
@@ -1273,8 +1296,8 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     }
 
     // gow3: screen-space (clip disabled) draws into the upscaler's output-size images.
-    push_data.xscale *= target_scale[0];
-    push_data.xoffset *= target_scale[0];
+    push_data.xscale *= hud_x[0] * target_scale[0];
+    push_data.xoffset = (push_data.xoffset * hud_x[0] + hud_x[1]) * target_scale[0];
     push_data.yscale *= target_scale[1];
     push_data.yoffset *= target_scale[1];
     pipeline->BindResources(set_writes, push_data);
@@ -3390,9 +3413,9 @@ void Rasterizer::UpdateViewportScissorState() const {
 
             // gow3: sub-pixel jitter of scene geometry for the temporal upscaler; the same
             // shift as jittering the projection.
-            viewport.x = (xoffset - xscale) * target_scale[0] + draw_jitter[0];
+            viewport.x = ((xoffset - xscale) * hud_x[0] + hud_x[1]) * target_scale[0] + draw_jitter[0];
             viewport.y = (yoffset - yscale) * target_scale[1] + draw_jitter[1];
-            viewport.width = xscale * 2.0f * target_scale[0];
+            viewport.width = xscale * 2.0f * hud_x[0] * target_scale[0];
             viewport.height = yscale * 2.0f * target_scale[1];
         }
 
@@ -3408,6 +3431,12 @@ void Rasterizer::UpdateViewportScissorState() const {
                                               regs.viewport_scissors[i].bottom_right_x);
             vp_scsr.bottom_right_y = std::min(AmdGpu::Scissor::Clamp(vp_scsr.bottom_right_y),
                                               regs.viewport_scissors[i].bottom_right_y);
+        }
+        if (hud_x[0] != 1.0f) {
+            const auto shift = [&](s32 v) { return s16(std::lround(float(v) * hud_x[0] + hud_x[1])); };
+            const s32 x0 = AmdGpu::Scissor::Clamp(vp_scsr.top_left_x);
+            vp_scsr.bottom_right_x = shift(x0 + s32(vp_scsr.GetWidth()));
+            vp_scsr.top_left_x = shift(x0);
         }
         if (target_scale[0] != 1.0f || target_scale[1] != 1.0f) {
             const auto scale = [](s32 v, float f) { return s32(std::lround(float(v) * f)); };

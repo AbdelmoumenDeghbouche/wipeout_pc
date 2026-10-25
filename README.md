@@ -36,7 +36,7 @@ Requirements: Windows 10 or 11 (64-bit), a CPU with AVX, a GPU with Vulkan 1.3. 
 | Game speed | Done: the game runs on real time at any frame rate |
 | Frame rate above 60 FPS | Done: up to 240 FPS, set by the frame rate limit (110–150 FPS in 2048 races on an RTX 4070 Laptop) |
 | Graphics: Metro Park terrain | Fixed (shader recompiler, #5) |
-| Render resolutions: 2560x1440, 2560x1080, 3440x1440, 5120x2160, native 4K without checkerboard | Done (`patches/WipEout_Omega_Collection.xml`, #2). HUD stays 16:9 |
+| Render resolutions: 2560x1440, 2560x1080, 3440x1440, 5120x2160, native 4K without checkerboard | Done (`patches/WipEout_Omega_Collection.xml`, #2). The HUD stays 16:9 in the middle of wider screens |
 | HDR | Done; the darker picture when RCAS runs is fixed, waiting for a test (#4) |
 | Sound: music and effects (Audio3d) | Done; the effects are new, please report anything that sounds wrong |
 | Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |

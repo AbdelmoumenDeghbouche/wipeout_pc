@@ -23,9 +23,11 @@
        "Native 4K rendering (no checkerboard)" patch keeps the flag false; with checkerboard, one R32Uint resolve
        buffer stays 1920x2160 (half of 3840), which this file does not size.
 
-     Not handled: the 2D layer (HUD, menus) is a 1920x1080 canvas set up at three inlined sites
-     ([obj+0x2c]=1920.0f, [obj+0x30]=1080.0f, int16 rect at +0x34: 0x4f17c0, 0x5c6fad, 0x7515b4); its elements
-     sit at absolute 1920-space positions, so widening the canvas alone moves right-anchored elements.
+     The 2D layer (HUD, menus) is a 1920x1080 canvas set up at three inlined sites
+     ([obj+0x2c]=1920.0f, [obj+0x30]=1080.0f, int16 clip rect at +0x34: 0x4f17c0, 0x5c6fad, 0x7515b4); its
+     elements sit at absolute 1920-space positions, so widening the canvas alone moves right-anchored elements.
+     It is not patched here: the HUD is drawn into the display buffer after the scene, and the renderer gives
+     those draws a 16:9 area in the middle of a wider buffer (GOW3_HUD_16X9, vk_rasterizer.cpp).
 
      Tested in game on Windows (RTX 4090) in single races (HD/2048 Metro Park, Campaign): 2560x1080 and
      5120x2160. 1440p (2560x1440) and 3440x1440 use the same sites; tested on an RTX 4070 Laptop in an HD
@@ -36,7 +38,7 @@
         <ID>CUSA07671</ID>
         <ID>CUSA05670</ID>
     </TitleID>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 2560x1080" Note="Renders at 2560x1080 (2.370:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus are still laid out for 16:9 and appear stretched." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 2560x1080" Note="Renders at 2560x1080 (2.370:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
@@ -80,7 +82,7 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="1c020000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 5120x2160" Note="Renders at 5120x2160 (2.370:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus are still laid out for 16:9 and appear stretched." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 5120x2160" Note="Renders at 5120x2160 (2.370:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
@@ -164,7 +166,7 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="d0020000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 3440x1440" Note="Renders at 3440x1440 (2.389:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus are still laid out for 16:9 and appear stretched." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 3440x1440" Note="Renders at 3440x1440 (2.389:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="8ee31840" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
