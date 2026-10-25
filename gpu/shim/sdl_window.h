@@ -17,6 +17,7 @@ struct WindowSystemInfo {
     void* render_surface = nullptr;
     float render_surface_scale = 1.0f;
     WindowSystemType type = WindowSystemType::Headless;
+    bool hdr_enabled = false; // shortcut: sampled at startup; refresh for live display/HDR switching.
 };
 
 /// The pause key lets go of the mouse lock while the game's pause menu is up; pressing it again or
