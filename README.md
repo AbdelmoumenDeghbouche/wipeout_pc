@@ -42,7 +42,7 @@ Requirements: Windows 10 or 11 (64-bit), a CPU with AVX, a GPU with Vulkan 1.3. 
 | Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |
 | Windows package (zip) | Done (`packaging/windows/package.sh`, Actions > Windows zip) |
 | Linux | Builds from source; no package yet |
-| PS4 Pro mode | Not yet: the texture cache stop is fixed (v0.2.1), the game now stops in a Pro-only guest path |
+| PS4 Pro mode | Experimental (`GOW3_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
 | PSVR mode | Not planned for now (#7) |
 | Every game and event type (HD, HD Fury, 2048) | Not all tested yet |
 

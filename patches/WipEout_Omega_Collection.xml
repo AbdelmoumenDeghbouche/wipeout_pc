@@ -124,7 +124,7 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="38040000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1440p" Note="Renders at 2560x1440 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, sharper." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1440p" Note="Renders at 2560x1440 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, sharper." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="000a0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
@@ -164,7 +164,7 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="d0020000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 3440x1440" Note="Renders at 3440x1440 (2.389:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus are still laid out for 16:9 and appear stretched." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 3440x1440" Note="Renders at 3440x1440 (2.389:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus are still laid out for 16:9 and appear stretched." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="8ee31840" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
