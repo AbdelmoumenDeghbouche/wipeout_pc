@@ -57,7 +57,9 @@ Data
 - Generated files (prepared game image, patches): out\.
 
 Known issues
-- PS4 Pro mode is not available yet.
+- PS4 Pro mode is experimental. It is a Windows environment variable, not a gow3.ini setting:
+  in the WipEout folder, type cmd in the address bar, then run: set GOW3_NEO=1 && WipEout.exe
+  The log then says "reporting a PS4 Pro (Neo mode)".
 - Some event types and tracks have not been tested.
 
 Problems
