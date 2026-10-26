@@ -331,12 +331,14 @@
             <Line Type="bytes" Address="0x007f5406" Value="31db42895ca8fc" Pattern="45 85 ed 0f 84 af 00 00 00 85 db 0f 84 a7 00 00 00 48 8b 05 ?? ?? ?? ?? 41 ff cd 42 89 1c a8 e9 94 00 00 00" At="24"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all HD and Fury ships" Note="Every HD and HD Fury ship and livery that needs medals, team loyalty or play time is open (the VR ones stay for VR). Also other menu items with those rules. Nothing is written to your save." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all HD and Fury ships" Note="Every HD and HD Fury ship and livery that needs medals, team loyalty, play time or a finished campaign grid is open (not the VR versions, nor the Tigron and Van-Uber DLC teams), and other menu items with those rules. Nothing is written to your save." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <!-- PI_Item.cpp unlock rules (plugins/teams/Definition.xml: <Unlock locked="true" team=".."
              MedalCountHD="87"/>, loyalty="4000", ...): the parser at 0x3f8880 keeps each rule's text in
-             the item's condition (+0x70 MedalCount, +0x78 HD, +0x80 FURY, +0x88 TimePlayed, +0x90 Loyalty).
+             the item's condition (+0x60 Grid, +0x70 MedalCount, +0x78 HD, +0x80 FURY, +0x88 TimePlayed, +0x90 Loyalty).
              Not keeping it is as if the file had no such rule. Purchase is left alone. -->
         <PatchList>
+            <!-- Grid: rule dropped -->
+            <Line Type="bytes" Address="0x007f9024" Value="0f1f4000" Pattern="24 30 48 89 03 49 89 9d b0 02 00 00 48 83 c3 08 48 89 df e8 ?? ?? ?? ?? 48 8b 44 24 18 48 89 58 60 e9 ?? ?? ?? ??" At="29"/>
             <!-- MedalCount: rule dropped -->
             <Line Type="bytes" Address="0x007f9183" Value="0f1f4000" Pattern="24 30 48 89 03 49 89 9d b0 02 00 00 48 83 c3 08 48 89 df e8 ?? ?? ?? ?? 48 8b 44 24 18 48 89 58 70 e9 ?? ?? ?? ??" At="29"/>
             <!-- MedalCountHD: rule dropped -->
