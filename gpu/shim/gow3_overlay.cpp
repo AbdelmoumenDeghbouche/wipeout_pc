@@ -351,6 +351,8 @@ void GameTab() {
 
     ImGui::SeparatorText("Controller");
     if (BeginRows("##controller")) {
+        SliderRow("Stick deadzone", s.stick_deadzone, 0, 50, "%d%%",
+                  "Ignores small stick movements, for a stick that drifts. 0% keeps the game's own.");
         SliderRow("Vibration", s.vibration, 0, 100, "%d%%",
                   "Strength of the controller's vibration. 0% turns it off.");
         if (gow) {

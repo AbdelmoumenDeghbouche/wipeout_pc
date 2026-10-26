@@ -370,6 +370,10 @@ ScreenshotRequests ConsumeScreenshotRequests() {
 }
 } // namespace VideoCore
 
+extern "C" int gow3gpu_stick_deadzone_percent(void) {
+    return Gow3Settings::Get().stick_deadzone.load(std::memory_order_relaxed);
+}
+
 extern "C" int gow3gpu_vibration_percent(void) {
     return Gow3Settings::Get().vibration.load(std::memory_order_relaxed);
 }

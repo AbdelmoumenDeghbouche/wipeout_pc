@@ -73,6 +73,13 @@ static uint8_t connected_count;
 
 static uint64_t now_us(void) { struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t); return (uint64_t)t.tv_sec*1000000u+(uint64_t)t.tv_nsec/1000u; }
 static uint8_t axis(int16_t v) { int x=(v+32768)>>8; return (uint8_t)(x<0 ? 0 : x>255 ? 255 : x); }
+/* Round deadzone of percent% on one stick, rescaled so a full tilt still reaches the edge (#60). */
+static void stick_deadzone(uint8_t *x, uint8_t *y, int percent) {
+    if (percent<=0) return;
+    const float dx=(*x-127.5f)/127.5f, dy=(*y-127.5f)/127.5f, length=sqrtf(dx*dx+dy*dy), zone=percent/100.0f;
+    const float scale=length<=zone ? 0.0f : fminf(1.0f,(length-zone)/(1.0f-zone))/length;
+    *x=(uint8_t)lrintf(127.5f+dx*scale*127.5f); *y=(uint8_t)lrintf(127.5f+dy*scale*127.5f);
+}
 static uint8_t trigger(int16_t v) { int x=v>>7; return (uint8_t)(x<0 ? 0 : x>255 ? 255 : x); }
 static uint16_t touch_axis(float v, int max) {
     return (uint16_t)(v<=0.0f ? 0 : v>=1.0f ? max : (int)(v*max+0.5f));
@@ -469,6 +476,8 @@ static void sample_host(PadData *d) {
         const uint32_t mapped=d->buttons;
         d->left_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTX)); d->left_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTY));
         d->right_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTX)); d->right_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTY));
+        const int deadzone=gow3gpu_stick_deadzone_percent();
+        stick_deadzone(&d->left_x,&d->left_y,deadzone); stick_deadzone(&d->right_x,&d->right_y,deadzone);
         d->l2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFT_TRIGGER)); d->r2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
         if (d->l2>30) d->buttons|=BTN_L2;
         if (d->r2>30) d->buttons|=BTN_R2;

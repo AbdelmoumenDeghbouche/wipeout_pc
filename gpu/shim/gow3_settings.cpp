@@ -122,6 +122,8 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.anisotropy = Gow3Graphics::ParseAnisotropy(i);
     } else if (key == "vibration") {
         v.vibration = value.empty() ? 100 : std::clamp(i, 0, 100);
+    } else if (key == "stick_deadzone") {
+        v.stick_deadzone = std::clamp(i, 0, 50);
     } else if (key == "mouse_prompt_distance") {
         v.mouse_prompt_distance = value.empty() ? 48 : std::clamp(i, 16, 200);
     } else if (key == "mouse_lock") {
@@ -208,7 +210,7 @@ void Load() {
         {"GOW3_ASYNC_SHADERS", "async_shaders"},      {"GOW3_DEFERRED_READBACK", "deferred_readback"},
         {"GOW3_STALE_READBACK", "stale_readback"},     {"GOW3_FSR1", "fsr1"},
         {"GOW3_RCAS", "rcas"},                        {"GOW3_FRAMES_AHEAD", "frames_queued"},
-        {"GOW3_ANISOTROPY", "anisotropy"},            {"GOW3_VIBRATION", "vibration"},
+        {"GOW3_ANISOTROPY", "anisotropy"},            {"GOW3_VIBRATION", "vibration"}, {"GOW3_STICK_DEADZONE", "stick_deadzone"},
         {"GOW3_MOUSE_PROMPT_DISTANCE", "mouse_prompt_distance"}, {"GOW3_MOUSE_LOCK", "mouse_lock"},
         {"GOW3_MOUSE_AIM_STYLE", "mouse_aim_style"}, {"GOW3_MOUSE_AIM_SENSITIVITY", "mouse_aim_sensitivity"},
     };
@@ -341,10 +343,11 @@ void Save() {
                  v.engine_fps.load(), int(v.deferred_readback.load()), int(v.stale_readback.load()),
                  int(v.restart_unconfirmed.load()));
     std::fprintf(file, "anisotropy=%d\nvibration=%d\nmouse_prompt_distance=%d\nmouse_lock=%d\nmouse_aim_style=%d\n"
-                       "mouse_aim_sensitivity=%d\nmusic=%d\nmusic_shuffle=%d\nmusic_volume=%d\n",
+                       "mouse_aim_sensitivity=%d\nmusic=%d\nmusic_shuffle=%d\nmusic_volume=%d\n"
+                       "stick_deadzone=%d\n",
                  v.anisotropy.load(), v.vibration.load(), v.mouse_prompt_distance.load(), int(v.mouse_lock.load()),
                  v.mouse_aim_style.load(), v.mouse_aim_sensitivity.load(), int(v.music.load()),
-                 int(v.music_shuffle.load()), v.music_volume.load());
+                 int(v.music_shuffle.load()), v.music_volume.load(), v.stick_deadzone.load());
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");
