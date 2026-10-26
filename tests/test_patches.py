@@ -419,7 +419,8 @@ class HalfResolutionTests(unittest.TestCase):
         names = [m.get('Name') for m in ET.parse(WIPEOUT).getroot().iter('Metadata')]
         self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160',
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
-                                 'Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang'])
+                                 'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
+                                 'Bug Fix - Startup Hang'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang'])
