@@ -250,6 +250,13 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual(launcher.game_environment({**settings, 'parallel_warmup': False})['GOW3_PARALLEL_WARMUP'], '0')
         self.assertEqual(launcher.game_environment({**settings, 'background_warmup': False})['GOW3_BACKGROUND_WARMUP'], '0')
 
+    def test_ps4_pro_switch_reaches_the_game(self):
+        # Off by default; the launcher's choice wins over a GOW3_NEO left in the user's environment.
+        self.assertFalse(launcher.APP_DEFAULTS['ps4_pro'])
+        for saved, value in ((True, '1'), (False, '0'), (None, '0')):
+            env = launcher.game_environment({**launcher.APP_DEFAULTS, 'ps4_pro': saved})
+            self.assertEqual(env['GOW3_NEO'], value)
+
     def test_anti_aliasing_switch_reaches_the_game(self):
         # Graphics > Temporal anti-aliasing (off by default); run.py keeps the upscaler out unless it is on.
         self.assertFalse(launcher.APP_DEFAULTS['experimental_upscaler'])
@@ -738,9 +745,9 @@ class MusicTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.13')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.14'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.12'))
+        self.assertEqual(launcher.VERSION, '0.2.14')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.15'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.13'))
 
     def test_first_start_is_in_english(self):
         # The translations are partial; 'System' stays a choice in Advanced.

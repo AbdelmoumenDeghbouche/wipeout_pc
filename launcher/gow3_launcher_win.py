@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.13'
+VERSION = '0.2.14'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -408,7 +408,7 @@ PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
-APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False,
+APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
@@ -1088,6 +1088,7 @@ def game_environment(s):
     env.pop('GOW3_PATCH_DIR', None)
     # The Graphics page's anti-aliasing switch (build_graphics); off, run.py keeps the upscaler out.
     env['GOW3_EXPERIMENTAL_UPSCALER'] = '1' if s.get('experimental_upscaler') else '0'
+    env['GOW3_NEO'] = '1' if s.get('ps4_pro') else '0'  # the game asks sceKernelIsNeoMode
     if s.get('update_dir'):
         env['GOW3_PATCH_DIR'] = s['update_dir']
     if not WINDOWS:
@@ -1758,6 +1759,9 @@ class Launcher:
         self.row(f, _('Render resolution'), self.choice(f, 'render_resolution', 'ini', self.game_resolution_options()),
                  _('Sizes with a resolution patch for this game. Wider than 16:9 keeps the HUD at 16:9.'),
                  restart=True)
+        self.check(f, 'ps4_pro', 'app', _('PS4 Pro mode (experimental)'),
+                   _('The game runs as on a PS4 Pro, with its Pro graphics. Menus and a race start work; other events '
+                     'are not tested yet. Turn it off if something looks wrong.'), restart=True)
         self.section(f, _('Anti-aliasing (experimental)'))
         self.check(f, 'experimental_upscaler', 'app', _('Temporal anti-aliasing'),
                    _('Off (default): the game\'s own image. On: FSR 3.1 or DLAA smooth edges at the render '
