@@ -354,4 +354,22 @@
             <Line Type="bytes" Address="0x009a36ee" Value="eb" Pattern="85 c0 0f 85 ?? ?? ?? ?? 41 80 7f 4c 00 b0 01 75 7d 49 8b 47 40 48 85 c0 74 0c 83 b8 c0 03 00 00 02 41 0f 9f 47 4c" At="15"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Cheat - Van Uber team (owned DLC)" Note="The Van Über team DLC (unlock-only, no package) is open, for players whose PSN account owns it: the port has no PSN entitlement. Nothing is written to your save." Author="ahmanwoods" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <!-- The Van Uber check at 0x63afd0 asks sceAppContentGetEntitlementKey for the region's
+             WIPEOUTVANUBERxx label and owns the team when the key matches the one in the eboot
+             (memcmp, 16 bytes). Jumping from the call's result to the owned path (bl=1 at 0x63b0a7)
+             skips both tests; the key itself is never needed. -->
+        <PatchList>
+            <Line Type="bytes" Address="0x00a3b07c" Value="eb29" Pattern="31 ff 31 db e8 ?? ?? ?? ?? 85 c0 0f 85 ?? ?? ?? ?? 48 8d 35 ?? ?? ?? ?? 48 8d bd f0 fe ff ff ba 10 00 00 00 e8" At="9"/>
+        </PatchList>
+    </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Cheat - VR ships outside VR" Note="The VR HD and VR Fury liveries can be picked without PlayStation VR, once unlocked. Nothing is written to your save." Author="ahmanwoods" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <!-- Team select (0x5a89d0) marks a VR-only livery (+0x74d) that is unlocked as "VR only" (+0x1900
+             per slot) when the game is not in VR mode (0x1047e20 bit 0); that mark refuses the choice
+             (0x5a5346, 0x5a79b1) and shows the VR warning (0x5a7e3b). Never setting the mark leaves the
+             livery like any other. -->
+        <PatchList>
+            <Line Type="bytes" Address="0x009aa1e7" Value="eb" Pattern="41 80 bd 4d 07 00 00 00 0f 94 c0 0a 85 ?? ?? ?? ?? a8 01 75 1d 4a 63 84 bb b0 01 00 00 4a 8d 0c 33 8a 94 08 a0 16 00 00 80 f2 01 88 94 08 00 19 00 00" At="19"/>
+        </PatchList>
+    </Metadata>
 </Patch>
