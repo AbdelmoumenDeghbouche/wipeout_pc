@@ -1141,17 +1141,27 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     int view_slice{-1};
     if (!image_id) {
         for (const auto& cache_id : image_ids) {
-            view_mip = -1;
-            view_slice = -1;
-
+            // gow3: once the request has a place (image_id, view_mip/slice), later rounds resolve
+            // the merged image against the others, not the request: a merge returning that image
+            // (mip -1) must not reset the request's mip. Reset, a mip render target found in an
+            // earlier round became mip 0, and WipEout's menu blur drew a half-size copy over its
+            // source after a race (#42, #45: the campaign cards, the menu background).
+            const bool merging = bool(image_id);
             const auto& merged_info = image_id ? slot_images[image_id].info : info;
             auto [overlap_image_id, overlap_view_mip, overlap_view_slice] =
                 ResolveOverlap(merged_info, desc.type, cache_id, image_id, desc.needs_native);
-            if (overlap_image_id) {
-                image_id = overlap_image_id;
+            if (!overlap_image_id) {
+                continue;
+            }
+            if (!merging) {
                 view_mip = overlap_view_mip;
                 view_slice = overlap_view_slice;
+            } else if (overlap_view_mip >= 0) {
+                // The merged image is itself a subresource of the image found.
+                view_mip = std::max(view_mip, 0) + overlap_view_mip;
+                view_slice = std::max(view_slice, 0) + std::max(overlap_view_slice, 0);
             }
+            image_id = overlap_image_id;
         }
     }
 
