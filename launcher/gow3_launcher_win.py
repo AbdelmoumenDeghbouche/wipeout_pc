@@ -389,7 +389,7 @@ def heading_font(size, fallback=None, every_language=False):
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
              'stale_readback', 'music', 'music_shuffle'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
@@ -413,7 +413,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
-                'perf_diag': False, 'frame_capture_key': False, 'frame_stats': False, 'gpu_profile': False,
+                'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
                 'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'controls_layout': 2,
@@ -631,6 +631,13 @@ def migrate_controls(saved):
 UPSCALERS = [('fsr3', ('FSR 3.1 (every GPU)', 'FSR 3.1 (любая видеокарта)')),
              ('taa', ('TAA (native resolution anti-aliasing)', 'TAA (нативное сглаживание)')),
              ('off', ('Off', 'Выключен'))]
+# WipEout's anti-aliasing (Graphics page): native size only, fed by the game's own motion vectors.
+# TAA reprojects with God of War III's camera and is left out.
+AA_CHOICES = [('off', ('Off',)), ('fsr3', ('FSR 3.1 (every GPU)',))]
+DLSS_CHOICE = ('dlss', ('DLAA (NVIDIA RTX)',))
+DLSS_PRESETS = [('0', ('Driver default (K)',)), ('11', ('K (transformer)',)),
+                ('13', ('M (transformer 2, DLSS 4.5)',)), ('12', ('L (transformer 2, cleanest, slowest)',)),
+                ('10', ('J (less ghosting, more flicker)',))]
 PRESETS = [('0', ('Native AA (×1.0)',)), ('1', ('Quality (×1.5)',)), ('2', ('Balanced (×1.7)',)),
            ('3', ('Performance (×2)',)), ('4', ('Ultra Performance (×3)',))]
 OUTPUTS = [('1280x720', ('1280 × 720 (Steam Deck)',)), ('1920x1080', ('1920 × 1080',)),
@@ -1068,13 +1075,19 @@ def game_profile_of(folder):
     return title_id, game_profile_for(folder)
 
 
+def dlss_installed():
+    """Whether the DLSS bridge and NVIDIA's runtime sit next to gow3-probe (packaged bin/ or a build's
+    out/). Whether the GPU can run DLSS is only known in the game; without it the game uses FSR 3.1."""
+    return WINDOWS and any((d / 'gow3_dlss.dll').is_file() and (d / 'nvngx_dlss.dll').is_file()
+                           for d in (PORT_DIR / 'bin', PORT_DIR / 'out'))
+
+
 def game_environment(s):
     env = dict(os.environ)
     env['GOW3_GAME_DIR'] = s['game_dir']
     env.pop('GOW3_PATCH_DIR', None)
-    # Temporal upscaling is parked (build_graphics): a switch saved on by 2.1.8 has no control left to
-    # turn it off, so it is ignored until the upscaler section comes back.
-    env['GOW3_EXPERIMENTAL_UPSCALER'] = '0'
+    # The Graphics page's anti-aliasing switch (build_graphics); off, run.py keeps the upscaler out.
+    env['GOW3_EXPERIMENTAL_UPSCALER'] = '1' if s.get('experimental_upscaler') else '0'
     if s.get('update_dir'):
         env['GOW3_PATCH_DIR'] = s['update_dir']
     if not WINDOWS:
@@ -1122,7 +1135,8 @@ def game_environment(s):
     env['GOW3_PERF_DIAG'] = '1' if s.get('perf_diag', False) else '0'
     env['GOW3_PARTIAL_HEIGHT_VIEWS'] = '1' if s.get('partial_height_views', True) else '0'
     for key, name in (('frame_stats', 'GOW3_FRAME_STATS'), ('gpu_profile', 'GOW3_GPU_PROFILE'),
-                      ('vk_validation', 'GOW3_VK_VALIDATION'), ('frame_capture_key', 'GOW3_FRAME_CAPTURE_KEY')):
+                      ('vk_validation', 'GOW3_VK_VALIDATION'), ('frame_capture_key', 'GOW3_FRAME_CAPTURE_KEY'),
+                      ('upscaler_key', 'GOW3_UPSCALER_KEY')):
         if s[key]:
             env[name] = '1'
     controls = s.get('controls', {})
@@ -1464,6 +1478,21 @@ class Launcher:
             resolution.trace_add('write', resolution_chosen)
         return self.aspect
 
+    def game_resolution_options(self):
+        """The render resolutions with a patch for the chosen game (its profile's
+        GOW3_ALLOWED_RESOLUTIONS), else all built-in ones."""
+        import game_profiles
+        from patches import game_title_id
+        folder = self.var('game_dir', 'app').get()
+        title_id = game_title_id(folder) if folder else None
+        allowed = game_profiles.PROFILES.get(title_id, {}).get('env', {}).get('GOW3_ALLOWED_RESOLUTIONS')
+        if not allowed:
+            return RESOLUTION_CHOICES
+        names = allowed.split(';')
+        return [(n, t) for n, t in RESOLUTION_CHOICES if n in names] + \
+            [(n, (graphics_options.resolution_label(n),)) for n in names
+             if n not in dict(RESOLUTION_CHOICES)]
+
     def aspect_options(self):
         """The aspect ratios the render resolutions have (built-in and mods)."""
         return [(a, (a,)) for a in graphics_options.aspects([v for v, _t in self.resolution_options()])]
@@ -1721,9 +1750,38 @@ class Launcher:
             return self.banner_image.subsample(factor) if factor > 1 else self.banner_image
 
     def build_graphics(self):
-        """Window and overlay controls; temporal upscaling stays commented out."""
+        """Window and overlay controls, render resolution and WipEout's anti-aliasing; God of War III's
+        upscaler presets stay commented out."""
         f = self.scrolled_page('graphics', _('Graphics', 'Графика'), _('How the game appears on your screen.'))
         self.build_display(f)
+        self.section(f, _('Resolution'))
+        self.row(f, _('Render resolution'), self.choice(f, 'render_resolution', 'ini', self.game_resolution_options()),
+                 _('Sizes with a resolution patch for this game. Wider than 16:9 keeps the HUD at 16:9.'),
+                 restart=True)
+        self.section(f, _('Anti-aliasing (experimental)'))
+        self.check(f, 'experimental_upscaler', 'app', _('Temporal anti-aliasing'),
+                   _('Off (default): the game\'s own image. On: FSR 3.1 or DLAA smooth edges at the render '
+                     'resolution (DLAA), from the game\'s own motion vectors. To compare them in the game: '
+                     'Advanced > Diagnostics > F10.'), restart=True)
+        dlss = dlss_installed()
+        self.row(f, _('Method'), self.choice(f, 'upscaler', 'ini', AA_CHOICES + ([DLSS_CHOICE] if dlss else [])),
+                 None if dlss else _('DLAA needs gow3_dlss.dll and nvngx_dlss.dll next to gow3-probe.exe.'),
+                 restart=True)
+        if dlss:
+            # Only DLAA has presets; FSR 3.1 at native size has none (its quality modes choose
+            # an upscaling ratio). The row (title, box, note) hides with another method.
+            first = self.next_row(f)
+            self.row(f, _('DLAA preset'), self.choice(f, 'dlss_preset', 'ini', DLSS_PRESETS),
+                     _('K is the driver\'s default for DLAA. M and L are the newer second-generation '
+                       'models; L costs a few percent more.'), restart=True)
+            preset_widgets = [w for r in range(first, self.next_row(f)) for w in f.grid_slaves(row=r)]
+            method = self.var('upscaler', 'ini')
+
+            def preset_visible(*_args):
+                for widget in preset_widgets:
+                    widget.grid() if method.get() == 'dlss' else widget.grid_remove()
+            method.trace_add('write', preset_visible)
+            preset_visible()
         # Temporal upscaling is parked until its image quality is validated.
         # self.section(f, _('Experimental'))
         # self.check(f, 'experimental_upscaler', 'app', _('Enable the upscaler (experimental)'),
@@ -2347,6 +2405,9 @@ class Launcher:
                    _('Shows where the frame waits for the GPU and which reads cause it. For performance tests.'))
         self.check(body, 'frame_capture_key', 'app', _('F11 captures a frame for analysis'),
                    _('Records how the next frame is drawn into the captures folder.'))
+        self.check(body, 'upscaler_key', 'app', _('F10 switches the anti-aliasing (off, FSR 3.1, DLAA)'),
+                   _('For comparing them in the same scene. Needs Graphics > Temporal anti-aliasing on; '
+                     'DLAA only where the game found DLSS working.'))
         self.check(body, 'vk_validation', 'app', _('Vulkan validation layers (needs the Vulkan SDK; much slower)',
                                                    'Слои валидации Vulkan (нужен Vulkan SDK; сильно замедляет)'))
         shown = tk.BooleanVar(value=False)

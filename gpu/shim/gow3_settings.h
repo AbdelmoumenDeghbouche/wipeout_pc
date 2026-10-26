@@ -118,6 +118,13 @@ struct Values {
     /// DLSS (gow3_dlss.dll, NVIDIA RTX) is ready, or why not (null before the device exists).
     std::atomic<bool> dlss_supported{false};
     std::atomic<const char*> dlss_problem{nullptr};
+    /// DLSS render preset (NVSDK_NGX_DLSS_Hint_Render_Preset): 0 the driver's default (K for DLAA
+    /// in SDK 310), 10 J, 11 K, 12 L, 13 M (L and M: the second-generation transformer, DLSS 4.5).
+    /// Other values fall back to 0.
+    std::atomic<int> dlss_preset{0};
+    /// The DLSS quality the renderer last used (0 = DLAA, render size = output size), -1 none yet:
+    /// the overlay and F10 call DLSS at native size "DLAA".
+    std::atomic<int> dlss_quality{-1};
 
     /// Startup settings for the explicit GOW3_RENDER_RES compatibility patch only.
     int startup_preset = NativeAA;

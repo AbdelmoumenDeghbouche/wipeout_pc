@@ -10,6 +10,7 @@
 
 #include "video_core/host_shaders/camera_motion_comp.h"
 #include "video_core/host_shaders/camera_motion_debug_comp.h"
+#include "video_core/host_shaders/game_motion_comp.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_object_motion.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -30,6 +31,13 @@ struct PushConstants {
     std::array<float, 2> previous_jitter;
     u32 mode;
 };
+
+struct GameMotionPush {
+    std::array<float, 2> size;
+    std::array<float, 2> jitter;
+    std::array<float, 2> scale;
+};
+static_assert(sizeof(GameMotionPush) <= sizeof(PushConstants));
 
 /// a * b for 3x4 affine matrices (rows [R | t]).
 std::array<float, 12> Multiply(const std::array<float, 12>& a, const std::array<float, 12>& b) {
@@ -96,6 +104,23 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
                     .layout = *motion_pipeline_layout,
                 }));
         device.destroyShaderModule(motion_module);
+        // wipeout: same layout (bindings 0 and 1, a prefix of the push constants).
+        const auto game_module = CompileSPV(GAME_MOTION_COMP, device);
+        game_motion_pipeline = Check(device.createComputePipelineUnique(
+            {}, vk::ComputePipelineCreateInfo{
+                    .stage = {.stage = vk::ShaderStageFlagBits::eCompute,
+                              .module = game_module,
+                              .pName = "main"},
+                    .layout = *motion_pipeline_layout,
+                }));
+        device.destroyShaderModule(game_module);
+        // GOW3_GAME_MOTION_SIGN="x,y": the sign of each axis of the game's vectors (tests).
+        if (const char* sign = std::getenv("GOW3_GAME_MOTION_SIGN")) {
+            float x = 0.0f, y = 0.0f;
+            if (std::sscanf(sign, "%f,%f", &x, &y) == 2) {
+                game_motion_scale = {x, y};
+            }
+        }
     }
     if (!debug_overlay) {
         return;
@@ -153,10 +178,13 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
 CameraMotion::~CameraMotion() = default;
 
 float CameraMotion::VerticalFov() const noexcept {
+    // wipeout: without a known camera (game motion vectors), a plausible value for FSR 3.
+    if (!current.valid) return 1.0f;
     return 2.0f * std::atan(1.0f / current.proj[1]);
 }
 
 float CameraMotion::Near() const noexcept {
+    if (!current.valid || current.proj[2] == 0.0f) return 0.1f;
     // depth = zs + zo / z is 0 at the near plane.
     return -current.proj[3] / current.proj[2];
 }
@@ -218,6 +246,35 @@ void CameraMotion::RecordMotion(vk::CommandBuffer cmdbuf, vk::ImageView depth_vi
     cmdbuf.dispatch((width + 7) / 8, (height + 7) / 8, 1);
 }
 
+void CameraMotion::RecordGameMotion(vk::CommandBuffer cmdbuf, vk::ImageView game_view,
+                                    vk::ImageView motion_view, u32 width, u32 height) {
+    const GameMotionPush push{
+        .size = {float(width), float(height)},
+        .jitter = jitter,
+        .scale = {game_motion_scale[0] * float(width), game_motion_scale[1] * float(height)},
+    };
+    const vk::DescriptorImageInfo game_info{.imageView = game_view,
+                                            .imageLayout = vk::ImageLayout::eGeneral};
+    const vk::DescriptorImageInfo motion_info{.imageView = motion_view,
+                                              .imageLayout = vk::ImageLayout::eGeneral};
+    const std::array<vk::WriteDescriptorSet, 2> writes = {{
+        {.dstBinding = 0,
+         .descriptorCount = 1,
+         .descriptorType = vk::DescriptorType::eSampledImage,
+         .pImageInfo = &game_info},
+        {.dstBinding = 1,
+         .descriptorCount = 1,
+         .descriptorType = vk::DescriptorType::eStorageImage,
+         .pImageInfo = &motion_info},
+    }};
+    cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, *game_motion_pipeline);
+    cmdbuf.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, *motion_pipeline_layout, 0,
+                                writes);
+    cmdbuf.pushConstants(*motion_pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0,
+                         sizeof(push), &push);
+    cmdbuf.dispatch((width + 7) / 8, (height + 7) / 8, 1);
+}
+
 void CameraMotion::OnConstants(const float* data) {
     // Scene constants: far plane 3000, 1/far, and the render size.
     if (data[0] != 3000.0f || data[4] < 64.0f || data[5] < 64.0f ||
@@ -251,6 +308,7 @@ void CameraMotion::OnDisplayPass(VideoCore::ImageId frame) {
     if (!frame_has_camera) InvalidateHistory();
     frame_has_camera = false;
     depth_id = {};
+    game_motion_id = {};
 }
 
 void CameraMotion::Overlay(VideoCore::ImageId frame) {

@@ -18,6 +18,7 @@
 #include "gow3_toggles.h"
 #include "ffx_vk_portable.h"
 #include "video_core/host_shaders/upscale_merge_comp.h"
+#include "video_core/host_shaders/upscale_merge_r11_comp.h"
 #include "video_core/host_shaders/upscale_reactive_comp.h"
 #include "video_core/host_shaders/taa_comp.h"
 #include "video_core/host_shaders/taa_sharpen_comp.h"
@@ -177,6 +178,9 @@ TemporalUpscaler::TemporalUpscaler(const Instance& instance_, Scheduler& schedul
     enabled = !(env && std::strcmp(env, "none") == 0);
     if (const char* hash = std::getenv("GOW3_UPSCALE_BEFORE_CS")) {
         trigger_hash = std::strtoull(hash, nullptr, 16);
+    }
+    if (const char* hash = std::getenv("GOW3_UPSCALE_BEFORE_PS")) {
+        ps_trigger_hash = std::strtoull(hash, nullptr, 16);
     }
     if (const char* hash = std::getenv("GOW3_UI_TRIGGER_VS")) {
         ui_trigger_vs = std::strtoull(hash, nullptr, 16);
@@ -359,6 +363,18 @@ bool TemporalUpscaler::OnFrameStart() {
 
 void TemporalUpscaler::OnDispatch(u64 cs_hash) {
     if (cs_hash != trigger_hash || done_this_frame || failed || Scaled()) {
+        return;
+    }
+    done_this_frame = true;
+    if (!scene_color || !camera_motion.Ready() || !Active()) {
+        reset = true;
+        return;
+    }
+    Run();
+}
+
+void TemporalUpscaler::OnPixelShader(u64 ps_hash) {
+    if (!ps_trigger_hash || ps_hash != ps_trigger_hash || done_this_frame || failed || Scaled()) {
         return;
     }
     done_this_frame = true;
@@ -602,6 +618,7 @@ void TemporalUpscaler::CreatePipelines() {
         }));
     }
     merge_pipeline = compute(UPSCALE_MERGE_COMP, *merge_pipeline_layout);
+    merge_r11_pipeline = compute(UPSCALE_MERGE_R11_COMP, *merge_pipeline_layout);
     storage_layout(3, reactive_desc_layout, reactive_pipeline_layout, 3 * sizeof(float));
     reactive_pipeline = compute(UPSCALE_REACTIVE_COMP, *reactive_pipeline_layout);
     storage_layout(2, taa_sharpen_desc_layout, taa_sharpen_pipeline_layout, sizeof(float));
@@ -1007,10 +1024,29 @@ void TemporalUpscaler::Run() {
     const bool reduced = ReducedScene(color) && scene_targets.EligibleScene(depth);
     const u32 w = reduced ? scene_targets.Size().width : ow;
     const u32 h = reduced ? scene_targets.Size().height : oh;
-    if (color.info.pixel_format != vk::Format::eR16G16B16A16Sfloat ||
+    // wipeout: R11G11B10 scene color, with the game's own motion vectors.
+    const bool r11 = color.info.pixel_format == vk::Format::eB10G11R11UfloatPack32;
+    if ((color.info.pixel_format != vk::Format::eR16G16B16A16Sfloat && !r11) ||
         depth.info.size.width != ow || depth.info.size.height != oh ||
         !(color.usage_flags & vk::ImageUsageFlagBits::eStorage)) {
+        static bool printed = false;
+        if (!printed) {
+            printed = true;
+            std::printf("Upscaler: scene color %s %ux%u (storage %d), depth %ux%u: not usable\n",
+                        vk::to_string(color.info.pixel_format).c_str(), ow, oh,
+                        bool(color.usage_flags & vk::ImageUsageFlagBits::eStorage),
+                        depth.info.size.width, depth.info.size.height);
+        }
         return;
+    }
+    VideoCore::Image* game_motion = nullptr;
+    if (const auto id = camera_motion.GameMotion()) {
+        game_motion = &texture_cache.GetImage(id);
+        // Native size only: a reduced scene would need the vectors read at the render size.
+        if (reduced || game_motion->info.pixel_format != vk::Format::eR16G16Sfloat ||
+            game_motion->info.size.width != ow || game_motion->info.size.height != oh) {
+            return;
+        }
     }
     if (!EnsureResources(w, h, ow, oh, true)) {
         failed = true;
@@ -1020,13 +1056,21 @@ void TemporalUpscaler::Run() {
     const auto depth_view =
         CachedView(depth, depth_format, vk::ImageAspectFlagBits::eDepth);
     const auto color_view =
-        CachedView(color, vk::Format::eR16G16B16A16Sfloat, vk::ImageAspectFlagBits::eColor);
+        CachedView(color, color.info.pixel_format, vk::ImageAspectFlagBits::eColor);
+    const auto game_motion_view = game_motion
+        ? CachedView(*game_motion, vk::Format::eR16G16Sfloat, vk::ImageAspectFlagBits::eColor)
+        : vk::ImageView{};
 
     scheduler.EndRendering();
     runtime.Transit(&depth, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
                     vk::AccessFlagBits2::eShaderRead);
     runtime.Transit(&color, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,
                     vk::AccessFlagBits2::eShaderRead);
+    if (game_motion) {
+        runtime.Transit(game_motion, vk::ImageLayout::eGeneral,
+                        vk::PipelineStageFlagBits2::eComputeShader,
+                        vk::AccessFlagBits2::eShaderRead);
+    }
     runtime.FlushBarriers();
     vk::Image input_color = color.GetImage(), input_depth = depth.GetImage();
     vk::ImageView input_color_view = color_view, input_depth_view = depth_view;
@@ -1068,7 +1112,11 @@ void TemporalUpscaler::Run() {
     own_barrier(vk::Image(output_image), vk::ImageLayout::eUndefined, all,
                 vk::AccessFlagBits2::eNone, vk::ImageLayout::eGeneral, all, rw);
 
-    camera_motion.RecordMotion(cmdbuf, input_depth_view, *motion_view, w, h);
+    if (game_motion) {
+        camera_motion.RecordGameMotion(cmdbuf, game_motion_view, *motion_view, w, h);
+    } else {
+        camera_motion.RecordMotion(cmdbuf, input_depth_view, *motion_view, w, h);
+    }
     own_barrier(vk::Image(motion_image), vk::ImageLayout::eGeneral,
                 vk::PipelineStageFlagBits2::eComputeShader, vk::AccessFlagBits2::eShaderWrite,
                 vk::ImageLayout::eGeneral, all, vk::AccessFlagBits2::eShaderRead);
@@ -1220,7 +1268,8 @@ void TemporalUpscaler::Run() {
                              ? 1
                          : debug_view == Gow3Settings::DebugMotion ? 2
                                                                  : 0;
-        cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, *merge_pipeline);
+        cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute,
+                            r11 ? *merge_r11_pipeline : *merge_pipeline);
         cmdbuf.pushDescriptorSetKHR(vk::PipelineBindPoint::eCompute, *merge_pipeline_layout, 0,
                                     writes);
         cmdbuf.pushConstants(*merge_pipeline_layout, vk::ShaderStageFlagBits::eCompute, 0,
@@ -1990,7 +2039,10 @@ bool TemporalUpscaler::RecordDlss(vk::CommandBuffer cmdbuf, const Dlss::Resource
                                   const Dlss::Resource& depth, u32 w, u32 h, u32 ow, u32 oh,
                                   float frame_ms, bool hdr) {
     Dlss* dlss = Dlss::Get();
-    const Dlss::FeatureDesc desc{w, h, ow, oh, Dlss::QualityForScale(float(ow) / float(w)), hdr};
+    // A preset change (gow3.ini dlss_preset) recreates the feature, like a size change.
+    const Dlss::FeatureDesc desc{w, h, ow, oh, Dlss::QualityForScale(float(ow) / float(w)), hdr,
+                                 u32(Gow3Settings::Get().dlss_preset.load())};
+    Gow3Settings::Get().dlss_quality = desc.quality;
     bool ok = true;
     if (!dlss->HasFeature(desc)) {
         // The previous feature may still be in use by submitted work; `cmdbuf` stays open.
@@ -2022,6 +2074,10 @@ bool TemporalUpscaler::RecordDlss(vk::CommandBuffer cmdbuf, const Dlss::Resource
         Gow3Settings::Get().upscaler = Gow3Settings::UpscalerFsr3;
         dlss_failed = true; // EnsureResources creates the FSR 3 context next frame
         reset = true;
+        // NGX starts lazily, so it can fail here: F10 and the menu stop offering DLSS.
+        if (!dlss->Available()) {
+            Gow3Settings::ConfigureDlssSupport(false, dlss->Problem().c_str()); // copies the text
+        }
     }
     return ok;
 }

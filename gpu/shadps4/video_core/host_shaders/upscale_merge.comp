@@ -9,7 +9,12 @@
 layout(local_size_x = 8, local_size_y = 8) in;
 
 layout(binding = 0, rgba16f) uniform readonly image2D upscaled;
+#ifdef SCENE_R11G11B10
+// wipeout: the scene color is R11G11B10 (no alpha to keep).
+layout(binding = 1, r11f_g11f_b10f) uniform image2D scene;
+#else
 layout(binding = 1, rgba16f) uniform image2D scene;
+#endif
 layout(binding = 2, r8) uniform readonly image2D reactive;
 layout(binding = 3) uniform texture2D motion;  // render size, pixels
 layout(binding = 4) uniform texture2D objects; // render size, b = object vector written

@@ -47,6 +47,7 @@ public:
         u32 input_width, input_height, output_width, output_height;
         int quality;
         bool hdr;
+        u32 preset = 0; ///< NVSDK_NGX_DLSS_Hint_Render_Preset, 0 = driver default
         bool operator==(const FeatureDesc&) const = default;
     };
     struct Frame {
