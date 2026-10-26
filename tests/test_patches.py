@@ -421,7 +421,7 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
                                  'Bug Fix - Startup Hang', 'Cheat - Unlock all HD and Fury events',
-                                 'Cheat - Top rank in 2048'])
+                                 'Cheat - Top rank in 2048', 'Cheat - Unlock all HD and Fury ships'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang'])
@@ -440,6 +440,9 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(compile_patches(WIPEOUT, ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048'],
                                          '01.00', SEGMENTS),
                          [(0x4a7200, bytes.fromhex('b89e860100c3')), (0x3f5406, bytes.fromhex('31db42895ca8fc'))])
+        # The ship cheat drops the medal, loyalty and play-time rules (five stores become nops); Purchase stays.
+        writes = compile_patches(WIPEOUT, ['Cheat - Unlock all HD and Fury ships'], '01.00', SEGMENTS)
+        self.assertEqual([o for o, _d in writes], [0x3f9183, 0x3f91f8, 0x3f926d, 0x3f92e5, 0x3f935d])
 
     def test_wipeout_native_4k_keeps_the_4k_mode_flag_false(self):
         # (field & 0xff00) > imm: 0xff00 can never be exceeded, the original 0xeff is from 3840 wide.

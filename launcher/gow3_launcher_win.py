@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.15'
+VERSION = '0.2.16'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -408,7 +408,7 @@ PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
-APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False,
+APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
@@ -693,9 +693,14 @@ STREAM_MEMORY = [('cached', ('System RAM (cached, default)',)),
 FRAMES_QUEUED = [('1', ('1 (lowest latency)',)), ('2', ('2',)), ('0', ('Unlimited',))]
 # The Cheats page: (setting, patch in the game's patch file, title, hint).
 CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all HD and HD Fury events',
-           'Every event of the HD and HD Fury campaigns is open; the campaign screen shows 99998 points. Off: the events need your own points again.'),
+           ('Every event of the HD and HD Fury campaigns is open; the campaign screen shows 99998 points. '
+            'Off: the events need your own points again.')),
           ('cheat_rank', 'Cheat - Top rank in 2048', 'Top rank in 2048 (rank 50)',
-           'Your 2048 rank shows 50, so what needs a rank is open. Your real experience points stay in your save. Off: your own rank comes back.'))
+           ('Your 2048 rank shows 50, so what needs a rank is open. Your real experience points stay in your '
+            'save. Off: your own rank comes back.')),
+          ('cheat_ships', 'Cheat - Unlock all HD and Fury ships', 'Unlock all HD and HD Fury ships',
+           ('Every ship and livery that needs medals, team loyalty or play time is open (the VR ones stay for'
+            ' VR), and other menu items with those rules. Off: they need your own progress again.')))
 UI_LANGUAGES = gow3_lang.LANGUAGE_NAMES
 
 def fsr4_folder():
@@ -1896,7 +1901,7 @@ class Launcher:
         self.section(f, _('Unlocks'), top=4)
         for key, _patch, title, hint in CHEATS:
             self.check(f, key, 'app', _(title), _(hint), restart=True)
-        self.note(f, _('Not yet: the 2049 and 2050 cups of 2048, and the locked ships of HD and HD Fury.'))
+        self.note(f, _('Not yet: the 2049 and 2050 cups of 2048 (they open when you finish the cup before them).'))
 
     def build_game(self):
         f = self.scrolled_page('game', _('Game', 'Игра'), _('Your game dump, saves and the game patches.'))
