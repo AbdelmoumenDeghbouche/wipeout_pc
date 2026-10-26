@@ -1,9 +1,9 @@
 /* Custom soundtrack. Audio files in <user>/music (or GOW3_MUSIC_DIR), subfolders included, play
  * instead of the game's music, as on a PS4 playing the user's own music: the game's BGM port
  * (sceAudioOut type 1) carries only its music. FFmpeg decodes the files to 48 kHz stereo float on
- * their own thread. Each song is leveled (mean square over ~8 s) to about the game's race music
- * times "music_volume"; following the game's own level made them fade with it (title screen,
- * loading). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
+ * their own thread. Each song is leveled (mean square over ~8 s, without the bass below ~150 Hz)
+ * to a fixed level times "music_volume"; following the game's own level made them fade with it
+ * (title screen, loading). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
  * tab) turn them off or play the list in order; the Music tab picks a song or skips
  * (runtime_music_play, runtime_music_step). */
 #define _GNU_SOURCE
@@ -42,7 +42,10 @@ static size_t notice_at;
 static long notice_file=-1, playing=-1;
 static int notice_pending;
 static double ours_ms;
-#define LEVEL 0.03 /* target RMS per channel at 100%: songs land near the game's race music (0.018-0.03) */
+/* Target RMS per channel at 100%, measured above ~150 Hz: the bass, most of a modern song's energy
+ * (67% below 150 Hz in a trap song) and inaudible on laptop speakers, made songs land far under the
+ * race's effects (about 0.02 there). */
+#define LEVEL 0.045
 
 static int audio_file(const char *name) {
     static const char *const types[]={"mp3","ogg","oga","opus","flac","wav","m4a","aac","wma"};
@@ -263,8 +266,14 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     pthread_cond_signal(&space);
     pthread_mutex_unlock(&lock);
     if (show) { printf("Music: %s\n",text); gow3gpu_notice(text); }
+    static float hp_in[2][2], hp_out[2][2]; /* the measurement's two one-pole high-pass stages per channel */
+    const float a=1.0f/(1.0f+2.0f*3.14159265f*150.0f/48000.0f);
     double ours=0;
-    for (size_t i=0;i<n*2;++i) ours+=(double)music[i]*music[i];
+    for (size_t i=0;i<n;++i) for (int c=0;c<2;++c) {
+        float v=music[i*2+c];
+        for (int s=0;s<2;++s) { const float y=a*(hp_out[c][s]+v-hp_in[c][s]); hp_in[c][s]=v; hp_out[c][s]=y; v=y; }
+        ours+=(double)v*v;
+    }
     if (n==(size_t)frames) { /* not the gaps between files; the first sound sets the level at once */
         const double now=ours/frames;
         /* Louder: within ~0.5 s (a loud song after a quiet one); quieter: over ~8 s (quiet parts stay quiet). */
