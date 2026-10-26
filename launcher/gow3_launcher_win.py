@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.17'
+VERSION = '0.2.18'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -415,7 +415,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'check_updates': False, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
+                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
                 'controls_layout': 2,
                 'glyph_style': 'off'}
 
@@ -1223,7 +1223,8 @@ class Launcher:
         self.mod_order, self.mod_vars, self.patch_vars = [], {}, {}
         self.selected_mod, self.mod_rows, self.mod_conflicts, self.conflicts_open = None, {}, [], False
         self.mod_details_shown, self.mod_picture_key, self.mod_photo = False, None, None
-        self.pending_update = None  # (version, url, page) once offered
+        self.pending_update = None  # (version, url, page, notes) once offered
+        self.update_window, self.update_parts, self.update_popped = None, None, False
         root.title(f'{APP_NAME} (PC)')
         if sys.platform == 'win32':
             try:  # the taskbar shows this window's icon, not Python's
@@ -1248,7 +1249,7 @@ class Launcher:
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after(100, self.drain_output)
         root.after(500, self.watch_changes)
-        if WINDOWS and self.app.get('check_updates', True):
+        if WINDOWS and self.app['update_popup']:
             threading.Thread(target=self.check_update, daemon=True).start()
 
     def meta_dir(self):
@@ -2385,7 +2386,7 @@ class Launcher:
                  _('For launcher only. Applies after Save.'))
         self.check(f, 'close_on_play', 'app', _('Close the launcher when the game starts', 'Закрывать лаунчер при запуске игры'))
         if WINDOWS:
-            self.check(f, 'check_updates', 'app', _('Check for updates when the launcher opens',
+            self.check(f, 'update_popup', 'app', _('Check for updates when the launcher opens',
                                                     'Проверять обновления при открытии лаунчера'))
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=self.px((10, 0)))
@@ -3040,7 +3041,7 @@ class Launcher:
     def check_update(self, manual=False):
         """Helper thread: asks GitHub for the newest release and offers it when it is newer."""
         try:
-            version, url, page = latest_release()
+            version, url, page, notes = latest_release()
         except (OSError, ValueError, KeyError) as failure:
             if manual:
                 self.ui_calls.put(lambda error=failure: self.messagebox.showerror(
@@ -3048,14 +3049,18 @@ class Launcher:
             return
 
         def show():
-            if version_tuple(version) > version_tuple(VERSION):
-                self.offer_update(version, url, page)
+            # A release without its zip yet (it is still being built) is offered only on a manual check.
+            if version_tuple(version) > version_tuple(VERSION) and (url or manual):
+                self.offer_update(version, url, page, notes)
+                if manual:
+                    self.update_dialog(version, url, page, notes)
             elif manual:
                 self.messagebox.showinfo(APP_NAME, _('You have the latest version ({}).',
                                                          'У вас последняя версия ({}).').format(VERSION))
         self.ui_calls.put(show)
 
-    def offer_update(self, version, url, page):
+    def offer_update(self, version, url, page, notes=''):
+        """The side box of a newer version, and once per launcher session its pop-up."""
         if self.update_box:
             return
         tk, ttk = self.tk, self.ttk
@@ -3067,40 +3072,100 @@ class Launcher:
         buttons = tk.Frame(box, bg=CARD)
         buttons.pack(fill='x', padx=self.px(10), pady=self.px((0, 10)))
         self.update_button = ttk.Button(buttons, text=_('Update', 'Обновить'),
-                                        command=lambda: self.install_update(version, url, page))
+                                        command=lambda: self.update_dialog(version, url, page, notes))
         self.update_button.pack(fill='x')
         ttk.Button(buttons, text=_("What's new", 'Что нового'), command=lambda: open_url(page)).pack(
             fill='x', pady=self.px((4, 0)))
         box.pack(fill='x', padx=self.px((22, 18)), pady=self.px((0, 14)), before=self.side_note)
         self.update_box = box
-        self.pending_update = (version, url, page)
+        self.pending_update = (version, url, page, notes)
         if not self.process:
             self.status.configure(text=text, fg=TEXT)
+        if not self.update_popped:
+            self.update_popped = True
+            self.update_dialog(version, url, page, notes)
+
+    def update_dialog(self, version, url, page, notes):
+        """The pop-up of a newer version: what is new, then UPDATE NOW downloads and installs it."""
+        if self.update_window and self.update_window.winfo_exists():
+            self.update_window.deiconify()
+            self.update_window.lift()
+            return
+        tk, ttk = self.tk, self.ttk
+        win = self.update_window = tk.Toplevel(self.root, bg=PANEL)
+        win.title(APP_NAME)
+        win.transient(self.root)
+        win.resizable(False, False)
+        pad = self.px(22)
+        tk.Label(win, text=_('A new version is ready'), bg=PANEL, fg=TEXT, font=self.heading_font(17)).pack(
+            anchor='w', padx=pad, pady=(pad, self.px(2)))
+        tk.Label(win, text=_('Version {} is out. You have version {}.').format(version, VERSION), bg=PANEL, fg=MUTED,
+                 font=self.font(UI_FONT, 10)).pack(anchor='w', padx=pad)
+        if notes:
+            tk.Label(win, text=_("What's new", 'Что нового'), bg=PANEL, fg=TEXT,
+                     font=self.font(UI_FONT, 10, 'bold')).pack(anchor='w', padx=pad, pady=(self.px(14), self.px(4)))
+            text = tk.Text(win, width=70, height=min(12, notes.count('\n') + len(notes) // 70 + 2), wrap='word', bg=CARD, fg=TEXT,
+                           relief='flat', highlightthickness=0, font=self.font(UI_FONT, 10),
+                           padx=self.px(12), pady=self.px(10))
+            text.insert('1.0', notes)
+            text.configure(state='disabled')
+            text.pack(fill='x', padx=pad)
+        status = tk.Label(win, text=_('Your saves, settings, mods and music stay.'), bg=PANEL, fg=MUTED,
+                          font=self.font(UI_FONT, 9), anchor='w', justify='left')
+        status.pack(fill='x', padx=pad, pady=(self.px(12), 0))
+        bar = ttk.Progressbar(win, maximum=100)
+        buttons = tk.Frame(win, bg=PANEL)
+        buttons.pack(fill='x', padx=pad, pady=(self.px(14), pad))
+        later = ttk.Button(buttons, text=_('Later'), command=win.destroy)
+        later.pack(side='right')
+        now = ttk.Button(buttons, text=_('UPDATE NOW'), style='Play.TButton',
+                         command=lambda: self.install_update(version, url, page))
+        now.pack(side='right', padx=(0, self.px(10)))
+        ttk.Button(buttons, text=_('Release page'), style='Link.TButton', command=lambda: open_url(page)).pack(side='left')
+        self.update_parts = status, bar, now, later
+        win.update_idletasks()  # centred over the launcher
+        root = self.root
+        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 3)
+        win.geometry(f'+{x}+{y}')
+        win.lift()
+        now.focus_set()
+
+    def update_progress(self, text=None, percent=0):
+        """The download's progress in the pop-up and the side box; None: back to the offer."""
+        busy = text is not None
+        if self.update_box:
+            self.update_button.configure(state='disabled' if busy else 'normal')
+            self.update_label.configure(text=f'{percent}%' if busy else
+                                        _('Version {} is available.', 'Доступна версия {}.').format(self.pending_update[0]))
+        if self.update_window and self.update_window.winfo_exists():
+            status, bar, now, later = self.update_parts
+            for button in (now, later):
+                button.configure(state='disabled' if busy else 'normal')
+            # The window cannot be closed while the download runs; it closes with the launcher.
+            self.update_window.protocol('WM_DELETE_WINDOW', (lambda: None) if busy else self.update_window.destroy)
+            status.configure(text=text or _('Your saves, settings, mods and music stay.'), fg=TEXT if busy else MUTED)
+            if busy:
+                bar.pack(fill='x', padx=self.px(22), pady=(self.px(8), 0), before=now.master)
+                bar.configure(value=percent)
+            else:
+                bar.pack_forget()
 
     def install_update(self, version, url, page):
         if self.process:
             self.messagebox.showinfo(APP_NAME, _('Close the game before updating.', 'Закройте игру перед обновлением.'))
             return
-        if not FROZEN or not url:  # a source tree updates with git
+        if not FROZEN or not url:  # a source tree updates with git; a release without its zip: its page
             open_url(page)
             return
-        if not self.messagebox.askyesno(APP_NAME, _(
-                'Install version {} now? The launcher closes, installs it and opens again. Saves and settings are kept.',
-                'Установить версию {} сейчас? Лаунчер закроется, установит её и откроется снова. Сохранения и '
-                'настройки останутся.').format(version)):
-            return
-        self.update_button.configure(state='disabled')
-
-        def progress(percent):
-            self.update_label.configure(text=_('Downloading version {}… {}%', 'Загрузка версии {}… {}%').format(
-                version, percent))
+        self.update_progress(_('Downloading version {}…').format(version))
 
         def work():
             try:
                 shutil.rmtree(UPDATE_DIR, ignore_errors=True)
                 UPDATE_DIR.mkdir(parents=True, exist_ok=True)
                 archive = UPDATE_DIR / 'update.zip'
-                request = urllib.request.Request(url, headers={'User-Agent': 'gow3-launcher'})
+                request = urllib.request.Request(url, headers={'User-Agent': 'wipeout-launcher'})
                 with urllib.request.urlopen(request, timeout=60) as response, open(archive, 'wb') as out:
                     total, done, shown = int(response.headers.get('Content-Length') or 0), 0, -1
                     while chunk := response.read(1 << 20):
@@ -3109,7 +3174,9 @@ class Launcher:
                         percent = done * 100 // total if total else 0
                         if percent != shown:
                             shown = percent
-                            self.ui_calls.put(lambda p=percent: progress(p))
+                            text = _('Downloading version {}… {} of {} MB').format(version, done >> 20, total >> 20)
+                            self.ui_calls.put(lambda t=text, p=percent: self.update_progress(t, p))
+                self.ui_calls.put(lambda: self.update_progress(_('Unpacking…'), 100))
                 with zipfile.ZipFile(archive) as package:
                     package.extractall(UPDATE_DIR / 'new')
                 archive.unlink()
@@ -3119,11 +3186,12 @@ class Launcher:
                 # The new launcher copies itself over this installation once this one has closed.
                 subprocess.Popen([str(new / 'WipEout.exe'), '--install-update', str(PORT_DIR), str(os.getpid())],
                                  cwd=str(new), stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
-                self.ui_calls.put(self.root.destroy)
+                self.ui_calls.put(lambda: self.update_progress(
+                    _('Installing… the launcher opens again in a few seconds.'), 100))
+                self.ui_calls.put(lambda: self.root.after(1500, self.root.destroy))
             except (OSError, zipfile.BadZipFile) as failure:
                 def failed(error=failure):
-                    self.update_button.configure(state='normal')
-                    self.update_label.configure(text=_('Version {} is available.', 'Доступна версия {}.').format(version))
+                    self.update_progress()
                     self.messagebox.showerror(APP_NAME, _('Update failed: {}', 'Не удалось обновить: {}').format(error))
                 self.ui_calls.put(failed)
         threading.Thread(target=work, daemon=True).start()
@@ -3328,8 +3396,15 @@ def version_tuple(text):
     return tuple(int(number) for number in re.findall(r'\d+', text or ''))
 
 
+def whats_new(body):
+    """The "What's new" part of a release note as plain text (the whole note without one)."""
+    parts = re.split(r"(?im)^##\s*what.s new\s*$", body, maxsplit=1)
+    text = re.split(r'(?m)^## ', parts[-1], maxsplit=1)[0]
+    return re.sub(r'\*\*|`', '', text).strip()
+
+
 def latest_release():
-    """(version, zip URL, page URL) of the newest GitHub release."""
+    """(version, zip URL, page URL, what's new) of the newest GitHub release."""
     request = urllib.request.Request(RELEASES_API, headers={'Accept': 'application/vnd.github+json',
                                                             'User-Agent': 'gow3-launcher'})
     with urllib.request.urlopen(request, timeout=15) as response:
@@ -3337,7 +3412,7 @@ def latest_release():
     version = '.'.join(re.findall(r'\d+', release['tag_name']))
     url = next((asset['browser_download_url'] for asset in release.get('assets', [])
                 if asset.get('name', '').lower().endswith('.zip')), None)
-    return version, url, release.get('html_url') or RELEASES_PAGE
+    return version, url, release.get('html_url') or RELEASES_PAGE, whats_new(release.get('body') or '')
 
 
 def install_update(target, wait_pid):

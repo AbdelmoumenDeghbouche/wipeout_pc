@@ -48,8 +48,9 @@ While playing
 Next time
 - "Play WipEout.exe" starts the game straight away with the saved settings. Make a desktop
   shortcut to it (Advanced -> Desktop shortcut), or add it to Steam with "Add a Non-Steam Game".
-- Advanced -> Check for updates downloads and installs a new version. Saves and settings are
-  kept.
+- When a new version is out, the launcher shows a pop-up at start. Click UPDATE NOW: it downloads
+  and installs the new version, then opens again. Saves, settings, mods and music are kept.
+  Advanced -> Check for updates does the same check by hand.
 
 Data
 - Saves, shader cache and the log: user\ next to WipEout.exe (keep it when updating).
