@@ -1683,6 +1683,13 @@ void TextureCache::GarbageCollectImages() {
         if (download && !pressured) {
             return false;
         }
+        // gow3: a small picture the GPU drew that cannot be written back (its pages are marked
+        // CPU-dirty) may be state the game keeps from frame to frame, like its auto exposure
+        // chain (50x25 .. 3x1). Freed, it came back from guest memory as zeros: the race or the
+        // menu stayed black after a race at high resolutions (#27, #42). They are tiny.
+        if (True(image.flags & ImageFlagBits::GpuModified) && !download && image.info.guest_size <= (2u << 20)) {
+            return false;
+        }
         if (download) {
             // gow3: synchronously, while the image still protects its pages. A deferred
             // write-back landed after FreeImage had unprotected them, over whatever the game
