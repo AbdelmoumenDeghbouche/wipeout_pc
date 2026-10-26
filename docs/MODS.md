@@ -131,7 +131,7 @@ original do controle. As cópias são criadas no cache local, sem modificar o du
 Os desenhos e a ferramenta em `tools/controller_diagrams/` vieram da contribuição de Kristian
 Andreev na [PR #234](https://github.com/FelipePrado0/gow3_pc/pull/234), sob GPL-2.0-or-later.
 `scripts/controller_diagrams/*.png` contém apenas esses desenhos, sem arquivos do jogo. Para
-regenerá-los, a ferramenta usa Pillow, NumPy e scikit-image, com a fonte Cinzel distribuída no
+regenerá-los, a ferramenta usa Pillow, NumPy e scikit-image, com a fonte Russo One distribuída no
 projeto (OFL). Essas dependências de desenho não são necessárias para usar os PNGs no launcher.
 
 # Patches de terceiros (XML do shadPS4)

@@ -17,7 +17,7 @@ import struct
 
 VERSION = 4  # of the drawing: a change redraws the cached copies
 WADS = ('EXEC/WAD/PS4_LE/R_UI.WAD', 'EXEC/WAD/PS4_LE/R_PERM.WAD')
-FONT = Path(__file__).resolve().parent.parent / 'launcher' / 'Cinzel-Black.ttf'
+FONT = Path(__file__).resolve().parent.parent / 'launcher' / 'RussoOne-Regular.ttf'
 CONTROLLER_TEXTURE = 'TXCE352DC5'
 # GPL-2.0-or-later controller drawings by Kristian Andreev, adapted from PR #234.
 CONTROLLER_ART = Path(__file__).resolve().parent.parent / 'scripts' / 'controller_diagrams'

@@ -24,7 +24,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-FONT = Path(__file__).resolve().parents[2] / 'launcher' / 'Cinzel-Black.ttf'
+FONT = Path(__file__).resolve().parents[2] / 'launcher' / 'RussoOne-Regular.ttf'
 LINE = (222, 85, 66)
 BODY = (10, 2, 2)
 WISP = (96, 16, 12)

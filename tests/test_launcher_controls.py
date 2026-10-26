@@ -277,23 +277,15 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual(launcher.APP_DEFAULTS['glyph_style'], 'off')
         self.assertNotIn('GOW3_GLYPH_STYLE', launcher.game_environment({**launcher.APP_DEFAULTS}))
 
-    def test_glyph_style_choices_reach_the_game(self):
-        for style in ('auto', 'xbox', 'nintendo', 'keyboard'):
-            env = launcher.game_environment({**launcher.APP_DEFAULTS, 'glyph_style': style})
-            self.assertEqual(env['GOW3_GLYPH_STYLE'], style)
-
-    def test_unknown_glyph_style_is_off(self):
-        for style in ('playstation', 'XBOX', 7, None, ''):
-            env = launcher.game_environment({**launcher.APP_DEFAULTS, 'glyph_style': style})
-            self.assertNotIn('GOW3_GLYPH_STYLE', env)
-
-    def test_inherited_glyph_style_is_dropped_when_off(self):
+    def test_no_god_of_war_button_icons(self):
+        # They are drawn into God of War III's R_UI.WAD, which WipEout has not: a saved or inherited
+        # choice never reaches the game.
         from unittest import mock
 
         with mock.patch.dict(launcher.os.environ, {'GOW3_GLYPH_STYLE': 'xbox'}):
-            self.assertNotIn('GOW3_GLYPH_STYLE', launcher.game_environment({**launcher.APP_DEFAULTS}))
-            self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'glyph_style': 'nintendo'})
-                             ['GOW3_GLYPH_STYLE'], 'nintendo')
+            for style in ('auto', 'xbox', 'nintendo', 'keyboard', 'off'):
+                env = launcher.game_environment({**launcher.APP_DEFAULTS, 'glyph_style': style})
+                self.assertNotIn('GOW3_GLYPH_STYLE', env)
 
     def test_settings_keys_kept(self):
         for key in ('game_dir', 'user_dir', 'mods_dir', 'patches_dir', 'language', 'hdr',

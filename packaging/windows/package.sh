@@ -43,7 +43,7 @@ rm -rf -- out/stage
 mkdir -p "$dest/bin" "$dest/launcher"
 cp -r "out/pyi-dist/WipEout/." "$dest/"
 llvm-strip -o "$dest/Play WipEout.exe" out/gow3-play.exe
-cp launcher/gow3.ico launcher/gow3.png launcher/Cinzel-Black.ttf launcher/OFL-Cinzel.txt "$dest/launcher/"
+cp launcher/gow3.ico launcher/gow3.png launcher/RussoOne-Regular.ttf launcher/OFL-RussoOne.txt "$dest/launcher/"
 # The executables without debug information (out/ keeps the symbols for crash reports).
 for exe in gow3-probe.exe gow3-gpu-capabilities.exe; do
     llvm-strip --strip-debug -o "$dest/bin/$exe" "out/$exe"

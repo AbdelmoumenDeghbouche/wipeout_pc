@@ -67,8 +67,8 @@ RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/la
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
 # Never copied over an installation by an update (the package does not hold them either).
 USER_FILES = ('user', 'out', 'mods', 'gow3.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
-# The title face (Cinzel Black), next to gow3.ico; main() registers it for this process only.
-FONT_FILE = PORT_DIR / 'launcher' / 'Cinzel-Black.ttf'
+# The title face (Russo One), next to gow3.ico; main() registers it for this process only.
+FONT_FILE = PORT_DIR / 'launcher' / 'RussoOne-Regular.ttf'
 FR_PRIVATE = 0x10
 
 
@@ -227,7 +227,7 @@ def pick_fonts(families):
     global UI_FONT, MONO_FONT, SERIF_FONT, FONT_LOADED
     available = set(families)
     # Registration can succeed in fontconfig even when Tk uses the X core font backend.
-    FONT_LOADED = FONT_LOADED and bool({'Cinzel Black', 'Cinzel'} & available)
+    FONT_LOADED = FONT_LOADED and 'Russo One' in available
     pick = lambda names: next((name for name in names if name in available), names[-1])
     UI_FONT = pick(('Segoe UI', 'Helvetica Neue', 'Noto Sans', 'DejaVu Sans', 'Helvetica'))
     MONO_FONT = pick(('Consolas', 'Menlo', 'Noto Sans Mono', 'DejaVu Sans Mono', 'Courier'))
@@ -365,7 +365,7 @@ def register_font(path):
         return False
 
 
-# The heading face (Cinzel Black, SIL OFL 1.1, launcher/OFL-Cinzel.txt) covers the Latin-script
+# The heading face (Russo One, SIL OFL 1.1, launcher/OFL-RussoOne.txt) covers the Latin-script
 # languages; the other scripts keep the launcher's usual families.
 LATIN_UI_LANGUAGES = ('en', 'es', 'pt', 'fr', 'de', 'it', 'pl', 'tr')
 
@@ -378,7 +378,7 @@ def heading_face(every_language=False):
 
 def heading_font(size, fallback=None, every_language=False):
     if heading_face(every_language):
-        return ('Cinzel Black', size)
+        return ('Russo One', size)
     return (fallback or SERIF_FONT, size)
 
 
@@ -477,8 +477,6 @@ def connected_gamepad():
     return 'Gamepad: type=' in out
 
 
-GLYPH_STYLES = [('off', ('Original (default)',)), ('auto', ('Match my controller',)), ('xbox', ('Xbox',)),
-                ('nintendo', ('Nintendo',)), ('keyboard', ('Keyboard',))]
 
 
 # Keyboard capture on the Controls page: the Tk keysym of a pressed key and the SDL scancode
@@ -1153,10 +1151,7 @@ def game_environment(s):
         env['GOW3_KEY_MAP'] = value
     if value := control_map(controls, 'pad'):
         env['GOW3_PAD_MAP'] = value
-    glyph_style = s.get('glyph_style')
-    env.pop('GOW3_GLYPH_STYLE', None)
-    if glyph_style in ('auto', 'xbox', 'nintendo', 'keyboard'):
-        env['GOW3_GLYPH_STYLE'] = glyph_style
+    env.pop('GOW3_GLYPH_STYLE', None)  # God of War III's button icons (R_UI.WAD): WipEout has none
     env['PYTHONUNBUFFERED'] = '1'
     env['PYTHONIOENCODING'] = 'utf-8'
     return env
@@ -2150,12 +2145,9 @@ class Launcher:
             title = _(PS_BUTTON_NAMES[button])
             ttk.Label(table, text=title, width=-14).grid(row=r, column=1, sticky='w', padx=self.px((0, 12)))
 
-        # The in-game icons first, then the device: its section is shown, the other hidden (show_device).
+        # The device: its section is shown, the other hidden (show_device). No in-game button icons:
+        # scripts/glyphs.py draws them into God of War III's R_UI.WAD, which WipEout does not have.
         page = f
-        self.row(page, _('In-game button icons'), self.choice(page, 'glyph_style', 'app', GLYPH_STYLES),
-                 hint=_('Replaces the PlayStation button icons inside the game with the ones of your controller. '
-                        'Works on a copy of two game files in the port\'s data folder (about 70 MB); your game folder '
-                        'is never changed. Applied when the game starts.'))
         saved_device = self.app.get('controls_device')
         self.device = tk.StringVar(value=saved_device if saved_device in dict(CONTROL_DEVICES) else 'keyboard')
         self.device_chosen = saved_device in dict(CONTROL_DEVICES)
