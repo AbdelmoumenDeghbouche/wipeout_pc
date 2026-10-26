@@ -316,6 +316,18 @@
             <Line Type="bytes" Address="0x00a7a514" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="36" Value="48 89 03 c6 05 {rel:FLAG:1} 01 e8 {rel:START:0} 80 3d {rel:DONE:1} 00"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Shield above 60 FPS" Note="The shield shows when you pick it up and goes away when it runs out, at any frame rate. Without it, above 60 FPS the shield appears only after a hit and then stays on screen. Always on." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <!-- Shield.cpp's per-frame update (0x39ce60) moves the shield's colour [obj+0x80] towards
+             [obj+0x90] and its size [obj+0xa4] towards [obj+0xa8] in whole 1/60 s steps: n = (int)(dt *
+             59.999996), then n times x += (target - x) * rate. Above 60 FPS dt * 60 < 1, n is 0 every
+             frame, and the shield never fades in or out (#37). The same code now also takes the
+             remaining fraction of a step: whole steps as before, then one step with rate * fraction.
+             C60 is the 59.999996 constant, read only here. -->
+        <Target Name="C60" Address="0x00c60c10" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="4" Ref="1"/>
+        <PatchList>
+            <Line Type="bytes" Address="0x0079ce99" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="0" Value="c5ea590d {rel:C60:0} 48c1e820c5fa119500ffffffc5f96ec0c5fa2cc1c5e22ad8c5f25cfbc4c17810a680000000c4c178108e90000000c4c2791896a0000000c4c17a10aea4000000c4c17a10b6a8000000c4c17a109eac00000085c07e1cc5705cc4c53859c2c5b858e4c54a5cc5c53a59c3c5ba58edffc875e4c5e259dfc5c0c6ff00c5e859d7c5705cc4c53859c2c5b858e4c54a5cc5c53a59c3c5ba58edc4c17811a680000000c4c17a11aea4000000c5f829a5f0feffffc5e973dc08c5f82995e0feffffeb1990909090909090909090909090909090909090909090909090"/>
+        </PatchList>
+    </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all HD and Fury events" Note="Every event of the HD and HD Fury campaigns is open: the game counts 99998 campaign points. Nothing is written to your save; off, the events need your own points again." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <!-- 0x4a7200 sums the campaign points that open the next events (cell screen: points needed =
              [cell+0x12c] - this; 99999 marks cells that points never open). It returns 99998. -->
