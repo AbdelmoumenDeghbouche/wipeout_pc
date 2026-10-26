@@ -395,7 +395,7 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
-                'anisotropy': '0', 'vibration': '100', 'mouse_prompt_distance': '48', 'mouse_lock': '1',
+                'anisotropy': '0', 'vibration': '100', 'stick_deadzone': '0', 'mouse_prompt_distance': '48', 'mouse_lock': '1',
                 'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100', 'music': '1', 'music_shuffle': '1',
                 'music_volume': '100'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
@@ -2210,6 +2210,7 @@ class Launcher:
                             command=self.relabel_pad_controls).pack(side='left', padx=self.px((0, 14)))
         self.row(f, _('Controller type'), names)
         self.row(f, _('Vibration'), self.slider(f, 'vibration', 0, 100, '%'), _("Strength of the gamepad's vibration; 0% turns it off."))
+        self.row(f, _('Stick deadzone'), self.slider(f, 'stick_deadzone', 0, 50, '%'), _("Ignores small stick movements, for a stick that drifts. 0% keeps the game's own."))
         table = mapping_table(f)
         for r, (button, _key, pad) in enumerate(CONTROLS, start=1):
             game_button(table, r, button)
@@ -3161,9 +3162,19 @@ class Launcher:
         if self.process:
             self.messagebox.showinfo(APP_NAME, _('Close the game before updating.', 'Закройте игру перед обновлением.'))
             return
-        if not FROZEN or not url:  # a source tree updates with git; a release without its zip: its page
+        if not FROZEN:  # a source tree updates with git
             open_url(page)
             return
+        if not url:
+            # The release was offered before its zip was built (#61): ask GitHub again.
+            try:
+                version, url, page, _notes = latest_release()
+            except (OSError, ValueError, KeyError):
+                url = None
+            if not url:
+                self.messagebox.showinfo(APP_NAME, _('The download of version {} is still being prepared. '
+                                                     'Try again in a few minutes.').format(version))
+                return
         self.update_progress(_('Downloading version {}…').format(version))
 
         def work():

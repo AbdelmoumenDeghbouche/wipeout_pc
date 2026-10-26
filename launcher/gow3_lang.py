@@ -966,6 +966,9 @@ EXTRA = {
         'F12 in the game': 'F12 no jogo',
         "Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves.": 'Salva a imagem do jogo, sem o overlay, em PNG na pasta screenshots dos saves.',
         'Vibration': 'Vibração',
+        'Stick deadzone': 'Zona morta do analógico',
+        'The download of version {} is still being prepared. Try again in a few minutes.': 'O download da versão {} ainda está sendo preparado. Tente de novo em alguns minutos.',
+        "Ignores small stick movements, for a stick that drifts. 0% keeps the game's own.": 'Ignora pequenos movimentos do analógico, para um analógico com drift. 0% mantém a do jogo.',
         "Strength of the gamepad's vibration; 0% turns it off.": 'Força da vibração do controle; 0% desliga.',
         'Windows could not reserve the memory the game needs. Close other programs, or let the Windows page file grow (for example 16384 MB initial, 32768 MB maximum), and start again.':
             'O Windows não conseguiu reservar a memória que o jogo precisa. Feche outros programas, ou deixe o arquivo de paginação do Windows crescer (por exemplo 16384 MB inicial, 32768 MB máximo), e inicie de novo.',
@@ -1320,6 +1323,9 @@ EXTRA = {
         "Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves.":
             'Guarda la imagen del juego, sin el overlay, como PNG en la carpeta screenshots de las partidas.',
         'Vibration': 'Vibración',
+        'Stick deadzone': 'Zona muerta del stick',
+        'The download of version {} is still being prepared. Try again in a few minutes.': 'La descarga de la versión {} todavía se está preparando. Inténtalo de nuevo en unos minutos.',
+        "Ignores small stick movements, for a stick that drifts. 0% keeps the game's own.": 'Ignora los movimientos pequeños del stick, para un stick con drift. 0% deja la del juego.',
         "Strength of the gamepad's vibration; 0% turns it off.": 'Fuerza de la vibración del mando; 0% la desactiva.',
         '(none)': '(ninguna)',
         'Adaptive mouse: how far the mouse moves for one step of a rotation. Also in the in-game menu.':
