@@ -757,6 +757,23 @@ class ReleaseVersionTest(unittest.TestCase):
         self.assertIs(launcher.APP_DEFAULTS['update_popup'], True)
         self.assertNotIn('check_updates', launcher.APP_DEFAULTS)
 
+    def test_update_check_at_start_retries(self):
+        # Two network failures, then an answer: offered. Three failures: nothing, and no error box.
+        app = types.SimpleNamespace(ui_calls=queue.Queue())
+        for results, offered in (([OSError(), OSError(), ('9.9.9', 'u', 'p', '')], 1), ([OSError()] * 3, 0)):
+            answers = iter(results)
+
+            def release():
+                answer = next(answers)
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+            with mock.patch.object(launcher, 'latest_release', release), mock.patch.object(launcher.time, 'sleep'):
+                launcher.Launcher.check_update(app)
+            self.assertEqual(app.ui_calls.qsize(), offered)
+            while not app.ui_calls.empty():
+                app.ui_calls.get()
+
     def test_whats_new_is_cut_from_the_release_note(self):
         body = "## What's new\n\n**Pop-up.** Click `UPDATE NOW`.\n- one\n\n## All features\n\n- everything\n"
         self.assertEqual(launcher.whats_new(body), 'Pop-up. Click UPDATE NOW.\n- one')

@@ -3039,12 +3039,18 @@ class Launcher:
 
     # ---- updates -------------------------------------------------------------------------------
     def check_update(self, manual=False):
-        """Helper thread: asks GitHub for the newest release and offers it when it is newer."""
-        try:
-            version, url, page, notes = latest_release()
-        except (OSError, ValueError, KeyError) as failure:
+        """Helper thread: asks GitHub for the newest release and offers it when it is newer. At start it
+        tries three times, so a short network drop does not hide a new version."""
+        for _attempt in range(1 if manual else 3):
+            try:
+                version, url, page, notes = latest_release()
+                break
+            except (OSError, ValueError, KeyError) as failure:
+                error = failure
+                time.sleep(0 if manual else 20)
+        else:
             if manual:
-                self.ui_calls.put(lambda error=failure: self.messagebox.showerror(
+                self.ui_calls.put(lambda: self.messagebox.showerror(
                     APP_NAME, _('Could not check for updates: {}', 'Не удалось проверить обновления: {}').format(error)))
             return
 
