@@ -305,6 +305,19 @@ public:
         return false;
     }
 
+    /// gow3: the color target of a CMask surface and the clear color it was last cleared with.
+    std::pair<ImageId, vk::ClearValue> MetaTarget(VAddr address) const {
+        const auto it = surface_metas.find(address);
+        return it != surface_metas.end() ? std::pair{it->second.image, it->second.clear_value}
+                                         : std::pair{ImageId{}, vk::ClearValue{}};
+    }
+
+    void SetMetaClearValue(VAddr address, const vk::ClearValue& value) {
+        if (auto it = surface_metas.find(address); it != surface_metas.end()) {
+            it.value().clear_value = value;
+        }
+    }
+
     /// Updates the state of a slice of the specified metadata surface.
     bool TouchMeta(VAddr address, u32 slice, bool is_clear) {
         auto it = surface_metas.find(address);
@@ -578,6 +591,8 @@ private:
     struct MetaDataInfo {
         MetaType type;
         s32 clear_mask = -1;
+        ImageId image{};              ///< gow3: CMask: its color target
+        vk::ClearValue clear_value{}; ///< gow3: CMask: the target's clear color
     };
     tsl::robin_map<VAddr, MetaDataInfo> surface_metas;
 };

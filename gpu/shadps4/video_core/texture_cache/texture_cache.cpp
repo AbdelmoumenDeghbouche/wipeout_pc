@@ -1298,8 +1298,9 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
 
     // Register meta data for this color buffer
     if (desc.info.meta_info.cmask_addr) {
-        surface_metas.emplace(desc.info.meta_info.cmask_addr,
-                              MetaDataInfo{.type = MetaType::CMask});
+        auto [meta, _] = surface_metas.emplace(desc.info.meta_info.cmask_addr,
+                                               MetaDataInfo{.type = MetaType::CMask});
+        meta.value().image = image_id;
         image.info.meta_info.cmask_addr = desc.info.meta_info.cmask_addr;
     }
 

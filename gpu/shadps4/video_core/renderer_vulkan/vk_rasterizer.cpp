@@ -2034,6 +2034,14 @@ bool Rasterizer::IsComputeMetaClear(const Pipeline* pipeline) {
         for (const auto& desc : info.buffers) {
             const VAddr address = desc.GetSharp(info).base_address;
             if (!desc.IsSpecial() && desc.is_written && texture_cache.ClearMeta(address)) {
+                // gow3: the target reads as cleared from now on, also when the game only samples
+                // it and draws nothing into it before. Clearing it at the next bind only left
+                // WipEout's ship select ship in the menus after it (#58).
+                if (const auto [image_id, clear_value] = texture_cache.MetaTarget(address);
+                    image_id) {
+                    auto& image = texture_cache.GetImage(image_id);
+                    runtime.ClearImage(&image, {.extent = image.info.resources}, clear_value);
+                }
                 // Assume all slices were updates
                 LOG_TRACE(Render_Vulkan, "Metadata update skipped");
                 return true;
@@ -2949,6 +2957,9 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         attachment.image_layout = image->backing->state.layout;
         attachment.clear_value = clear_value.color.uint32;
         attachment.is_clear = is_clear;
+        if (is_clear) {
+            texture_cache.SetMetaClearValue(col_buf.CmaskAddress(), clear_value);
+        }
 
         if (reduced) {
             const auto target = scene_targets->Attachment(image_id, desc.view_info);
