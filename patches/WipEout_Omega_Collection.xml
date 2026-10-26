@@ -256,4 +256,18 @@
             <Line Type="bytes" Address="0x00bfb659" Value="00ff0000" Pattern="8b 05 49 ef a1 00 b9 00 ff 00 00 23 48 3c 81 f9" At="16"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Startup Hang" Note="Fixes a random hang at start (black screen after 'NEW THREAD'). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <!-- The start-up code at 0x67a4f0 starts the loader thread (call 0x3d20e0), then sets the flag
+             0xaef4c6 = 1 and sleeps until the thread sets 0xaef390. The thread reads the flag early
+             (0x3d37ca); when it runs before the flag is set it takes the other path and never sets
+             0xaef390, so the main thread sleeps forever (#43). On the PS4 the lower-priority thread
+             starts later; on a PC it can start at once. The flag is now set before the thread starts:
+             the same three instructions, reordered. -->
+        <Target Name="START" Address="0x007d20e0" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="40" Ref="1"/>
+        <Target Name="DONE" Address="0x00eef390" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="46" Ref="1" Tail="1"/>
+        <Target Name="FLAG" Address="0x00eef4c6" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="53" Ref="1" Tail="1"/>
+        <PatchList>
+            <Line Type="bytes" Address="0x00a7a514" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="36" Value="48 89 03 c6 05 {rel:FLAG:1} 01 e8 {rel:START:0} 80 3d {rel:DONE:1} 00"/>
+        </PatchList>
+    </Metadata>
 </Patch>
