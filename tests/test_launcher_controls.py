@@ -746,9 +746,9 @@ class MusicTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.14')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.15'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.13'))
+        self.assertEqual(launcher.VERSION, '0.2.15')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.16'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.14'))
 
     def test_first_start_is_in_english(self):
         # The translations are partial; 'System' stays a choice in Advanced.

@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.14'
+VERSION = '0.2.15'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -2485,7 +2485,8 @@ class Launcher:
         from patches import game_patchable, patch_status
         if not game_patchable(self.meta_dir()):
             return _('{} · 60 FPS · no patches for this game').format(resolution)
-        text = _('{} · {} FPS engine · {} patches').format(resolution, self.var('engine_fps', 'ini').get(), len(names))
+        # No engine frame rate: WipEout's profile sets 240 (God of War III's engine_fps setting does nothing here).
+        text = _('{} · {} patches').format(resolution, len(names))
         # Which patches the game's eboot.bin had is known once the game has started (patches.py).
         status = patch_status(DATA_DIR / 'out')
         if status and status.get('skipped'):

@@ -834,6 +834,7 @@ EXTRA = {
         'MangoHud overlay': 'Overlay do MangoHud',
         'Shows MangoHud (FPS, frame times, temperatures) through its Vulkan layer.': 'Mostra o MangoHud (FPS, tempos de quadro, temperaturas) pela camada Vulkan dele.',
         '{} · {} FPS engine · {} patches': '{} · motor a {} FPS · {} patches',
+        '{} · {} patches': '{} · {} patches',
         'Type a name for the preset first.': 'Digite primeiro um nome para o preset.',
         'RUNNING': 'EXECUTANDO',
         '{} · version {}': '{} · versão {}',
@@ -1149,6 +1150,7 @@ EXTRA = {
         'Shows MangoHud (FPS, frame times, temperatures) through its Vulkan layer.':
             'Muestra MangoHud (FPS, tiempos de fotograma, temperaturas) mediante su capa de Vulkan.',
         '{} · {} FPS engine · {} patches': '{} · motor a {} FPS · {} parches',
+        '{} · {} patches': '{} · {} parches',
         'Type a name for the preset first.': 'Escribe primero un nombre para el preajuste.',
         'RUNNING': 'EN EJECUCIÓN',
         '{} · version {}': '{} · versión {}',
