@@ -6,6 +6,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cstdint>
 #include <cstdio>
 #include <string>
@@ -103,6 +104,14 @@ inline std::string Format(const Sample& s, unsigned mask, bool row) {
     }
     return out;
 }
+
+/// The calling thread flips the game's frames (GOW3_CPU_PROFILE samples it). Cheap after the
+/// first call from a thread.
+void NoteGameThread();
+/// Windows thread id of the thread NoteGameThread saw last (0: none yet).
+inline std::atomic<unsigned long> game_thread_id{0};
+/// Frames the game has shown (flips to the screen).
+inline std::atomic<uint64_t> game_frames{0};
 
 /// Starts the sampling thread the first time; later calls do nothing.
 void Start(const Vulkan::Instance& instance);

@@ -72,6 +72,15 @@ enum : std::uint64_t {
     /// A texture/storage request for the top rows of a cached image (same address and layout)
     /// uses that image, instead of creating and uploading a new one (texture_cache.cpp).
     PartialHeightViews = 1ull << 58,
+    /// Up to 512 GPU readbacks pending instead of 64; when full, only the oldest is waited for
+    /// instead of the whole GPU (TextureCache::ProcessDownloadImages).
+    DeepReadbackQueue = 1ull << 60,
+    /// An end-of-pipe/-shader event with no image queued for download does not wait for the
+    /// Vulkan recording thread (TextureCache::ProcessDownloadImages).
+    EmptyDownloadNoWait = 1ull << 61,
+    /// End-of-shader fences (EOS) on the draw recording thread are written by the Vulkan
+    /// recording thread after the copies before them, as RecorderFences does for EOP.
+    RecorderEos = 1ull << 62,
     // Bits 20-29 are used as raw debug toggles by the camera/object motion and the upscaler.
 };
 inline bool Disabled(std::uint64_t bit) {
@@ -89,7 +98,17 @@ inline std::atomic<std::uint64_t> image_upload_bytes{0};
 inline std::atomic<std::uint64_t> buffer_upload_bytes{0};
 inline std::atomic<int> gpu_thread_clock{-1}; ///< clockid_t of the GPU command thread
 inline std::atomic<unsigned long> gpu_thread_id{0}; ///< Windows thread id of the GPU command thread
+/// Windows thread id of the draw recording thread (DrawPipe stage B), for GOW3_CPU_PROFILE.
+inline std::atomic<unsigned long> draw_rec_thread_id{0};
+/// Windows thread id of the scheduler's Vulkan recording thread (GOW3_CPU_PROFILE).
+inline std::atomic<unsigned long> vk_recorder_thread_id{0};
+/// TSC cycles the GPU command thread waited in DrawPipe::Drain for stage B (all time).
+inline std::atomic<std::uint64_t> pipe_drain_cycles{0};
 inline std::atomic<std::uint64_t> draws{0}, dispatches{0}, submissions{0};
+/// ProcessDownloadImages calls that waited for the recording thread, and those skipped (none queued).
+inline std::atomic<std::uint64_t> download_waits{0}, download_waits_skipped{0};
+/// End-of-shader events: handed to the recording thread, GDS stores (waited), others waited.
+inline std::atomic<std::uint64_t> eos_deferred{0}, eos_gds{0}, eos_waited{0};
 /// Frames the GPU command thread has started (display pass), for per-frame diagnostics.
 inline std::atomic<std::uint64_t> gpu_frames{0};
 /// Wall time spent in operations suspected of stalls (ns, all threads).

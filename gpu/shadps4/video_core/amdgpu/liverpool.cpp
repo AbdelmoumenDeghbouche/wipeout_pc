@@ -335,12 +335,7 @@ void RunWriteData(Vulkan::Rasterizer& rasterizer, const u8* data) {
                 (header->type3.count.Value() - 2) * sizeof(u32));
 }
 
-void RunEventWriteEos(Vulkan::Rasterizer& rasterizer, const u8* data) {
-    const auto& event_eos = *reinterpret_cast<const PM4CmdEventWriteEos*>(data);
-    // Copies deferred to the recording thread precede writes the guest sees.
-    rasterizer.WaitHostCopies();
-    rasterizer.WaitDeferredSignals();
-    rasterizer.ProcessDownloadImages();
+void SignalEos(const PM4CmdEventWriteEos& event_eos) {
     event_eos.SignalFence([](void* address, u64 value, u32 num_bytes) {
         auto* memory = Core::Memory::Instance();
         Gow3WriteLog::Note(reinterpret_cast<u64>(address), &value, num_bytes, Gow3WriteLog::Fence);
@@ -348,6 +343,29 @@ void RunEventWriteEos(Vulkan::Rasterizer& rasterizer, const u8* data) {
             memcpy(address, &value, num_bytes);
         }
     });
+}
+
+void RunEventWriteEos(Vulkan::Rasterizer& rasterizer, const u8* data) {
+    const auto event_eos = *reinterpret_cast<const PM4CmdEventWriteEos*>(data);
+    // gow3 (RecorderEos): as for EOP, the draw recording thread does not wait; the Vulkan
+    // recording thread writes the label after the copies queued before it. A GDS store
+    // reads a GPU result and still waits.
+    if (event_eos.command != PM4CmdEventWriteEos::Command::GdsStore &&
+        Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences) &&
+        !Gow3Toggle::Disabled(Gow3Toggle::RecorderEos)) {
+        rasterizer.ProcessDownloadImages();
+        rasterizer.SignalAfterHostCopies([event_eos] { SignalEos(event_eos); });
+        Gow3Stats::eos_deferred.fetch_add(1, std::memory_order_relaxed);
+        return;
+    }
+    (event_eos.command == PM4CmdEventWriteEos::Command::GdsStore ? Gow3Stats::eos_gds
+                                                                 : Gow3Stats::eos_waited)
+        .fetch_add(1, std::memory_order_relaxed);
+    // Copies deferred to the recording thread precede writes the guest sees.
+    rasterizer.WaitHostCopies();
+    rasterizer.WaitDeferredSignals();
+    rasterizer.ProcessDownloadImages();
+    SignalEos(event_eos);
     if (event_eos.command == PM4CmdEventWriteEos::Command::GdsStore) {
         ASSERT(event_eos.size == 1);
         rasterizer.Finish();

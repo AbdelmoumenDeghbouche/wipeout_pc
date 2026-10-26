@@ -1,6 +1,7 @@
 #include "gow3_write_log.h"
 // gow3: glue between the C loader and the vendored shadPS4 video core.
 #include "gow3_overlay.h"
+#include "gow3_perf_stats.h"
 #include "gow3_png.h"
 #include "gow3_settings.h"
 #include "gow3_copy.h"
@@ -285,6 +286,26 @@ extern "C" uintptr_t gow3gpu_resolve(const char* scoped_nid) {
         }
     }
     return 0;
+}
+
+extern "C" void gow3gpu_frame_threads(unsigned long* game_thread, unsigned long* gpu_thread,
+                                      uint64_t* frames) {
+    *game_thread = Gow3PerfStats::game_thread_id.load();
+    *gpu_thread = Gow3Stats::gpu_thread_id.load();
+    *frames = Gow3PerfStats::game_frames.load();
+}
+
+extern "C" void gow3gpu_draw_rec_thread(unsigned long* thread, uint64_t* drain_cycles,
+                                        unsigned long* vk_recorder) {
+    *thread = Gow3Stats::draw_rec_thread_id.load();
+    *vk_recorder = Gow3Stats::vk_recorder_thread_id.load();
+    *drain_cycles = Gow3Stats::pipe_drain_cycles.load();
+}
+
+extern "C" void gow3gpu_draw_counts(uint64_t* draws, uint64_t* dispatches, uint64_t* submissions) {
+    *draws = Gow3Stats::draws.load();
+    *dispatches = Gow3Stats::dispatches.load();
+    *submissions = Gow3Stats::submissions.load();
 }
 
 extern "C" int gow3gpu_handle_fault(void* ucontext, void* address) {

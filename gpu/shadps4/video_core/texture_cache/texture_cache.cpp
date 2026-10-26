@@ -227,10 +227,24 @@ void TextureCache::ProcessDownloadImages() {
         ReportImageCreates();
     }
     if (deferred_readbacks) {
+        // gow3: images are queued for download by the thread that runs this (draw recording),
+        // so with none queued no page is protected below and there is nothing to wait for.
+        bool any_downloads = true;
+        if (!Gow3Toggle::Disabled(Gow3Toggle::EmptyDownloadNoWait)) {
+            std::scoped_lock lock{download_images_mutex};
+            any_downloads = !download_images.empty();
+        }
         // Upload workers must finish reading RAM before these pages become inaccessible.
-        scheduler.WaitHostCopies();
+        if (any_downloads) {
+            Gow3Stats::download_waits.fetch_add(1, std::memory_order_relaxed);
+            scheduler.WaitHostCopies();
+        } else {
+            Gow3Stats::download_waits_skipped.fetch_add(1, std::memory_order_relaxed);
+        }
         std::scoped_lock readback_lock{readback_mutex};
         RetireReadbacks();
+        const bool deep_queue = !Gow3Toggle::Disabled(Gow3Toggle::DeepReadbackQueue);
+        pending_readbacks.SetMaxEntries(deep_queue ? 512 : 64);
         std::unique_lock lock{download_images_mutex};
         for (const ImageId image_id : download_images) {
             const auto& image = slot_images[image_id];
@@ -239,8 +253,16 @@ void TextureCache::ProcessDownloadImages() {
                 image.info.size.depth * image.info.resources.layers * (image.info.num_bits / 8);
             if (!pending_readbacks.CanFit(size)) {
                 ++readbacks_waited;
-                scheduler.Finish();
-                RetireReadbacks();
+                if (deep_queue) {
+                    // Only the oldest copies have to be done: the GPU keeps the newer work.
+                    while (!pending_readbacks.CanFit(size) && !pending_readbacks.Empty()) {
+                        scheduler.Wait(pending_readbacks.OldestTick());
+                        RetireReadbacks();
+                    }
+                } else {
+                    scheduler.Finish();
+                    RetireReadbacks();
+                }
             }
             if (auto copy = RecordImageDownload(image_id)) {
                 if (!pending_readbacks.CanFit(copy->size)) {

@@ -133,6 +133,17 @@ void Run(const Vulkan::Instance* instance) {
 
 } // namespace
 
+// Runs on the game's thread: no thread_local (MinGW's emulated TLS crashed in libwinpthread
+// there), only a compare with the thread noted last.
+void NoteGameThread() {
+#ifdef _WIN32
+    const unsigned long id = GetCurrentThreadId();
+    if (game_thread_id.load(std::memory_order_relaxed) != id) {
+        game_thread_id.store(id);
+    }
+#endif
+}
+
 void Start(const Vulkan::Instance& instance) {
     // ponytail: never joined; a thread that ended while the game ran crashed in ntdll
     // (vk_pipeline_serialization.cpp, StopWarmUp). It sleeps between samples.
