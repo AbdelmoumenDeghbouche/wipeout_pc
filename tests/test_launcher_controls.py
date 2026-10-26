@@ -257,7 +257,7 @@ class ControlMapTest(unittest.TestCase):
                                          'cheat_ships': True})
         self.assertEqual(env['GOW3_PATCHES'].split(';')[-3:],
                          ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048',
-                          'Cheat - Unlock all HD and Fury ships'])
+                          'Cheat - Unlock all ships'])
         env = launcher.game_environment(dict(launcher.APP_DEFAULTS))
         self.assertNotIn('Cheat - ', env.get('GOW3_PATCHES', ''))
 
@@ -748,9 +748,9 @@ class MusicTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.18')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.19'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.17'))
+        self.assertEqual(launcher.VERSION, '0.2.19')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.20'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.18'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.

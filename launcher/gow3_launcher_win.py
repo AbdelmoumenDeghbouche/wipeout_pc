@@ -61,7 +61,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.18'
+VERSION = '0.2.19'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -698,10 +698,10 @@ CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all 
           ('cheat_rank', 'Cheat - Top rank in 2048', 'Top rank in 2048 (rank 50)',
            ('Your 2048 rank shows 50, so what needs a rank is open. Your real experience points stay in your '
             'save. Off: your own rank comes back.')),
-          ('cheat_ships', 'Cheat - Unlock all HD and Fury ships', 'Unlock all HD and HD Fury ships',
-           ('Every ship and livery that needs medals, team loyalty, play time or a finished campaign grid is '
-            'open, and other menu items with those rules. Not the VR versions, nor the Tigron and Van-Uber '
-            'DLC teams. Off: they need your own progress again.')))
+          ('cheat_ships', 'Cheat - Unlock all ships', 'Unlock all ships (HD, HD Fury and 2048)',
+           ('Every ship and livery is open: the ones that need medals, team loyalty, play time or a campaign '
+            'grid, and the 2048 ships that need a rank, a 2048 event or a prototype challenge. Not the VR '
+            'versions, nor the Tigron and Van-Uber DLC teams. Off: they need your own progress again.')))
 UI_LANGUAGES = gow3_lang.LANGUAGE_NAMES
 
 def fsr4_folder():
