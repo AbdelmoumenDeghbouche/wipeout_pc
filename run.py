@@ -280,6 +280,10 @@ def main():
         # image readbacks fix its corrupted textures.
         if env.get('GOW3_EXPERIMENTAL_UPSCALER') != '1':
             env.setdefault('GOW3_UPSCALER', 'none')
+        else:
+            # FSR 3.1 / DLAA smooth the edges instead of the game's multisampling; with both on, a
+            # race showed another image in the upper-left quarter (NVIDIA, where it is on by default).
+            env['GOW3_NO_MSAA'] = '1'
         env.setdefault('GOW3_READBACK_LINEAR', '1')
         patch_xml = profile[1] if profile else None
         if profile and mod_patch_files:
