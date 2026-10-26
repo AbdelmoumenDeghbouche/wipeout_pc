@@ -402,13 +402,13 @@ DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), (
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
 FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'graphics', 'performance', 'game', 'music', 'controls', 'mods', 'advanced')
+PAGES = ('home', 'graphics', 'performance', 'game', 'cheats', 'music', 'controls', 'mods', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
                 'mods': ('refresh_lists',)}
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
-APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False,
+APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
@@ -693,6 +693,11 @@ STREAM_MEMORY = [('cached', ('System RAM (cached, default)',)),
                  ('host', ('System RAM (uncached)',)),
                  ('device', ('GPU memory (previous behavior)',))]
 FRAMES_QUEUED = [('1', ('1 (lowest latency)',)), ('2', ('2',)), ('0', ('Unlimited',))]
+# The Cheats page: (setting, patch in the game's patch file, title, hint).
+CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all HD and HD Fury events',
+           'Every event of the HD and HD Fury campaigns is open; the campaign screen shows 99998 points. Off: the events need your own points again.'),
+          ('cheat_rank', 'Cheat - Top rank in 2048', 'Top rank in 2048 (rank 50)',
+           'Your 2048 rank shows 50, so what needs a rank is open. Your real experience points stay in your save. Off: your own rank comes back.'))
 UI_LANGUAGES = gow3_lang.LANGUAGE_NAMES
 
 def fsr4_folder():
@@ -1103,6 +1108,9 @@ def game_environment(s):
     if profile and chosen is not None:
         env['GOW3_PATCHES'] = ';'.join(chosen)
         env['GOW3_PATCHES_ONLY'] = '1'
+    # The Cheats page: its patches join the selection (patches/WipEout_Omega_Collection.xml).
+    if cheats := [patch for key, patch, _t, _h in CHEATS if s.get(key)]:
+        env['GOW3_PATCHES'] = ';'.join([n for n in env.get('GOW3_PATCHES', '').split(';') if n] + cheats)
     if s['user_dir']:
         env['GOW3_USER_DIR'] = s['user_dir']
     env.pop('GOW3_MUSIC_DIR', None)
@@ -1615,7 +1623,7 @@ class Launcher:
         self.side = side
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'graphics': _('Graphics', 'Графика'), 'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'music': _('Music'), 'controls': _('Controls', 'Управление'), 'mods': _('Mods', 'Моды'), 'advanced': _('Advanced', 'Дополнительно')}
+                  'game': _('Game', 'Игра'), 'cheats': _('Cheats'), 'music': _('Music'), 'controls': _('Controls', 'Управление'), 'mods': _('Mods', 'Моды'), 'advanced': _('Advanced', 'Дополнительно')}
         for name in PAGES:
             item = tk.Label(side, text='    ' + titles[name], bg=BG, fg=TEXT, anchor='w',
                             font=self.heading_font(11, UI_FONT),
@@ -1652,6 +1660,7 @@ class Launcher:
         self.build_graphics()
         self.build_performance()
         self.build_game()
+        self.build_cheats()
         self.build_music_page()
         self.build_controls()
         self.build_mods_page()
@@ -1886,6 +1895,14 @@ class Launcher:
             box.current(index)
         card.trace_add('write', relabel)
 
+    def build_cheats(self):
+        """Cheats: game patches that open parts of the game while they are on (CHEATS)."""
+        f = self.scrolled_page('cheats', _('Cheats'), _('Open parts of the game without playing for them. Your saves keep your own progress.'))
+        self.section(f, _('Unlocks'), top=4)
+        for key, _patch, title, hint in CHEATS:
+            self.check(f, key, 'app', _(title), _(hint), restart=True)
+        self.note(f, _('Not yet: the 2049 and 2050 cups of 2048, and the locked ships of HD and HD Fury.'))
+
     def build_game(self):
         f = self.scrolled_page('game', _('Game', 'Игра'), _('Your game dump, saves and the game patches.'))
         self.section(f, _('Folders'), top=4)
@@ -2034,7 +2051,7 @@ class Launcher:
                        '{} · версия {} · {}.').format(title_id, version, xml.name), top=0)
         for meta in metas:
             name = meta.get('Name')
-            if name.startswith(EXCLUSIVE_PREFIX) or name.startswith('Frame Rate Patch') or name in ALWAYS_ON:
+            if name.startswith((EXCLUSIVE_PREFIX, 'Frame Rate Patch', 'Cheat - ')) or name in ALWAYS_ON:
                 continue
             var = tk.BooleanVar(value=name in on)
             self.game_patch_vars[name] = var

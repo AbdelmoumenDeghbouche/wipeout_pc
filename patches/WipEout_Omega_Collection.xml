@@ -316,4 +316,19 @@
             <Line Type="bytes" Address="0x00a7a514" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="36" Value="48 89 03 c6 05 {rel:FLAG:1} 01 e8 {rel:START:0} 80 3d {rel:DONE:1} 00"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all HD and Fury events" Note="Every event of the HD and HD Fury campaigns is open: the game counts 99998 campaign points. Nothing is written to your save; off, the events need your own points again." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <!-- 0x4a7200 sums the campaign points that open the next events (cell screen: points needed =
+             [cell+0x12c] - this; 99999 marks cells that points never open). It returns 99998. -->
+        <PatchList>
+            <Line Type="bytes" Address="0x008a7200" Value="b89e860100c3" Pattern="55 48 89 e5 41 57 41 56 41 55 41 54 53 48 81 ec 88 00 00 00 48 8b 05 ?? ?? ?? ?? 48 8d 9d 58 ff ff ff 48 8d 0d ?? ?? ?? ?? c5 f8 57 c0 48 8d 15 ?? ?? ?? ?? 49 89 fe 48 89 de 48 8b 00 48 89 45 d0 48 89 8d 58 ff ff ff c5 f8 11 85 70 ff ff ff 48 89 55 b0 48 8d 95 50 ff ff ff c5 fc 57 c0 48 8d 0d ?? ?? ?? ?? 48 c7 45 80 00 00 00 00 48 c7 85 50 ff ff ff 00 00 00 00 c5 fc 11 45 90 48 c7 85 68 ff ff ff 00 00 00 00 c7 45 b8 06 10 00 00 48 89 8d 60 ff ff ff e8 ?? ?? ?? ?? 48 89 df 49 89 c5 e8 ?? ?? ?? ??" At="0"/>
+        </PatchList>
+    </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Cheat - Top rank in 2048" Note="Your 2048 rank is 50, the highest, so everything that needs a rank is open. Your real experience points stay in your save; off, your own rank comes back." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <!-- XPRanks.xml loads the experience points of each rank into the table at [0x10eb2e0] (0x3f5409:
+             mov [rax+r13*4],ebx after dec r13d). Storing 0 instead (xor ebx,ebx; mov [rax+r13*4-4],ebx)
+             gives every rank at 0 points: the rank, counted inline at each use, is 50. -->
+        <PatchList>
+            <Line Type="bytes" Address="0x007f5406" Value="31db42895ca8fc" Pattern="45 85 ed 0f 84 af 00 00 00 85 db 0f 84 a7 00 00 00 48 8b 05 ?? ?? ?? ?? 41 ff cd 42 89 1c a8 e9 94 00 00 00" At="24"/>
+        </PatchList>
+    </Metadata>
 </Patch>

@@ -420,7 +420,8 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160',
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
-                                 'Bug Fix - Startup Hang'])
+                                 'Bug Fix - Startup Hang', 'Cheat - Unlock all HD and Fury events',
+                                 'Cheat - Top rank in 2048'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang'])
@@ -432,6 +433,13 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertIn('Bug Fix - Startup Hang', selected_patches(WIPEOUT, '01.00', '', only=True))
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Startup Hang'], '01.00', SEGMENTS),
                          [(0x67a514, bytes.fromhex('488903 c605a84f470001 e8bd7bd5ff 803d664e470000'))])
+
+    def test_wipeout_cheats_are_off_unless_chosen(self):
+        # The Cheats page adds them; the points total returns 99998 (mov eax; ret) and the rank table holds 0.
+        self.assertNotIn('Cheat - Top rank in 2048', selected_patches(WIPEOUT, '01.00', ''))
+        self.assertEqual(compile_patches(WIPEOUT, ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048'],
+                                         '01.00', SEGMENTS),
+                         [(0x4a7200, bytes.fromhex('b89e860100c3')), (0x3f5406, bytes.fromhex('31db42895ca8fc'))])
 
     def test_wipeout_native_4k_keeps_the_4k_mode_flag_false(self):
         # (field & 0xff00) > imm: 0xff00 can never be exceeded, the original 0xeff is from 3840 wide.

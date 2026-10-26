@@ -250,6 +250,15 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual(launcher.game_environment({**settings, 'parallel_warmup': False})['GOW3_PARALLEL_WARMUP'], '0')
         self.assertEqual(launcher.game_environment({**settings, 'background_warmup': False})['GOW3_BACKGROUND_WARMUP'], '0')
 
+    def test_cheats_join_the_patch_selection(self):
+        # Off by default; on, each cheat's patch joins the launcher's selection (or is the only extra name).
+        self.assertFalse(any(launcher.APP_DEFAULTS[key] for key, *_rest in launcher.CHEATS))
+        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'cheat_events': True, 'cheat_rank': True})
+        self.assertEqual(env['GOW3_PATCHES'].split(';')[-2:],
+                         ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048'])
+        env = launcher.game_environment(dict(launcher.APP_DEFAULTS))
+        self.assertNotIn('Cheat - ', env.get('GOW3_PATCHES', ''))
+
     def test_ps4_pro_switch_reaches_the_game(self):
         # Off by default; the launcher's choice wins over a GOW3_NEO left in the user's environment.
         self.assertFalse(launcher.APP_DEFAULTS['ps4_pro'])
