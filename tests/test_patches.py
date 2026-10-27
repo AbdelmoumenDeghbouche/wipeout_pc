@@ -434,6 +434,8 @@ class HalfResolutionTests(unittest.TestCase):
         # mov [rbx],rax; mov byte [0xaef4c6],1; call 0x3d20e0; cmp byte [0xaef390],0 (#43), even when
         # the launcher's selection leaves it out.
         self.assertIn('Bug Fix - Startup Hang', selected_patches(WIPEOUT, '01.00', '', only=True))
+        # The shield and effects fix (#37, #73) too: saved lists from before v0.2.27 leave it out.
+        self.assertIn('Bug Fix - Effects above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Startup Hang'], '01.00', SEGMENTS),
                          [(0x67a514, bytes.fromhex('488903 c605a84f470001 e8bd7bd5ff 803d664e470000'))])
 
@@ -444,10 +446,13 @@ class HalfResolutionTests(unittest.TestCase):
                                          '01.00', SEGMENTS),
                          [(0x4a7200, bytes.fromhex('b89e860100c3')), (0x3f5406, bytes.fromhex('31db42895ca8fc'))])
         # The ship cheat drops the grid, medal, loyalty and play-time rules (six stores become nops; Purchase
-        # stays), and the 2048 ship lookup always takes its 'already open' jump (jne -> jmp).
+        # stays), the 2048 ship lookup always takes its 'already open' jump (jne -> jmp), and Tigron's own
+        # check (a count above 4) becomes mov r13b,1 (#35, #54).
         writes = compile_patches(WIPEOUT, ['Cheat - Unlock all ships'], '01.00', SEGMENTS)
-        self.assertEqual([o for o, _d in writes], [0x3f9024, 0x3f9183, 0x3f91f8, 0x3f926d, 0x3f92e5, 0x3f935d, 0x5a36ee])
-        self.assertEqual(writes[-1][1], b'\xeb')
+        self.assertEqual([o for o, _d in writes], [0x3f9024, 0x3f9183, 0x3f91f8, 0x3f926d, 0x3f92e5, 0x3f935d, 0x5a36ee,
+                                                 0x3f9b4d])
+        self.assertEqual(writes[6][1], b'\xeb')
+        self.assertEqual(writes[7][1], bytes.fromhex('41b5010f1f4000'))
 
     def test_wipeout_native_4k_keeps_the_4k_mode_flag_false(self):
         # (field & 0xff00) > imm: 0xff00 can never be exceeded, the original 0xeff is from 3840 wide.
