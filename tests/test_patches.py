@@ -418,6 +418,7 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(game_profile('CUSA05670')[1], WIPEOUT)
         names = [m.get('Name') for m in ET.parse(WIPEOUT).getroot().iter('Metadata')]
         self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160',
+                                 'Resolution Patch - 720p', 'Resolution Patch - 900p',
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
                                  'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
@@ -465,7 +466,8 @@ class HalfResolutionTests(unittest.TestCase):
             if not meta.get('Name').startswith('Resolution Patch'):
                 continue
             name = meta.get('Name').split(' - ')[1]
-            width, height = {'1440p': (2560, 1440), '4K': (3840, 2160)}.get(name) or map(int, name.split('x'))
+            width, height = {'720p': (1280, 720), '900p': (1600, 900), '1440p': (2560, 1440),
+                             '4K': (3840, 2160)}.get(name) or map(int, name.split('x'))
             lines = {line.get('Address'): line.get('Value') for line in meta.iter('Line')}
             self.assertEqual(size(lines['0x00bfa2e8']), width, meta.get('Name'))        # output width
             self.assertEqual(size(lines['0x00bfa2f6']), height, meta.get('Name'))       # output height

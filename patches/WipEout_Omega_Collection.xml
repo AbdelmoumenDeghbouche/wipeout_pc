@@ -128,6 +128,86 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="38040000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 720p" Note="Renders at 1280x720 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, softer, for graphics cards that are short of speed or memory." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <PatchList>
+            <!-- output size: minimum width -->
+            <Line Type="bytes" Address="0x00bfa2e8" Value="00050000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
+            <!-- output size: width cap -->
+            <Line Type="bytes" Address="0x00bfa2ee" Value="0005" Pattern="a0 b9 80 07 00 00 66 bf 80 07 bb ff ff ff ff ba" At="8"/>
+            <!-- output size: width compare -->
+            <Line Type="bytes" Address="0x00bfa31d" Value="00050000" Pattern="a1 00 48 8b 45 90 3d 80 07 00 00 89 c6 41 89 c0" At="7"/>
+            <!-- output size: minimum height -->
+            <Line Type="bytes" Address="0x00bfa2f6" Value="d0020000" Pattern="07 bb ff ff ff ff ba 38 04 00 00 66 41 b9 ff ff" At="7"/>
+            <!-- output size: height cap -->
+            <Line Type="bytes" Address="0x00bfa302" Value="d002" Pattern="00 66 41 b9 ff ff 66 41 ba 38 04 4c 8b 25 c5 8a" At="9"/>
+            <!-- output size: height compare -->
+            <Line Type="bytes" Address="0x00bfa367" Value="d0020000" Pattern="8b 3d e2 87 9e 00 3d 38 04 00 00 44 0f b7 f1 b9" At="7"/>
+            <!-- half-resolution buffer width -->
+            <Line Type="bytes" Address="0x00a44654" Value="80020000" Pattern="a0 00 8b 44 24 14 ba c0 03 00 00 b9 1c 02 00 00" At="7"/>
+            <!-- half-resolution buffer height -->
+            <Line Type="bytes" Address="0x00a44659" Value="68010000" Pattern="14 ba c0 03 00 00 b9 1c 02 00 00 45 31 c0 45 31" At="7"/>
+            <!-- half-resolution buffer width -->
+            <Line Type="bytes" Address="0x00a44708" Value="80020000" Pattern="b7 db 31 ff 31 f6 41 b9 c0 03 00 00 c7 04 24 1c" At="8"/>
+            <!-- half-resolution buffer height -->
+            <Line Type="bytes" Address="0x00a4470f" Value="68010000" Pattern="41 b9 c0 03 00 00 c7 04 24 1c 02 00 00 45 31 e4" At="9"/>
+            <!-- half-resolution buffer width -->
+            <Line Type="bytes" Address="0x00a4473d" Value="80020000" Pattern="ff be 01 00 00 00 41 b9 c0 03 00 00 44 89 f1 41" At="8"/>
+            <!-- half-resolution buffer height -->
+            <Line Type="bytes" Address="0x00a4474a" Value="68010000" Pattern="44 89 f1 41 89 d8 c7 04 24 1c 02 00 00 e8 bd 3a" At="9"/>
+            <!-- half-resolution default width -->
+            <Line Type="bytes" Address="0x00a4b51b" Value="8002" Pattern="ca b9 01 0f 00 00 66 41 ba c0 03 66 41 bd 1c 02" At="9"/>
+            <!-- half-resolution default height -->
+            <Line Type="bytes" Address="0x00a4b520" Value="6801" Pattern="00 66 41 ba c0 03 66 41 bd 1c 02 c4 c2 70 f7 f0" At="9"/>
+            <!-- half-resolution default width -->
+            <Line Type="bytes" Address="0x00a4b52c" Value="80020000" Pattern="f7 f0 d1 ea 84 c0 b9 c0 03 00 00 0f 45 ce 66 44" At="7"/>
+            <!-- half-resolution default height -->
+            <Line Type="bytes" Address="0x00a4b539" Value="68010000" Pattern="ce 66 44 0f 45 d6 be 1c 02 00 00 66 44 0f 45 ea" At="7"/>
+            <!-- half-resolution width multiple -->
+            <Line Type="bytes" Address="0x00a4b5b9" Value="80020000" Pattern="9c 00 01 0f 45 ce 69 d9 c0 03 00 00 20 c2 0f 44" At="8"/>
+            <!-- half-resolution height multiple -->
+            <Line Type="bytes" Address="0x00a4b5c4" Value="68010000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
+        </PatchList>
+    </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 900p" Note="Renders at 1600x900 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, softer, for graphics cards that are short of speed or memory." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <PatchList>
+            <!-- output size: minimum width -->
+            <Line Type="bytes" Address="0x00bfa2e8" Value="40060000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
+            <!-- output size: width cap -->
+            <Line Type="bytes" Address="0x00bfa2ee" Value="4006" Pattern="a0 b9 80 07 00 00 66 bf 80 07 bb ff ff ff ff ba" At="8"/>
+            <!-- output size: width compare -->
+            <Line Type="bytes" Address="0x00bfa31d" Value="40060000" Pattern="a1 00 48 8b 45 90 3d 80 07 00 00 89 c6 41 89 c0" At="7"/>
+            <!-- output size: minimum height -->
+            <Line Type="bytes" Address="0x00bfa2f6" Value="84030000" Pattern="07 bb ff ff ff ff ba 38 04 00 00 66 41 b9 ff ff" At="7"/>
+            <!-- output size: height cap -->
+            <Line Type="bytes" Address="0x00bfa302" Value="8403" Pattern="00 66 41 b9 ff ff 66 41 ba 38 04 4c 8b 25 c5 8a" At="9"/>
+            <!-- output size: height compare -->
+            <Line Type="bytes" Address="0x00bfa367" Value="84030000" Pattern="8b 3d e2 87 9e 00 3d 38 04 00 00 44 0f b7 f1 b9" At="7"/>
+            <!-- half-resolution buffer width -->
+            <Line Type="bytes" Address="0x00a44654" Value="20030000" Pattern="a0 00 8b 44 24 14 ba c0 03 00 00 b9 1c 02 00 00" At="7"/>
+            <!-- half-resolution buffer height -->
+            <Line Type="bytes" Address="0x00a44659" Value="c2010000" Pattern="14 ba c0 03 00 00 b9 1c 02 00 00 45 31 c0 45 31" At="7"/>
+            <!-- half-resolution buffer width -->
+            <Line Type="bytes" Address="0x00a44708" Value="20030000" Pattern="b7 db 31 ff 31 f6 41 b9 c0 03 00 00 c7 04 24 1c" At="8"/>
+            <!-- half-resolution buffer height -->
+            <Line Type="bytes" Address="0x00a4470f" Value="c2010000" Pattern="41 b9 c0 03 00 00 c7 04 24 1c 02 00 00 45 31 e4" At="9"/>
+            <!-- half-resolution buffer width -->
+            <Line Type="bytes" Address="0x00a4473d" Value="20030000" Pattern="ff be 01 00 00 00 41 b9 c0 03 00 00 44 89 f1 41" At="8"/>
+            <!-- half-resolution buffer height -->
+            <Line Type="bytes" Address="0x00a4474a" Value="c2010000" Pattern="44 89 f1 41 89 d8 c7 04 24 1c 02 00 00 e8 bd 3a" At="9"/>
+            <!-- half-resolution default width -->
+            <Line Type="bytes" Address="0x00a4b51b" Value="2003" Pattern="ca b9 01 0f 00 00 66 41 ba c0 03 66 41 bd 1c 02" At="9"/>
+            <!-- half-resolution default height -->
+            <Line Type="bytes" Address="0x00a4b520" Value="c201" Pattern="00 66 41 ba c0 03 66 41 bd 1c 02 c4 c2 70 f7 f0" At="9"/>
+            <!-- half-resolution default width -->
+            <Line Type="bytes" Address="0x00a4b52c" Value="20030000" Pattern="f7 f0 d1 ea 84 c0 b9 c0 03 00 00 0f 45 ce 66 44" At="7"/>
+            <!-- half-resolution default height -->
+            <Line Type="bytes" Address="0x00a4b539" Value="c2010000" Pattern="ce 66 44 0f 45 d6 be 1c 02 00 00 66 44 0f 45 ea" At="7"/>
+            <!-- half-resolution width multiple -->
+            <Line Type="bytes" Address="0x00a4b5b9" Value="20030000" Pattern="9c 00 01 0f 45 ce 69 d9 c0 03 00 00 20 c2 0f 44" At="8"/>
+            <!-- half-resolution height multiple -->
+            <Line Type="bytes" Address="0x00a4b5c4" Value="c2010000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
+        </PatchList>
+    </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1440p" Note="Renders at 2560x1440 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, sharper." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- output size: minimum width -->
