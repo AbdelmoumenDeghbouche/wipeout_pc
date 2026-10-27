@@ -70,6 +70,28 @@ class GameUpdateTests(unittest.TestCase):
         self.assertEqual((self.base / 'eboot.bin').read_text(), 'base eboot')
         self.assertEqual((self.base / 'sce_sys/icon0.png').read_text(), 'old icon')
 
+    @unittest.skipUnless(sys.platform == 'win32', 'Windows redirection trust policy')
+    def test_view_under_redirection_trust_policy(self):
+        # Armoury Crate (ROG Ally) starts games with the redirection trust policy: the process and
+        # its children may not follow folder links a non-administrator made (WinError 448, #78).
+        script = (
+            "import ctypes, sys\n"
+            "from pathlib import Path\n"
+            "from unittest import mock\n"
+            "sys.path.insert(0, sys.argv[1])\n"
+            "flag = ctypes.c_ulong(1)\n"
+            "assert ctypes.windll.kernel32.SetProcessMitigationPolicy(16, ctypes.byref(flag), 4)\n"
+            "import game_update, mods\n"
+            "with mock.patch('patches.game_title_id', side_effect=['CUSA01623', 'CUSA01623']):\n"
+            "    view = game_update.create_view(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))\n"
+            "print((view / 'EXEC/WAD/A.WAD').read_text(), (view / 'eboot.bin').read_text().replace(' ', '_'), mods.MIRROR_DIRECTORIES)\n")
+        import subprocess
+        done = subprocess.run([sys.executable, '-I', '-c', script, str(ROOT / 'scripts'), str(self.base),
+                               str(self.update), str(self.out)], capture_output=True, text=True)
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertEqual(done.stdout.split(), ['wad', 'update_eboot', 'True'])
+        self.assertEqual((self.base / 'EXEC/WAD/A.WAD').read_text(), 'wad')
+
     def test_a_network_share_without_junctions_mirrors_the_tree(self):
         # A network share (SMB) refuses symlinks and junctions alike; only hard links work.
         # create_view must still build a view of real files and leave the dumps untouched.
