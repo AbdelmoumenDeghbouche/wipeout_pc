@@ -2525,7 +2525,10 @@ class Launcher:
         text = _('{} · {} patches').format(resolution, len(names))
         # Which patches the game's eboot.bin had is known once the game has started (patches.py).
         status = patch_status(DATA_DIR / 'out')
-        if status and status.get('skipped'):
+        if status and status.get('skipped') and not status.get('applied'):
+            # None fit: an eboot.bin without its update (#39, #54).
+            text += ' · ' + _('no patch fits your eboot.bin: add the game update (Game > Update folder)')
+        elif status and status.get('skipped'):
             text += ' · ' + _('{} not found in this eboot.bin at the last start (see Log)').format(len(status['skipped']))
         return text
 

@@ -419,6 +419,10 @@ def main():
                                                     a.patches_config),segments)
     write_patches(a.out,writes)
     applied=[n for n in names if n not in skipped]
+    if skipped and not applied:
+        # Every signature misses: in the reports (#39, #54) an eboot.bin without its update.
+        print('Patches: none of the patches fit this eboot.bin: is the game update installed? '
+              '(launcher: Game > Folders > Update folder)')
     (a.out/'patch_status.json').write_text(json.dumps({'sha256':sha,'applied':applied,'skipped':skipped}))
     print(f'Patches: {title}; {len(writes)} writes from {applied or "none"}')
 
