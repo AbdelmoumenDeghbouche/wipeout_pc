@@ -420,11 +420,13 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160',
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
-                                 'Bug Fix - Startup Hang', 'Cheat - Unlock all HD and Fury events',
+                                 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
+                                 'Cheat - Unlock all HD and Fury events',
                                  'Cheat - Top rank in 2048', 'Cheat - Unlock all ships'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
-                         ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang'])
+                         ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang',
+                          'Bug Fix - Effects above 60 FPS'])
         self.assertTrue(compile_patches(WIPEOUT, names[1:], '01.00', SEGMENTS))
 
     def test_wipeout_startup_hang_fix_sets_the_flag_before_the_thread_starts(self):
