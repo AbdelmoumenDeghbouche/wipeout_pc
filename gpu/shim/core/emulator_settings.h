@@ -7,6 +7,7 @@
 #include "common/types.h"
 
 u32 Gow3DisplayRefreshHz(); // gow3gpu.cpp: primary display refresh rate, 60 when unknown
+double Gow3DisplayRefreshRate(); // gow3gpu.cpp: the same, unrounded (59.94 stays 59.94)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 
@@ -37,6 +38,20 @@ public:
         static const u32 value = [] {
             const long hz = Number("GOW3_VBLANK_HZ", 60);
             return hz > 0 ? u32(hz) : 480u;
+        }();
+        return value;
+    }
+    /// gow3: the vblank period. At 60 Hz with a display within half a hertz of it (59.94 Hz
+    /// monitors and TVs, as the PS4's own output) the vblank follows the display exactly: an
+    /// exact 60 Hz vblank flipped a frame more than VSync shows every ~17 s, then each flip
+    /// waited for the display in the vblank thread and frames alternated one and two refreshes
+    /// (felt like 30-35 FPS while the counter said 60).
+    u64 GetVblankPeriodNs() {
+        static const u64 value = [this] {
+            const u32 hz = GetVblankFrequency();
+            const double display = hz == 60 ? Gow3DisplayRefreshRate() : 0.0;
+            const double rate = display > 59.5 && display < 60.5 ? display : double(hz);
+            return u64(1e9 / rate + 0.5);
         }();
         return value;
     }
