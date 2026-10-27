@@ -2,8 +2,8 @@
  * instead of the game's music, as on a PS4 playing the user's own music: the game's BGM port
  * (sceAudioOut type 1) carries only its music. FFmpeg decodes the files to 48 kHz stereo float on
  * their own thread. Each song is leveled (mean square over ~8 s, without the bass below ~150 Hz)
- * to a fixed level times "music_volume"; following the game's own level made them fade with it
- * (title screen, loading). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
+ * to a fixed level times "music_volume", not to the game's level; only the game's silences and fades
+ * are followed (runtime_music_bgm). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
  * tab) turn them off or play the list in order; the Music tab picks a song or skips
  * (runtime_music_play, runtime_music_step). */
 #define _GNU_SOURCE
@@ -258,9 +258,35 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     pthread_once(&once,start);
     if (!scanned || !file_count || !playable || channels<2 || frames<=0 || frames>2048) return 0;
     if (!gow3gpu_music_on()) return 0; /* the game's music; the ring waits where it stopped */
+    /* Follow the game's own music (#66), which pcm still holds: it is silent while loading and at
+     * the race intro, fades out between menus and races, and starts again for each race. Our songs
+     * play at full level while the game's music is within 10 dB of its usual level, follow its
+     * fades below that, wait (keeping their place) while it is silent, and after 1 s of silence
+     * the next song starts with it. */
+    static double game_ref, follow;
+    static size_t silent_frames;
+    static int heard; /* some of the current song has played */
+    double game_ms=0;
+    for (size_t i=0;i<(size_t)frames;++i) for (int c=0;c<2;++c) { const double v=pcm[i*(size_t)channels+c]; game_ms+=v*v; }
+    const double game_rms=sqrt(game_ms/(2.0*frames));
+    if (game_rms>1e-5) {
+        if (silent_frames>=48000 && heard) { runtime_music_step(1); heard=0; }
+        silent_frames=0;
+        /* Its usual level: up within ~1 s, down over ~10 s (a fade lasts ~2 s). */
+        game_ref=game_ref>0 ? game_ref+frames/(48000.0*(game_rms>game_ref ? 1.0 : 10.0))*(game_rms-game_ref) : game_rms;
+    } else {
+        silent_frames+=(size_t)frames;
+    }
+    const double follow_to=game_rms>1e-5 ? fmin(1.0,game_rms/(game_ref*0.3)) : 0, follow_from=follow;
+    follow=follow_to;
+    if (follow_from==0 && follow_to==0) {
+        memset(pcm,0,(size_t)frames*(size_t)channels*sizeof(float));
+        return 1;
+    }
     pthread_mutex_lock(&lock);
     size_t n=head-tail;
     if (n>(size_t)frames) n=(size_t)frames;
+    if (n) heard=1;
     for (size_t i=0;i<n;++i,++tail) { music[i*2]=ring[(tail%RING)*2]; music[i*2+1]=ring[(tail%RING)*2+1]; }
     if (notice_pending && tail>=notice_at) { memcpy(text,notice,sizeof(text)); playing=notice_file; notice_pending=0; show=1; }
     pthread_cond_signal(&space);
@@ -284,8 +310,9 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     if (gain>1) gain=1;
     memset(pcm,0,(size_t)frames*(size_t)channels*sizeof(float));
     for (size_t i=0;i<n;++i) {
-        pcm[i*(size_t)channels]=(float)(music[i*2]*gain);
-        pcm[i*(size_t)channels+1]=(float)(music[i*2+1]*gain);
+        const double g=gain*(follow_from+(follow_to-follow_from)*(double)(i+1)/frames); /* ramp: no clicks */
+        pcm[i*(size_t)channels]=(float)(music[i*2]*g);
+        pcm[i*(size_t)channels+1]=(float)(music[i*2+1]*g);
     }
     return 1;
 }
