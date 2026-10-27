@@ -319,9 +319,26 @@ def apply_preset(preset, available):
 # follow ones a non-administrator made: ERROR_UNTRUSTED_MOUNT_POINT (#78). The first folder link
 # is tried; if it is refused, every folder becomes a real directory of hard-linked files for the
 # rest of this process.
+#
+# Under Wine/Proton the game could not read files through folder links Python itself could follow
+# (#39: data/xml/mjolnirdata.xml "not found" through the game + update view), so there folders are
+# always mirrored and files hard-linked.
 LINKED = {}
 UNTRUSTED_MOUNT_POINT = 448
-MIRROR_DIRECTORIES = False
+
+
+def _under_wine():
+    if os.name != 'nt':
+        return False
+    try:
+        import ctypes
+        return hasattr(ctypes.windll.ntdll, 'wine_get_version')
+    except (ImportError, OSError, AttributeError):
+        return False
+
+
+WINE = _under_wine()
+MIRROR_DIRECTORIES = WINE
 
 
 def _mirror_directory(link, target):
@@ -360,6 +377,8 @@ def make_link(link, target):
         _mirror_directory(link, target)
         return
     try:
+        if WINE:
+            raise OSError('Wine: hard links, not symlinks')
         link.symlink_to(target, target_is_directory=target.is_dir())
     except OSError:
         if os.name != 'nt':

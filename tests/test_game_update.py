@@ -111,6 +111,17 @@ class GameUpdateTests(unittest.TestCase):
         self.assertEqual((self.base / 'EXEC/WAD/A.WAD').read_text(), 'wad')
         self.assertEqual((self.base / 'sce_sys/icon0.png').read_text(), 'old icon')
 
+    def test_under_wine_the_view_has_no_links(self):
+        # Proton (#39): the game could not read through folder links, so under Wine every folder
+        # is a real directory and every file a hard link.
+        with mock.patch('mods.WINE', True), mock.patch('mods.MIRROR_DIRECTORIES', True), \
+                mock.patch('mods.os.name', 'nt'):
+            view = self.view()
+        self.assertFalse(is_link(view / 'EXEC'))
+        self.assertFalse(any(p.is_symlink() for p in view.rglob('*')))
+        self.assertEqual((view / 'EXEC/WAD/A.WAD').read_text(), 'wad')
+        self.assertEqual((view / 'eboot.bin').read_text(), 'update eboot')
+
     def test_different_titles_and_nested_folders_are_refused(self):
         with self.assertRaises(ValueError):
             self.view(('CUSA01623', 'CUSA01715'))
