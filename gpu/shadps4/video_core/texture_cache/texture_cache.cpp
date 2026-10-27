@@ -1684,6 +1684,25 @@ void TextureCache::GarbageCollectImages() {
         }
     }
     runtime.GetStagingPool().SetLowMemory(total_used_memory >= pressure_gc_memory);
+    if (Gow3Stats::enabled) {
+        static auto last = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last >= std::chrono::seconds(1)) {
+            last = now;
+            std::printf("Memory: device %lld MiB (pressure %llu), images %lld MiB (%lld), resident "
+                        "buffers %lld MiB, staging %lld MiB (device %lld+%lld, upload %lld+%lld, "
+                        "download %lld+%lld)\n",
+                        (long long)(instance.CanReportMemoryUsage() ? instance.GetDeviceMemoryUsage() >> 20 : 0),
+                        (unsigned long long)(pressure_gc_memory >> 20),
+                        (long long)(Gow3Stats::image_bytes.load() >> 20),
+                        (long long)Gow3Stats::image_count.load(),
+                        (long long)(Gow3Stats::resident_bytes.load() >> 20),
+                        (long long)(Gow3Stats::staging_bytes.load() >> 20),
+                        (long long)Gow3Stats::staging_mib[0][0].load(), (long long)Gow3Stats::staging_mib[0][1].load(),
+                        (long long)Gow3Stats::staging_mib[1][0].load(), (long long)Gow3Stats::staging_mib[1][1].load(),
+                        (long long)Gow3Stats::staging_mib[2][0].load(), (long long)Gow3Stats::staging_mib[2][1].load());
+        }
+    }
     if (total_used_memory < trigger_gc_memory) {
         return;
     }

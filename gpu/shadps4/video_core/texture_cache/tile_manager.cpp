@@ -475,10 +475,35 @@ std::pair<const Buffer*, u64> TileManager::DetileImage(const VideoCore::Buffer* 
         .range = sizeof(params),
     };
 
-    const auto staging = runtime.GetStagingPool().Request(info.guest_size, MemoryType::DeviceLocal);
+    // gow3: detiled uploads up to DetileScratchSize share one device buffer. From the staging
+    // pool, each upload of a track load kept its own device buffer until the GPU finished the
+    // submission: about 1 GB of video memory on top of the new textures in a 2048 race (#72,
+    // #59). The copy into the image marks its read (UploadImage), FlushBarriers orders the
+    // next write after it, and the barrier below does so after the previous submission's copies.
+    constexpr u64 DetileScratchSize = 64_MB;
+    Vulkan::StagingBufferRef staging;
+    const bool scratch = info.guest_size <= DetileScratchSize;
+    if (scratch) {
+        if (!detile_scratch) {
+            detile_scratch = std::make_unique<VideoCore::Buffer>(
+                instance, 0, DetileScratchSize, MemoryType::DeviceLocal, "TileManager:DetileScratch");
+        }
+        staging = {.buffer = detile_scratch.get(), .size = info.guest_size, .type = MemoryType::DeviceLocal};
+    } else {
+        staging = runtime.GetStagingPool().Request(info.guest_size, MemoryType::DeviceLocal);
+    }
 
     scheduler.EndRendering();
     runtime.FlushBarriers();
+    if (scratch) {
+        scheduler.Record([](vk::CommandBuffer cmdbuf) {
+            const vk::MemoryBarrier2 barrier{
+                .srcStageMask = vk::PipelineStageFlagBits2::eAllTransfer,
+                .dstStageMask = vk::PipelineStageFlagBits2::eComputeShader,
+            };
+            cmdbuf.pipelineBarrier2(vk::DependencyInfo{.memoryBarrierCount = 1, .pMemoryBarriers = &barrier});
+        });
+    }
 
     const vk::DescriptorBufferInfo tiled_buffer_info{
         .buffer = in_buffer->Handle(),

@@ -105,6 +105,11 @@ inline std::atomic<unsigned long> vk_recorder_thread_id{0};
 /// TSC cycles the GPU command thread waited in DrawPipe::Drain for stage B (all time).
 inline std::atomic<std::uint64_t> pipe_drain_cycles{0};
 inline std::atomic<std::uint64_t> draws{0}, dispatches{0}, submissions{0};
+/// Graphics memory by owner (GOW3_FRAME_STATS prints them once a second): images (bytes and
+/// count), device memory backing guest buffers, staging buffers.
+inline std::atomic<std::int64_t> image_bytes{0}, image_count{0}, resident_bytes{0}, staging_bytes{0};
+/// Staging by type (device, upload, download) and kind (ring blocks, large buffers), in MiB.
+inline std::atomic<std::int64_t> staging_mib[3][2]{};
 /// ProcessDownloadImages calls that waited for the recording thread, and those skipped (none queued).
 inline std::atomic<std::uint64_t> download_waits{0}, download_waits_skipped{0};
 /// End-of-shader events: handed to the recording thread, GDS stores (waited), others waited.

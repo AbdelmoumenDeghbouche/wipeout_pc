@@ -475,6 +475,7 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
         .memoryTypeIndex = arena_memory_type_index,
     };
     const auto device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
+    Gow3Stats::resident_bytes += static_cast<s64>(alloc_info.allocationSize);
 
     boost::container::small_vector<vk::BufferCopy, 8> copies;
     const auto staging =

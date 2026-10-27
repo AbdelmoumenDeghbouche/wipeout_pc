@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include <memory>
 #include <unordered_map>
 #include <utility>
 #include <boost/container_hash/hash.hpp>
@@ -71,6 +72,8 @@ private:
     Vulkan::Scheduler& scheduler;
     Vulkan::Runtime& runtime;
     StreamBuffer& stream_buffer;
+    /// gow3: the device buffer every detiled upload up to its size goes through (DetileImage).
+    std::unique_ptr<VideoCore::Buffer> detile_scratch;
     vk::UniqueDescriptorSetLayout desc_layout;
     vk::UniquePipelineLayout pl_layout;
     std::unordered_map<TilingKey, vk::UniquePipeline, TilingKey::Hash> tiling_pipelines;

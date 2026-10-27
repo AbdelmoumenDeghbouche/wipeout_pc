@@ -175,10 +175,16 @@ void StagingBufferPool::TickFrame() {
 }
 
 void StagingBufferPool::TrimRing(Ring& ring) {
+    // gow3: only the upload ring keeps blocks (keep_blocks). The device ring kept them too:
+    // 640 MiB of video memory after a 2048 track load, for good. With memory low the upload
+    // ring keeps its prewarmed blocks and idle blocks of any ring go after 2 s at 60 FPS.
+    const bool upload = &ring == &rings[u32(MemoryType::HostUncached)];
+    const u64 keep = !upload ? 0 : low_memory ? std::min(keep_blocks, PREWARM_BLOCKS) : keep_blocks;
+    const u64 idle_frames = low_memory ? LOW_MEMORY_IDLE_FRAMES : RING_IDLE_FRAMES;
     auto& blocks = ring.blocks;
     for (size_t i = blocks.size(); i-- > 0;) {
         const Block& block = blocks[i];
-        if (blocks.size() <= keep_blocks || frame - block.last_used_frame < RING_IDLE_FRAMES ||
+        if (blocks.size() <= keep || frame - block.last_used_frame < idle_frames ||
             !scheduler.IsFree(block.buffer->LastTick())) {
             continue;
         }
@@ -204,6 +210,22 @@ void StagingBufferPool::TrimLarge(std::vector<LargeBuffer>& cache) {
 
 void StagingBufferPool::PublishStats() const {
     using namespace Core::Devtools::Widget;
+    if (Gow3Stats::enabled) {
+        u64 bytes = 0;
+        for (size_t i = 0; i < NUM_TYPES; ++i) {
+            u64 ring_bytes = 0, large_bytes = 0;
+            for (const Block& block : rings[i].blocks) {
+                ring_bytes += block.buffer->SizeBytes();
+            }
+            for (const LargeBuffer& entry : large_caches[i]) {
+                large_bytes += entry.buffer->SizeBytes();
+            }
+            Gow3Stats::staging_mib[i][0] = static_cast<s64>(ring_bytes >> 20);
+            Gow3Stats::staging_mib[i][1] = static_cast<s64>(large_bytes >> 20);
+            bytes += ring_bytes + large_bytes;
+        }
+        Gow3Stats::staging_bytes = static_cast<s64>(bytes);
+    }
     if (!GpuMemoryViewer::IsEnabled()) {
         return;
     }
