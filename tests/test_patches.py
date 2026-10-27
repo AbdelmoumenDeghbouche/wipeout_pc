@@ -430,6 +430,12 @@ class HalfResolutionTests(unittest.TestCase):
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang',
                           'Bug Fix - Effects above 60 FPS', 'Bug Fix - Zone crash above 60 FPS'])
         self.assertTrue(compile_patches(WIPEOUT, names[1:], '01.00', SEGMENTS))
+        # FSR 3.1 and DLAA read the game's motion and run before its first post pass, in both
+        # regions (#85: without them on the EU build, Temporal AA only turned multisampling off).
+        import game_profiles
+        for title in ('CUSA07671', 'CUSA05670'):
+            env = game_profiles.PROFILES[title]['env']
+            self.assertEqual((env['GOW3_GAME_MOTION'], env['GOW3_UPSCALE_BEFORE_PS']), ('1', '4f6cc41b'), title)
 
     def test_wipeout_startup_hang_fix_sets_the_flag_before_the_thread_starts(self):
         # mov [rbx],rax; mov byte [0xaef4c6],1; call 0x3d20e0; cmp byte [0xaef390],0 (#43), even when
