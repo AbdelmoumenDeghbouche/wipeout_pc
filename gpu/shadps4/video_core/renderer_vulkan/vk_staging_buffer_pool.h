@@ -49,6 +49,12 @@ public:
     /// Releases idle memory.
     void TickFrame();
 
+    /// gow3: set by the texture cache while video memory is low: large buffers then go after
+    /// LOW_MEMORY_IDLE_FRAMES instead of 3000 frames.
+    void SetLowMemory(bool low) {
+        low_memory = low;
+    }
+
 private:
     struct Block {
         std::unique_ptr<VideoCore::StreamBuffer> buffer;
@@ -68,6 +74,7 @@ private:
     };
 
     static constexpr size_t NUM_TYPES = 3;
+    bool low_memory = false;
 
     StagingBufferRef RequestFromRing(Ring& ring, u64 size, u64 alignment,
                                      VideoCore::MemoryType type);

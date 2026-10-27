@@ -27,6 +27,10 @@ namespace {
 // upload ring keeps GOW3_STAGING_KEEP_MB (512) and is populated at startup.
 constexpr u64 RING_IDLE_FRAMES = 3000;
 constexpr u64 LARGE_IDLE_FRAMES = 3000;
+// A track load uploads its big textures through one device and one host buffer each (about
+// 900 MiB of each in a WipEout HD race); kept 3000 frames, they pushed 4-8 GB cards out of
+// video memory right after the load (#72). With memory low they go after 2 s at 60 FPS.
+constexpr u64 LOW_MEMORY_IDLE_FRAMES = 120;
 constexpr u64 PREWARM_BLOCKS = 8;
 constexpr u64 LARGE_MIN_GRANULARITY = 64_KB;
 constexpr u64 BLOCK_SIZE = 16_MB;
@@ -192,7 +196,8 @@ void StagingBufferPool::TrimRing(Ring& ring) {
 
 void StagingBufferPool::TrimLarge(std::vector<LargeBuffer>& cache) {
     std::erase_if(cache, [this](const LargeBuffer& entry) {
-        return !entry.held && frame - entry.last_used_frame >= LARGE_IDLE_FRAMES &&
+        return !entry.held &&
+               frame - entry.last_used_frame >= (low_memory ? LOW_MEMORY_IDLE_FRAMES : LARGE_IDLE_FRAMES) &&
                scheduler.IsFree(entry.tick);
     });
 }

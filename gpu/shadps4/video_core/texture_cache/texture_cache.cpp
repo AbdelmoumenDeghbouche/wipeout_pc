@@ -1683,6 +1683,7 @@ void TextureCache::GarbageCollectImages() {
             }
         }
     }
+    runtime.GetStagingPool().SetLowMemory(total_used_memory >= pressure_gc_memory);
     if (total_used_memory < trigger_gc_memory) {
         return;
     }
