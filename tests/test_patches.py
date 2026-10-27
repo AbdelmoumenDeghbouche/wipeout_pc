@@ -421,7 +421,8 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
                                  'Bug Fix - Startup Hang', 'Cheat - Unlock all HD and Fury events',
-                                 'Cheat - Top rank in 2048', 'Cheat - Unlock all ships'])
+                                 'Cheat - Top rank in 2048', 'Cheat - Unlock all ships',
+                                 'Cheat - Van Uber team (owned DLC)', 'Cheat - VR ships outside VR'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang'])
