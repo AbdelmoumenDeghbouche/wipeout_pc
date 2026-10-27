@@ -1682,6 +1682,10 @@ class Launcher:
         self.play_button.pack(side='right', padx=(self.px(10), self.px(24)), pady=self.px(11))
         self.save_button = ttk.Button(bar, text=_('Save', 'Сохранить'), command=self.save, state='disabled')
         self.save_button.pack(side='right', pady=self.px(11))
+        if WINDOWS:  # next to Save: on the Advanced page players did not find it
+            ttk.Button(bar, text=_('Check for updates', 'Проверить обновления'),
+                       command=lambda: threading.Thread(target=self.check_update, args=(True,), daemon=True).start()
+                       ).pack(side='right', padx=self.px((0, 6)), pady=self.px(11))
         self.content = tk.Frame(right, bg=PANEL)
         self.content.pack(fill='both', expand=True)
 
@@ -2419,11 +2423,7 @@ class Launcher:
                                                     'Проверять обновления при открытии лаунчера'))
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=self.px((10, 0)))
-        if WINDOWS:
-            ttk.Button(holder, text=_('Check for updates', 'Проверить обновления'),
-                       command=lambda: threading.Thread(target=self.check_update, args=(True,), daemon=True).start()
-                       ).pack(side='left')
-        ttk.Button(holder, text=_('Desktop shortcut', 'Ярлык на рабочем столе'), command=self.shortcut).pack(side='left', padx=self.px(6))
+        ttk.Button(holder, text=_('Desktop shortcut', 'Ярлык на рабочем столе'), command=self.shortcut).pack(side='left', padx=self.px((0, 6)))
         ttk.Button(holder, text=_('Add to Steam'), command=self.add_to_steam).pack(side='left')
         ttk.Label(holder, text=f'v{VERSION}', style='Muted.TLabel').pack(side='left', padx=self.px(10))
         if not WINDOWS:
