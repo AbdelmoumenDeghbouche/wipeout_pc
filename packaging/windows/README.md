@@ -58,9 +58,12 @@ fix is always requested, including with patch lists saved by older launchers. Th
 patch and texture fix are mutually exclusive. See the root README for tested builds.
 From a source tree, `run.py` adds `C:\msys64\clang64\bin` (or `$MSYS2_ROOT`) to `PATH` for DLLs.
 
-FSR 1 and temporal upscaling (FSR 3.1, FSR 4, TAA and DLSS) are disabled in the current launcher
-and game settings path. RCAS sharpening remains available. The DLSS bridge and FSR asset tools
-remaining in the tree are experimental development code, not supported player setup steps.
+Temporal anti-aliasing (Graphics > Temporal anti-aliasing) offers FSR 3.1 and, on NVIDIA RTX cards,
+DLAA. The package ships `bin/gow3_dlss.dll` (the bridge to NVIDIA's DLSS SDK, built by
+`build_dlss.sh` with MSVC) but never NVIDIA's `nvngx_dlss.dll`: the launcher's **Download NVIDIA
+DLSS** button fetches it from NVIDIA's GitHub (the SDK release in `DLSS_SDK_VERSION`) and keeps it
+only when its SHA-256 matches. RCAS sharpening remains available. The FSR asset tools in the tree
+are development code, not player setup steps.
 See [the historical research notes](../../docs/upscaler.md) for context.
 
 See the [feature availability table](https://github.com/FelipePrado0/gow3_pc#feature-availability)

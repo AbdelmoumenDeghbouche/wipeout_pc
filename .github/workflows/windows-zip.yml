@@ -49,6 +49,14 @@ jobs:
             spirv-tools:p spirv-headers:p spirv-cross:p
       - name: Build
         run: bash build.sh
+      # gow3_dlss.dll, the bridge to NVIDIA's DLSS SDK, built with MSVC from the SDK release the
+      # launcher downloads NVIDIA's runtime from (DLSS_SDK_VERSION in launcher/gow3_launcher_win.py;
+      # tests check they match). Only the headers, the static library and the license are fetched.
+      - name: DLSS bridge
+        run: |
+          git clone -q --depth 1 --branch v310.9.16 --filter=blob:none --sparse https://github.com/NVIDIA/DLSS.git out/dlss-sdk
+          MSYS2_ARG_CONV_EXCL='*' git -C out/dlss-sdk sparse-checkout set --no-cone /include/ /lib/Windows_x86_64/x64/nvsdk_ngx_s.lib /LICENSE.txt
+          DLSS_SDK_ROOT=$PWD/out/dlss-sdk bash packaging/windows/build_dlss.sh
       # Freezes the launcher; this Python ships Tk, as the python.org one does. Set up after the
       # build so its Python_ROOT_DIR and PKG_CONFIG_PATH do not reach CMake.
       - uses: actions/setup-python@v5
@@ -59,7 +67,7 @@ jobs:
         env:
           PYTHON_EXE: ${{ steps.python.outputs.python-path }}
         run: |
-          WINPYTHON=$(cygpath -u "$PYTHON_EXE") bash packaging/windows/package.sh
+          WINPYTHON=$(cygpath -u "$PYTHON_EXE") DLSS_REQUIRED=1 bash packaging/windows/package.sh
           cd dist && sha256sum -b wipeout-windows.zip > wipeout-windows.zip.sha256
       - uses: actions/upload-artifact@v4
         with:

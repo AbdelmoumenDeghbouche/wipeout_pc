@@ -1538,6 +1538,55 @@ EXTRA['es'].update({
     'Shows the render resolutions of this shape only.': 'Muestra solo las resoluciones de render de esta proporción.',
 })
 
+EXTRA['pt'].update({
+    'NVIDIA DLSS': 'NVIDIA DLSS',
+    'Download NVIDIA DLSS ({} MB)': 'Baixar NVIDIA DLSS ({} MB)',
+    'Downloading…': 'Baixando…',
+    'Downloading… {} of {} MB': 'Baixando… {} de {} MB',
+    'Installed.': 'Instalado.',
+    'Not in this build.': 'Não incluído nesta versão.',
+    'No NVIDIA RTX graphics card found.': 'Nenhuma placa de vídeo NVIDIA RTX encontrada.',
+    'Could not download NVIDIA DLSS: {}': 'Não foi possível baixar o NVIDIA DLSS: {}',
+    'NVIDIA DLSS is installed. Temporal anti-aliasing is on with DLAA: click Save, then PLAY.':
+        'NVIDIA DLSS instalado. O anti-aliasing temporal está ligado com DLAA: clique em Salvar e depois em JOGAR.',
+    "DLAA needs NVIDIA's DLSS file, nvngx_dlss.dll. The launcher downloads it from NVIDIA's own GitHub (DLSS {}) "
+    'and checks it before using it. Needs an NVIDIA RTX graphics card.':
+        'O DLAA precisa do arquivo DLSS da NVIDIA, nvngx_dlss.dll. O launcher o baixa do próprio GitHub da NVIDIA '
+        '(DLSS {}) e o verifica antes de usar. Precisa de uma placa de vídeo NVIDIA RTX.',
+    "Off (default): the game's own image. On: FSR 3.1 or DLAA smooth edges at the render resolution, from the "
+    "game's own motion vectors, in place of the game's multisampling. The method can also be changed while "
+    'playing: in-game menu (Insert / R3+L2) > Image.':
+        'Desligado (padrão): a imagem do próprio jogo. Ligado: FSR 3.1 ou DLAA suavizam as bordas na resolução de '
+        'render, com os vetores de movimento do próprio jogo, no lugar do multisampling do jogo. O método também '
+        'pode ser trocado durante o jogo: menu do jogo (Insert / R3+L2) > Image.',
+    'no patch fits your eboot.bin: add the game update (Game > Update folder)':
+        'nenhum patch serve para o seu eboot.bin: adicione a atualização do jogo (Jogo > Pasta do update)',
+})
+EXTRA['es'].update({
+    'NVIDIA DLSS': 'NVIDIA DLSS',
+    'Download NVIDIA DLSS ({} MB)': 'Descargar NVIDIA DLSS ({} MB)',
+    'Downloading…': 'Descargando…',
+    'Downloading… {} of {} MB': 'Descargando… {} de {} MB',
+    'Installed.': 'Instalado.',
+    'Not in this build.': 'No incluido en esta versión.',
+    'No NVIDIA RTX graphics card found.': 'No se encontró ninguna tarjeta gráfica NVIDIA RTX.',
+    'Could not download NVIDIA DLSS: {}': 'No se pudo descargar NVIDIA DLSS: {}',
+    'NVIDIA DLSS is installed. Temporal anti-aliasing is on with DLAA: click Save, then PLAY.':
+        'NVIDIA DLSS está instalado. El antialiasing temporal está activado con DLAA: pulsa Guardar y luego JUGAR.',
+    "DLAA needs NVIDIA's DLSS file, nvngx_dlss.dll. The launcher downloads it from NVIDIA's own GitHub (DLSS {}) "
+    'and checks it before using it. Needs an NVIDIA RTX graphics card.':
+        'DLAA necesita el archivo DLSS de NVIDIA, nvngx_dlss.dll. El launcher lo descarga del propio GitHub de '
+        'NVIDIA (DLSS {}) y lo comprueba antes de usarlo. Necesita una tarjeta gráfica NVIDIA RTX.',
+    "Off (default): the game's own image. On: FSR 3.1 or DLAA smooth edges at the render resolution, from the "
+    "game's own motion vectors, in place of the game's multisampling. The method can also be changed while "
+    'playing: in-game menu (Insert / R3+L2) > Image.':
+        'Desactivado (por defecto): la imagen propia del juego. Activado: FSR 3.1 o DLAA suavizan los bordes a la '
+        'resolución de render, con los vectores de movimiento del propio juego, en lugar del multisampling del '
+        'juego. El método también se puede cambiar mientras juegas: menú del juego (Insert / R3+L2) > Image.',
+    'no patch fits your eboot.bin: add the game update (Game > Update folder)':
+        'ningún parche sirve para tu eboot.bin: añade la actualización del juego (Juego > Carpeta de la actualización)',
+})
+
 _tables = {}
 
 

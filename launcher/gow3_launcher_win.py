@@ -13,6 +13,7 @@ so a packaged port needs no Python installation.
 """
 import contextlib
 import glob
+import hashlib
 import importlib.util
 import json
 import math
@@ -61,7 +62,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.34'
+VERSION = '0.2.35'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
@@ -1112,11 +1113,64 @@ def game_profile_of(folder):
     return title_id, game_profile_for(folder)
 
 
+# NVIDIA's DLSS runtime is not in the package: the launcher downloads it on request from NVIDIA's
+# own repository, the SDK release gow3_dlss.dll is built with (.github/workflows/windows-zip.yml),
+# and keeps it only when its SHA-256 matches. Updates copy over bin/ and keep it.
+DLSS_SDK_VERSION = '310.9.16'
+DLSS_RUNTIME_URL = ('https://raw.githubusercontent.com/NVIDIA/DLSS/v' + DLSS_SDK_VERSION +
+                    '/lib/Windows_x86_64/rel/nvngx_dlss.dll')
+DLSS_RUNTIME_SHA256 = 'd00b5b0ab29c3ca101b70c3a5ecb3a01b7ef33766a3383a28a18623083e6123e'
+DLSS_RUNTIME_MB = 56
+
+
+def dlss_directory():
+    """Where gow3-probe looks for gow3_dlss.dll and nvngx_dlss.dll: beside itself."""
+    probe = find_tool('gow3-probe' + ('.exe' if WINDOWS else ''))
+    return Path(probe).parent if probe else PORT_DIR / ('bin' if FROZEN else 'out')
+
+
+def dlss_bridge_installed():
+    """gow3_dlss.dll (the port's bridge to NVIDIA's SDK, Windows only) is in this build."""
+    return WINDOWS and (dlss_directory() / 'gow3_dlss.dll').is_file()
+
+
 def dlss_installed():
-    """Whether the DLSS bridge and NVIDIA's runtime sit next to gow3-probe (packaged bin/ or a build's
-    out/). Whether the GPU can run DLSS is only known in the game; without it the game uses FSR 3.1."""
-    return WINDOWS and any((d / 'gow3_dlss.dll').is_file() and (d / 'nvngx_dlss.dll').is_file()
-                           for d in (PORT_DIR / 'bin', PORT_DIR / 'out'))
+    """Whether the DLSS bridge and NVIDIA's runtime sit next to gow3-probe. Whether the GPU can run
+    DLSS is only known in the game; without it the game uses FSR 3.1."""
+    return dlss_bridge_installed() and (dlss_directory() / 'nvngx_dlss.dll').is_file()
+
+
+def rtx_gpu(gpus):
+    """True when a GPU is an NVIDIA RTX card (DLSS needs one), False when none is, None when unknown."""
+    if not gpus:
+        return None
+    return any('RTX' in row[1].upper() for row in gpus)  # also 'Quadro RTX 4000', without NVIDIA
+
+
+def download_dlss_runtime(directory, progress=None, url=DLSS_RUNTIME_URL, sha256=DLSS_RUNTIME_SHA256,
+                          opener=urllib.request.urlopen):
+    """Downloads NVIDIA's nvngx_dlss.dll into `directory` and keeps it only when its SHA-256 matches;
+    progress(done, total) is called per MiB. Returns the file; raises OSError or ValueError."""
+    directory = Path(directory)
+    part = directory / 'nvngx_dlss.dll.part'
+    digest = hashlib.sha256()
+    try:
+        request = urllib.request.Request(url, headers={'User-Agent': 'wipeout-launcher'})
+        with opener(request, timeout=60) as response, open(part, 'wb') as out:
+            total, done = int(response.headers.get('Content-Length') or 0), 0
+            while chunk := response.read(1 << 20):
+                out.write(chunk)
+                digest.update(chunk)
+                done += len(chunk)
+                if progress:
+                    progress(done, total)
+        if digest.hexdigest() != sha256:
+            raise ValueError("the download does not match NVIDIA's file (SHA-256)")
+        target = directory / 'nvngx_dlss.dll'
+        os.replace(part, target)
+        return target
+    finally:
+        part.unlink(missing_ok=True)
 
 
 def game_environment(s):
@@ -1808,27 +1862,30 @@ class Launcher:
         self.section(f, _('Anti-aliasing (experimental)'))
         self.check(f, 'experimental_upscaler', 'app', _('Temporal anti-aliasing'),
                    _('Off (default): the game\'s own image. On: FSR 3.1 or DLAA smooth edges at the render '
-                     'resolution (DLAA), from the game\'s own motion vectors. To compare them in the game: '
-                     'Advanced > Diagnostics > F10.'), restart=True)
-        dlss = dlss_installed()
-        self.row(f, _('Method'), self.choice(f, 'upscaler', 'ini', AA_CHOICES + ([DLSS_CHOICE] if dlss else [])),
-                 None if dlss else _('DLAA needs gow3_dlss.dll and nvngx_dlss.dll next to gow3-probe.exe.'),
+                     'resolution, from the game\'s own motion vectors, in place of the game\'s multisampling. '
+                     'The method can also be changed while playing: in-game menu (Insert / R3+L2) > Image.'),
+                   restart=True)
+        # DLAA is listed once NVIDIA's runtime is installed (the list is asked again when it opens).
+        self.row(f, _('Method'), self.choice(f, 'upscaler', 'ini',
+                                             lambda: AA_CHOICES + ([DLSS_CHOICE] if dlss_installed() else [])),
                  restart=True)
-        if dlss:
-            # Only DLAA has presets; FSR 3.1 at native size has none (its quality modes choose
-            # an upscaling ratio). The row (title, box, note) hides with another method.
-            first = self.next_row(f)
-            self.row(f, _('DLAA preset'), self.choice(f, 'dlss_preset', 'ini', DLSS_PRESETS),
-                     _('K is the driver\'s default for DLAA. M and L are the newer second-generation '
-                       'models; L costs a few percent more.'), restart=True)
-            preset_widgets = [w for r in range(first, self.next_row(f)) for w in f.grid_slaves(row=r)]
-            method = self.var('upscaler', 'ini')
+        if WINDOWS:
+            self.build_dlss_row(f)
+        # Only DLAA has presets; FSR 3.1 at native size has none (its quality modes choose
+        # an upscaling ratio). The row (title, box, note) hides with another method.
+        first = self.next_row(f)
+        self.row(f, _('DLAA preset'), self.choice(f, 'dlss_preset', 'ini', DLSS_PRESETS),
+                 _('K is the driver\'s default for DLAA. M and L are the newer second-generation '
+                   'models; L costs a few percent more.'), restart=True)
+        preset_widgets = [w for r in range(first, self.next_row(f)) for w in f.grid_slaves(row=r)]
+        method = self.var('upscaler', 'ini')
 
-            def preset_visible(*_args):
-                for widget in preset_widgets:
-                    widget.grid() if method.get() == 'dlss' else widget.grid_remove()
-            method.trace_add('write', preset_visible)
-            preset_visible()
+        def preset_visible(*_args):
+            for widget in preset_widgets:
+                widget.grid() if method.get() == 'dlss' and dlss_installed() else widget.grid_remove()
+        method.trace_add('write', preset_visible)
+        self.dlss_preset_visible = preset_visible
+        preset_visible()
         # Temporal upscaling is parked until its image quality is validated.
         # self.section(f, _('Experimental'))
         # self.check(f, 'experimental_upscaler', 'app', _('Enable the upscaler (experimental)'),
@@ -3168,6 +3225,77 @@ class Launcher:
         win.geometry(f'+{x}+{y}')
         win.lift()
         now.focus_set()
+
+    def build_dlss_row(self, f):
+        """NVIDIA DLSS on the Graphics page: installed, a download button, or why it is not offered."""
+        holder = self.ttk.Frame(f)
+        self.dlss_button = self.ttk.Button(holder, text=_('Download NVIDIA DLSS ({} MB)').format(DLSS_RUNTIME_MB),
+                                           command=self.download_dlss)
+        self.dlss_status = self.ttk.Label(holder, text='', style='Muted.TLabel')
+        self.dlss_status.pack(side='right', padx=self.px((8, 0)))
+        self.row(f, _('NVIDIA DLSS'), holder,
+                 _("DLAA needs NVIDIA's DLSS file, nvngx_dlss.dll. The launcher downloads it from NVIDIA's own "
+                   'GitHub (DLSS {}) and checks it before using it. Needs an NVIDIA RTX graphics card.').format(
+                     DLSS_SDK_VERSION))
+        self.refresh_dlss_row()
+
+    def refresh_dlss_row(self, busy=None):
+        """The DLSS row's button and status for the current state; busy: a download message."""
+        if busy is not None:
+            self.dlss_button.configure(state='disabled')
+            self.dlss_status.configure(text=busy)
+            return
+        if not dlss_bridge_installed():
+            offer, text = False, _('Not in this build.')
+        elif dlss_installed():
+            offer, text = False, _('Installed.')
+        elif rtx_gpu(list_gpus()) is False:
+            offer, text = False, _('No NVIDIA RTX graphics card found.')
+        else:
+            offer, text = True, ''
+        self.dlss_button.configure(state='normal')
+        if offer:
+            self.dlss_button.pack(side='left')
+        else:
+            self.dlss_button.pack_forget()
+        self.dlss_status.configure(text=text)
+
+    def download_dlss(self):
+        """Downloads NVIDIA's runtime (three tries on a network drop), then selects DLAA."""
+        directory = dlss_directory()
+        self.refresh_dlss_row(_('Downloading…'))
+
+        def progress(done, total):
+            text = _('Downloading… {} of {} MB').format(done >> 20, (total or DLSS_RUNTIME_MB << 20) >> 20)
+            self.ui_calls.put(lambda t=text: self.refresh_dlss_row(t))
+
+        def work():
+            error = None
+            for _attempt in range(3):
+                try:
+                    download_dlss_runtime(directory, progress)
+                    error = None
+                    break
+                except ValueError as failure:  # a wrong file: trying again would not help
+                    error = failure
+                    break
+                except OSError as failure:
+                    error = failure
+                    time.sleep(3)
+
+            def finished(error=error):
+                self.refresh_dlss_row()
+                if error:
+                    self.messagebox.showerror(APP_NAME, _('Could not download NVIDIA DLSS: {}').format(error))
+                    return
+                # DLAA needs the temporal anti-aliasing switch: both are set, Save keeps them.
+                self.var('experimental_upscaler', 'app').set(True)
+                self.var('upscaler', 'ini').set('dlss')
+                self.dlss_preset_visible()
+                self.messagebox.showinfo(APP_NAME, _('NVIDIA DLSS is installed. Temporal anti-aliasing is on with '
+                                                     'DLAA: click Save, then PLAY.'))
+            self.ui_calls.put(finished)
+        threading.Thread(target=work, daemon=True).start()
 
     def update_progress(self, text=None, percent=0):
         """The download's progress in the pop-up and the side box; None: back to the offer."""

@@ -747,6 +747,55 @@ class MusicTest(unittest.TestCase):
         self.assertEqual(env['GOW3_MUSIC_DIR'], 'D:/Music')
 
 
+class DlssDownloadTest(unittest.TestCase):
+    """NVIDIA's runtime is downloaded on request and kept only when its SHA-256 matches."""
+
+    def opener(self, data):
+        import io
+
+        class Response(io.BytesIO):
+            headers = {'Content-Length': str(len(data))}
+        return lambda request, timeout: Response(data)
+
+    def test_the_file_is_kept_when_it_matches(self):
+        import hashlib
+        import tempfile
+        data = b'nvngx' * 1000
+        with tempfile.TemporaryDirectory() as folder:
+            seen = []
+            target = launcher.download_dlss_runtime(folder, lambda done, total: seen.append((done, total)),
+                                                    sha256=hashlib.sha256(data).hexdigest(),
+                                                    opener=self.opener(data))
+            self.assertEqual(target.read_bytes(), data)
+            self.assertEqual(seen[-1], (len(data), len(data)))
+            self.assertEqual(sorted(p.name for p in Path(folder).iterdir()), ['nvngx_dlss.dll'])
+
+    def test_a_different_file_is_refused_and_nothing_stays(self):
+        import tempfile
+        with tempfile.TemporaryDirectory() as folder:
+            with self.assertRaises(ValueError):
+                launcher.download_dlss_runtime(folder, sha256='0' * 64, opener=self.opener(b'not nvidia'))
+            self.assertEqual(list(Path(folder).iterdir()), [])
+
+    def test_the_pinned_file_is_nvidias(self):
+        self.assertTrue(launcher.DLSS_RUNTIME_URL.startswith('https://raw.githubusercontent.com/NVIDIA/DLSS/v'))
+        self.assertIn(launcher.DLSS_SDK_VERSION, launcher.DLSS_RUNTIME_URL)
+        self.assertEqual(len(launcher.DLSS_RUNTIME_SHA256), 64)
+
+    def test_the_release_builds_the_bridge_from_the_same_sdk(self):
+        # gow3_dlss.dll and the downloaded nvngx_dlss.dll come from the same NVIDIA SDK release.
+        workflow = (ROOT / '.github/workflows/windows-zip.yml').read_text(encoding='utf-8')
+        self.assertIn(f'--branch v{launcher.DLSS_SDK_VERSION} ', workflow)
+        self.assertIn('DLSS_REQUIRED=1', workflow)
+
+    def test_rtx_cards_are_recognized(self):
+        self.assertIs(launcher.rtx_gpu([('0', 'NVIDIA GeForce RTX 4070 Laptop GPU', 'DiscreteGpu')]), True)
+        self.assertIs(launcher.rtx_gpu([('0', 'Quadro RTX 4000', 'DiscreteGpu')]), True)
+        self.assertIs(launcher.rtx_gpu([('0', 'AMD Radeon RX 9070 XT', 'DiscreteGpu'),
+                                        ('1', 'NVIDIA GeForce GTX 1660', 'DiscreteGpu')]), False)
+        self.assertIsNone(launcher.rtx_gpu([]))
+
+
 class QuietStreamTest(unittest.TestCase):
     def test_a_closed_output_pipe_does_not_stop_the_start(self):
         class ClosedPipe:
@@ -765,9 +814,9 @@ class QuietStreamTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.34')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.35'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.33'))
+        self.assertEqual(launcher.VERSION, '0.2.35')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.36'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.34'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.

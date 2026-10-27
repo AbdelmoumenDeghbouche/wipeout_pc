@@ -418,6 +418,16 @@ void GameTab() {
     }
 }
 
+// The session started with a temporal upscaler (launcher: Graphics > Temporal anti-aliasing);
+// without one (GOW3_UPSCALER=none, as TemporalUpscaler decides it) switching would only change a label.
+bool SessionHasUpscaler() {
+    static const bool has = [] {
+        const char* upscaler = std::getenv("GOW3_UPSCALER");
+        return !(upscaler && std::strcmp(upscaler, "none") == 0);
+    }();
+    return has;
+}
+
 void ImageTab() {
     namespace G = Gow3Graphics;
     auto& s = Gow3Settings::Get();
@@ -426,6 +436,22 @@ void ImageTab() {
         ChoiceRow("Display mode", s.display_mode, G::DisplayModeNames.data(), nullptr, G::DisplayModeCount,
                   "Windowed, borderless window or exclusive fullscreen.");
         CheckRow("VSync", s.vsync, "Waits for the monitor: no tearing, a little more input delay.");
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Anti-aliasing");
+    if (!SessionHasUpscaler()) {
+        ImGui::TextDisabled("FSR 3.1 and DLAA: turn on Temporal anti-aliasing in the launcher (Graphics).");
+    } else if (BeginRows("##aa")) {
+        // Live, as F10. The game's multisampling is off in these sessions, so Off has no anti-aliasing.
+        static const char* const aa_labels[] = {"Off", "FSR 3.1", "DLAA (NVIDIA RTX)"};
+        static const int aa_values[] = {Gow3Settings::UpscalerOff, Gow3Settings::UpscalerFsr3,
+                                        Gow3Settings::UpscalerDlss};
+        const bool dlss = s.dlss_supported;
+        const char* problem = s.dlss_problem.load();
+        ChoiceRow("Method", s.upscaler, aa_labels, aa_values, dlss ? 3 : 2,
+                  dlss      ? "Smooths edges at the game's resolution. DLAA needs an NVIDIA RTX GPU."
+                  : problem ? problem
+                            : "DLAA: NVIDIA RTX GPU and the launcher's Download NVIDIA DLSS button.");
         ImGui::EndTable();
     }
     const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;
@@ -1157,8 +1183,7 @@ bool HandleEvent(const SDL_Event& event) {
         // decides it): switching would only change the overlay's label.
         static const bool upscaler_key = [] {
             const char* env = std::getenv("GOW3_UPSCALER_KEY");
-            const char* upscaler = std::getenv("GOW3_UPSCALER");
-            return env && *env == '1' && !(upscaler && std::strcmp(upscaler, "none") == 0);
+            return env && *env == '1' && SessionHasUpscaler();
         }();
         if (down && !event.key.repeat && upscaler_key && event.key.key == SDLK_F10) {
             auto& s = Gow3Settings::Get();
