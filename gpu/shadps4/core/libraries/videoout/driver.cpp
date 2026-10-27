@@ -664,8 +664,7 @@ void VideoOutDriver::SubmitFlipInternal(VideoOutPort* port, s32 index, s64 flip_
 }
 
 void VideoOutDriver::PresentThread(std::stop_token token) {
-    const std::chrono::nanoseconds vblank_period(1000000000 /
-                                                 EmulatorSettings.GetVblankFrequency());
+    const std::chrono::nanoseconds vblank_period(EmulatorSettings.GetVblankPeriodNs());
 
     Common::SetCurrentThreadName("shadPS4:PresentThread");
     Common::SetCurrentThreadRealtime(vblank_period);
@@ -682,12 +681,23 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
         return fixed_limit ? EmulatorSettings.GetFrameLimit()
                            : u32(Gow3Graphics::PresentLimit(s.fps_limit, s.applied_engine_fps));
     };
+    // gow3: a limit just above the display's rate (60 on a 59.94 Hz monitor, 120 on 119.88)
+    // spaces the flips by the display's refresh: at an exact 60 FPS VSync fell a frame behind
+    // every ~17 s, then every flip waited for the display and frames alternated one and two
+    // refreshes (felt like 30-35 FPS while the counter said 60).
+    const double display_hz = Gow3DisplayRefreshRate();
+    const auto limit_period = [display_hz](u32 limit) {
+        if (!limit) {
+            return std::chrono::nanoseconds(0);
+        }
+        const double hz = limit > display_hz && limit - display_hz < 0.5 ? display_hz : limit;
+        return std::chrono::nanoseconds(u64(1e9 / hz + 0.5));
+    };
     u32 frame_limit = current_limit();
-    auto frame_period = frame_limit ? std::chrono::nanoseconds(1000000000 / frame_limit)
-                                    : std::chrono::nanoseconds(0);
+    auto frame_period = limit_period(frame_limit);
     auto next_flip = std::chrono::steady_clock::now();
-    std::printf("VideoOut: vblank %u Hz, frame limit %u FPS\n",
-                EmulatorSettings.GetVblankFrequency(), frame_limit);
+    std::printf("VideoOut: vblank %.3f Hz, frame limit %u FPS (flips %.3f ms apart)\n",
+                1e9 / vblank_period.count(), frame_limit, frame_period.count() / 1e6);
 
     const auto receive_request = [this] -> Request {
         std::scoped_lock lk{mutex};
@@ -706,7 +716,7 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     while (!token.stop_requested()) {
         if (const u32 limit = current_limit(); limit != frame_limit) {
             frame_limit = limit;
-            frame_period = limit ? std::chrono::nanoseconds(1000000000 / limit) : std::chrono::nanoseconds(0);
+            frame_period = limit_period(limit);
             immediate_flips = limit != 0;
             next_flip = std::chrono::steady_clock::now();
             std::printf("VideoOut: frame limit %u FPS\n", limit);

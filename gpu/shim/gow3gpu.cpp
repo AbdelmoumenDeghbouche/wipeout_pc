@@ -197,10 +197,23 @@ std::condition_variable g_window_cv;
 bool g_window_ready;
 } // namespace
 
+double Gow3DisplayRefreshRate() {
+    static const double rate = [] {
+        const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
+        if (!mode || mode->refresh_rate <= 0) {
+            return 60.0;
+        }
+        // The exact rate when the driver gives it (59.94 is 60000/1001), else SDL's rounded one.
+        return mode->refresh_rate_numerator > 0 && mode->refresh_rate_denominator > 0
+                   ? double(mode->refresh_rate_numerator) / mode->refresh_rate_denominator
+                   : double(mode->refresh_rate);
+    }();
+    return rate;
+}
+
 u32 Gow3DisplayRefreshHz() {
     static const u32 hz = [] {
-        const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
-        const u32 rate = mode && mode->refresh_rate > 0 ? u32(mode->refresh_rate + 0.5f) : 60;
+        const u32 rate = u32(Gow3DisplayRefreshRate() + 0.5);
         std::printf("GPU: vblank follows the display refresh rate, %u Hz\n", rate);
         return std::max<u32>(rate, 60);
     }();
