@@ -94,6 +94,27 @@ def attach_stdio():
         setattr(sys, name, stream or open(os.devnull, 'w'))
 
 
+class QuietStream:
+    """Writes to `stream` and drops what the system refuses: a front-end such as QuiverLauncher may
+    close the pipe that holds the output, and print() then raised OSError 22 (#63)."""
+
+    def __init__(self, stream):
+        self.stream = stream
+
+    def write(self, text):
+        try:
+            return self.stream.write(text)
+        except OSError:
+            return len(text)
+
+    def flush(self):
+        with contextlib.suppress(OSError):
+            self.stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self.stream, name)
+
+
 def load_mods():
     """Use the disk loader in every role; PyInstaller's importer otherwise wins over sys.path.
     Adapted from Kristian Andreev's PR #234."""
@@ -125,6 +146,7 @@ def run_role(argv):
             stream.reconfigure(encoding='utf-8', line_buffering=True)
         except (AttributeError, ValueError):
             pass
+    sys.stdout, sys.stderr = QuietStream(sys.stdout), QuietStream(sys.stderr)
     if argv[0] == '--script':
         path, sys.argv = argv[1], argv[1:]
     else:

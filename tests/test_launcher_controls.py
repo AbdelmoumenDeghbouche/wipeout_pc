@@ -746,6 +746,22 @@ class MusicTest(unittest.TestCase):
         self.assertEqual(env['GOW3_MUSIC_DIR'], 'D:/Music')
 
 
+class QuietStreamTest(unittest.TestCase):
+    def test_a_closed_output_pipe_does_not_stop_the_start(self):
+        class ClosedPipe:
+            def write(self, text):
+                raise OSError(22, 'Invalid argument')
+
+            def flush(self):
+                raise OSError(22, 'Invalid argument')
+
+            def fileno(self):
+                return 7
+        stream = launcher.QuietStream(ClosedPipe())
+        print('Game and update combined from E:/update', file=stream, flush=True)
+        self.assertEqual(stream.fileno(), 7)
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
         self.assertEqual(launcher.VERSION, '0.2.24')
