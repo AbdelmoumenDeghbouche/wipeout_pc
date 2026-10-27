@@ -1559,6 +1559,8 @@ EXTRA['pt'].update({
         'Desligado (padrão): a imagem do próprio jogo. Ligado: FSR 3.1 ou DLAA suavizam as bordas na resolução de '
         'render, com os vetores de movimento do próprio jogo, no lugar do multisampling do jogo. O método também '
         'pode ser trocado durante o jogo: menu do jogo (Insert / R3+L2) > Image.',
+    'Split-screen: a second gamepad plays as player 2, with the same gamepad mapping.':
+        'Tela dividida: um segundo controle joga como jogador 2, com o mesmo mapeamento do controle.',
     'no patch fits your eboot.bin: add the game update (Game > Update folder)':
         'nenhum patch serve para o seu eboot.bin: adicione a atualização do jogo (Jogo > Pasta do update)',
 })
@@ -1583,6 +1585,8 @@ EXTRA['es'].update({
         'Desactivado (por defecto): la imagen propia del juego. Activado: FSR 3.1 o DLAA suavizan los bordes a la '
         'resolución de render, con los vectores de movimiento del propio juego, en lugar del multisampling del '
         'juego. El método también se puede cambiar mientras juegas: menú del juego (Insert / R3+L2) > Image.',
+    'Split-screen: a second gamepad plays as player 2, with the same gamepad mapping.':
+        'Pantalla dividida: un segundo mando juega como jugador 2, con la misma asignación del mando.',
     'no patch fits your eboot.bin: add the game update (Game > Update folder)':
         'ningún parche sirve para tu eboot.bin: añade la actualización del juego (Juego > Carpeta de la actualización)',
 })
