@@ -209,7 +209,15 @@ s32 ImageInfo::MipOf(const ImageInfo& info) const {
         return -1;
     }
 
-    if (info.array_mode != array_mode) {
+    // gow3: the levels of a macro-tiled chain smaller than a macro tile are micro-tiled
+    // (UpdateSize, ImageSizeMacroTiled), and a level bound on its own is described that way.
+    // WipEout's start gantry screens: a 1024x512 2D-thin chain whose levels 4-8 (64x32 and down)
+    // the game draws as 1D-thin render targets. Refused here, they became separate images and the
+    // chain's levels kept their first contents (solid red at a distance).
+    const bool micro_level_of_macro =
+        AmdGpu::IsMacroTiled(info.array_mode) && !AmdGpu::IsMacroTiled(array_mode) &&
+        AmdGpu::GetMicroTileThickness(array_mode) == AmdGpu::GetMicroTileThickness(info.array_mode);
+    if (info.array_mode != array_mode && !micro_level_of_macro) {
         return -1;
     }
 
@@ -238,6 +246,21 @@ s32 ImageInfo::MipOf(const ImageInfo& info) const {
 
     if (mip < 0) {
         return -1;
+    }
+
+    // Only a level that UpdateSize laid out micro-tiled (as ImageSizeMacroTiled decides it).
+    if (info.array_mode != array_mode) {
+        u32 level_w = std::max(info.pitch >> mip, 1u);
+        u32 level_h = std::max(info.size.height >> mip, 1u);
+        if (info.props.is_pow2) {
+            level_w = std::bit_ceil(level_w);
+            level_h = std::bit_ceil(level_h);
+        }
+        const auto [pitch_align, height_align] = GetMacroTileExtents(
+            info.tile_mode, info.num_bits, info.guest_samples, info.alt_tile);
+        if (mip == 0 || (level_w >= pitch_align && level_h >= height_align)) {
+            return -1;
+        }
     }
 
     // 2D block dimensions of both images should be the same.
