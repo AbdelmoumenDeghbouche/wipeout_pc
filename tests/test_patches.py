@@ -422,13 +422,13 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 5120x1440', 'Native 4K rendering (no checkerboard)',
                                  'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
-                                 'Cheat - Unlock all HD and Fury events',
+                                 'Bug Fix - Zone crash above 60 FPS', 'Cheat - Unlock all HD and Fury events',
                                  'Cheat - Top rank in 2048', 'Cheat - Unlock all ships',
                                  'Cheat - Van Uber team (owned DLC)', 'Cheat - VR ships outside VR'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang',
-                          'Bug Fix - Effects above 60 FPS'])
+                          'Bug Fix - Effects above 60 FPS', 'Bug Fix - Zone crash above 60 FPS'])
         self.assertTrue(compile_patches(WIPEOUT, names[1:], '01.00', SEGMENTS))
 
     def test_wipeout_startup_hang_fix_sets_the_flag_before_the_thread_starts(self):
@@ -439,6 +439,15 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertIn('Bug Fix - Effects above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Startup Hang'], '01.00', SEGMENTS),
                          [(0x67a514, bytes.fromhex('488903 c605a84f470001 e8bd7bd5ff 803d664e470000'))])
+
+    def test_wipeout_zone_fix_checks_the_render_list_index(self):
+        # #79: both reads of the render list index (0x9a80ac) skip the call when it is -1; mov eax and
+        # mov dl,0xff make room for test/js in the same 19 bytes, the rel32s still reach the index
+        # and the two list tables (0xed5dd0, 0xed5df0).
+        self.assertIn('Bug Fix - Zone crash above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
+        self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS),
+                         [(0x665c7d, bytes.fromhex('8b0529243400 85c0 7815 488d0d42018700 b2ff')),
+                          (0x665ddc, bytes.fromhex('8b05ca223400 85c0 7815 488d0d03008700 b2ff'))])
 
     def test_wipeout_cheats_are_off_unless_chosen(self):
         # The Cheats page adds them; the points total returns 99998 (mov eax; ret) and the rank table holds 0.
