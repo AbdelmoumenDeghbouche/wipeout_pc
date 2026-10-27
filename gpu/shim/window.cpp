@@ -97,7 +97,16 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     SDL_GetWindowSizeInPixels(window, &w, &h);
     width = w;
     height = h;
+    UpdateRefreshRate();
     LOG_INFO(Frontend, "Window {}x{} on {}", w, h, driver);
+}
+
+void WindowSDL::UpdateRefreshRate() {
+    const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetDisplayForWindow(window));
+    const float hz = mode && mode->refresh_rate > 0 ? mode->refresh_rate : 0.0f;
+    if (hz != refresh_hz.exchange(hz)) {
+        std::printf("Display: %.3f Hz\n", hz);
+    }
 }
 
 // Windowed, borderless (desktop-sized, no mode change) or exclusive fullscreen at the desktop
@@ -200,6 +209,10 @@ bool WindowSDL::PollEvents() {
             height = h;
             break;
         }
+        case SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+        case SDL_EVENT_DISPLAY_CURRENT_MODE_CHANGED:
+            UpdateRefreshRate();
+            break;
         case SDL_EVENT_QUIT:
         case SDL_EVENT_WINDOW_CLOSE_REQUESTED:
             is_open = false;

@@ -25,6 +25,9 @@
 #include "core/debug_state.h"
 #include "core/emulator_settings.h"
 #include "core/libraries/kernel/time.h"
+#include "sdl_window.h"
+
+extern Frontend::WindowSDL* g_window; // gnmdriver.cpp
 #include "core/libraries/videoout/driver.h"
 #include "core/libraries/videoout/videoout_error.h"
 #include "imgui/renderer/imgui_core.h"
@@ -682,9 +685,17 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
         return fixed_limit ? EmulatorSettings.GetFrameLimit()
                            : u32(Gow3Graphics::PresentLimit(s.fps_limit, s.applied_engine_fps));
     };
+    // gow3: with VSync, a limit within 0.5 Hz of the display's refresh runs at the display's
+    // rate. A 60 FPS limit on a 59.95 Hz monitor drifted against the vsync: every ~20 s frames
+    // spent two refreshes for a while and the game felt like 30 FPS (#67).
+    const auto limit_period = [](u32 limit) {
+        const float display_hz = g_window ? g_window->GetRefreshRate() : 0.0f;
+        const bool follow = limit && Gow3Settings::Get().vsync.load(std::memory_order_relaxed) &&
+                            std::abs(display_hz - float(limit)) < 0.5f;
+        return std::chrono::nanoseconds(!limit ? 0 : follow ? s64(1e9 / display_hz) : 1000000000 / limit);
+    };
     u32 frame_limit = current_limit();
-    auto frame_period = frame_limit ? std::chrono::nanoseconds(1000000000 / frame_limit)
-                                    : std::chrono::nanoseconds(0);
+    auto frame_period = limit_period(frame_limit);
     auto next_flip = std::chrono::steady_clock::now();
     std::printf("VideoOut: vblank %u Hz, frame limit %u FPS\n",
                 EmulatorSettings.GetVblankFrequency(), frame_limit);
@@ -706,10 +717,14 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     while (!token.stop_requested()) {
         if (const u32 limit = current_limit(); limit != frame_limit) {
             frame_limit = limit;
-            frame_period = limit ? std::chrono::nanoseconds(1000000000 / limit) : std::chrono::nanoseconds(0);
+            frame_period = limit_period(limit);
             immediate_flips = limit != 0;
             next_flip = std::chrono::steady_clock::now();
             std::printf("VideoOut: frame limit %u FPS\n", limit);
+        } else if (const auto period = limit_period(limit); period != frame_period) {
+            frame_period = period; // VSync switched, or the window moved to another display
+            std::printf("VideoOut: frame limit %u FPS paced at %.3f Hz\n", limit,
+                        period.count() ? 1e9 / double(period.count()) : 0.0);
         }
         timer.Start();
         const auto tick_deadline = std::chrono::steady_clock::now() + vblank_period;
