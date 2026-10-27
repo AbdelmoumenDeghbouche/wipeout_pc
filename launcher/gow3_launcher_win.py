@@ -430,7 +430,7 @@ PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
-APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False,
+APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
@@ -723,7 +723,13 @@ CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all 
           ('cheat_ships', 'Cheat - Unlock all ships', 'Unlock all ships (HD, HD Fury and 2048)',
            ('Every ship and livery is open: the ones that need medals, team loyalty, play time or a campaign '
             'grid, and the 2048 ships that need a rank, a 2048 event or a prototype challenge. Not the VR '
-            'versions, nor the Tigron and Van-Uber DLC teams. Off: they need your own progress again.')))
+            'versions, nor the Tigron and Van-Uber DLC teams. Off: they need your own progress again.')),
+          ('cheat_van_uber', 'Cheat - Van Uber team (owned DLC)', 'Van Über team (owned DLC)',
+           ('For a copy whose PSN account owns the Van Über team DLC: the game sees it as installed, offline. '
+            "Off: the team needs the console's entitlement again.")),
+          ('cheat_vr_ships', 'Cheat - VR ships outside VR', 'VR ship liveries outside VR',
+           ('The VR HD and VR Fury liveries can be picked on a normal screen too, once they are unlocked. '
+            'Off: they need PlayStation VR mode again.')))
 UI_LANGUAGES = gow3_lang.LANGUAGE_NAMES
 
 def fsr4_folder():

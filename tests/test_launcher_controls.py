@@ -254,10 +254,11 @@ class ControlMapTest(unittest.TestCase):
         # Off by default; on, each cheat's patch joins the launcher's selection (or is the only extra name).
         self.assertFalse(any(launcher.APP_DEFAULTS[key] for key, *_rest in launcher.CHEATS))
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'cheat_events': True, 'cheat_rank': True,
-                                         'cheat_ships': True})
-        self.assertEqual(env['GOW3_PATCHES'].split(';')[-3:],
+                                         'cheat_ships': True, 'cheat_van_uber': True, 'cheat_vr_ships': True})
+        self.assertEqual(env['GOW3_PATCHES'].split(';')[-5:],
                          ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048',
-                          'Cheat - Unlock all ships'])
+                          'Cheat - Unlock all ships', 'Cheat - Van Uber team (owned DLC)',
+                          'Cheat - VR ships outside VR'])
         env = launcher.game_environment(dict(launcher.APP_DEFAULTS))
         self.assertNotIn('Cheat - ', env.get('GOW3_PATCHES', ''))
 
