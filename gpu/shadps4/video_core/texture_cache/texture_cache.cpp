@@ -1681,26 +1681,27 @@ void TextureCache::GarbageCollectImages() {
         if (num_deletions == 0) {
             return true;
         }
-        --num_deletions;
         auto& image = slot_images[image_id];
-        ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,
-                         ReadbackSource::CacheCleanup);
         const bool download = image.SafeToDownload();
         const bool tiled = image.info.IsTiled();
-        if (tiled && download) {
-            // This is a workaround for now. We can't handle non-linear image downloads.
-            return false;
-        }
-        if (download && !pressured) {
-            return false;
-        }
+        // This is a workaround for now. We can't handle non-linear image downloads.
+        const bool tiled_download = tiled && download;
         // gow3: a small picture the GPU drew that cannot be written back (its pages are marked
         // CPU-dirty) may be state the game keeps from frame to frame, like its auto exposure
         // chain (50x25 .. 3x1). Freed, it came back from guest memory as zeros: the race or the
         // menu stayed black after a race at high resolutions (#27, #42). They are tiny.
-        if (True(image.flags & ImageFlagBits::GpuModified) && !download && image.info.guest_size <= (2u << 20)) {
+        const bool gpu_state = True(image.flags & ImageFlagBits::GpuModified) && !download &&
+                               image.info.guest_size <= (2u << 20);
+        if (tiled_download || (download && !pressured) || gpu_state) {
+            // gow3: a kept image goes to the back of the list and is not a deletion. At the front
+            // and counted, ~60 old render targets used up every pass: nothing else was freed,
+            // and low-VRAM cards ran out of memory after a few races (#72, #16).
+            lru_cache.Touch(image.lru_id, gc_tick);
             return false;
         }
+        --num_deletions;
+        ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,
+                         ReadbackSource::CacheCleanup);
         if (download) {
             // gow3: synchronously, while the image still protects its pages. A deferred
             // write-back landed after FreeImage had unprotected them, over whatever the game
