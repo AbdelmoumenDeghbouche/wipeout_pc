@@ -987,6 +987,7 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
             key.num_samples = key.depth_samples;
         }
     }
+    key.ps_iter_samples = key.num_samples > 1 ? regs.eqaa.ps_iter_samples : 0;
 
     return true;
 }

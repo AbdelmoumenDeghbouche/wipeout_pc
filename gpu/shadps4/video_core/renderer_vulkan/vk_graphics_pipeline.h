@@ -57,6 +57,7 @@ struct GraphicsPipelineKey {
         AmdGpu::ClipSpace clip_space : 1;
         AmdGpu::ProvokingVtxLast provoking_vtx_last : 1;
         u32 depth_clip_enable : 1;
+        u32 ps_iter_samples : 3; ///< gow3: DB_EQAA, log2 of the samples a pixel shader runs per pixel
     };
 
     GraphicsPipelineKey() {
