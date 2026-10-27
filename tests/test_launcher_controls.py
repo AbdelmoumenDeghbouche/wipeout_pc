@@ -814,9 +814,9 @@ class QuietStreamTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.36')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.37'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.35'))
+        self.assertEqual(launcher.VERSION, '0.2.37')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.38'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.36'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.
