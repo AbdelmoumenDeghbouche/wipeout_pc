@@ -24,6 +24,8 @@
 #ifdef _WIN32
 #include <windows.h>
 #include <tlhelp32.h>
+#include <psapi.h>
+#include <intrin.h>
 #else
 #include <sys/mman.h>
 #include <malloc.h>
@@ -224,6 +226,186 @@ static DWORD WINAPI profiler_thread(LPVOID unused) {
             describe_address(where,sizeof(where),fault_sites[i].rip);
             fprintf(stderr,"  GPU write fault at %s: %u\n",where,fault_sites[i].count);
             fault_sites[i].count=0;
+        }
+        fflush(stderr);
+    }
+}
+/* GOW3_CPU_PROFILE=1: what the overlay's CPU time is spent on. Every millisecond, each of its
+ * two threads (the game thread that flips frames, the GPU command thread) that has used CPU
+ * since the last look is stopped and its position and caller chain (16 deep)
+ * recorded; the draw recording thread the GPU command thread hands draws to, and the Vulkan
+ * recording thread after it, are sampled too.
+ * Every second: each thread's CPU ms per frame, then its hottest positions ("self")
+ * and the callers most often on its stack ("in"), as guest offsets or gow3-probe.exe+offset.
+ * ponytail: a thread that ran and then blocked inside the millisecond is caught waiting
+ * (ntdll); those samples are counted under "waiting" and left out of the lists. */
+enum { CPU_PROFILE_SLOTS=4096, CPU_PROFILE_DEPTH=16, CPU_PROFILE_TOP=16 };
+typedef struct { uintptr_t key; uint32_t count; } CpuProfileSlot;
+typedef struct {
+    const char *name;
+    DWORD id;
+    HANDLE handle;
+    ULONG64 last_cycles, window_cycles;
+    uint32_t samples, waiting;
+    CpuProfileSlot self[CPU_PROFILE_SLOTS], in[CPU_PROFILE_SLOTS];
+} CpuProfileThread;
+static void cpu_profile_count(CpuProfileSlot *table, uintptr_t key) {
+    size_t h=(key>>4)%CPU_PROFILE_SLOTS;
+    for (size_t probe=0; probe<CPU_PROFILE_SLOTS; ++probe, h=(h+1)%CPU_PROFILE_SLOTS) {
+        if (!table[h].count) { table[h].key=key; table[h].count=1; return; }
+        if (table[h].key==key) { ++table[h].count; return; }
+    }
+}
+static void cpu_profile_print(const char *title, CpuProfileSlot *table, uint32_t samples) {
+    fprintf(stderr,"    %s:\n",title);
+    for (int n=0;n<CPU_PROFILE_TOP;++n) {
+        size_t best=CPU_PROFILE_SLOTS;
+        for (size_t i=0;i<CPU_PROFILE_SLOTS;++i)
+            if (table[i].count && (best==CPU_PROFILE_SLOTS || table[i].count>table[best].count)) best=i;
+        if (best==CPU_PROFILE_SLOTS) break;
+        char where[MAX_PATH+96];
+        describe_address(where,sizeof(where),table[best].key);
+        fprintf(stderr,"      %5.1f%%  %s\n",100.0*table[best].count/(samples ? samples : 1),where);
+        table[best].count=0;
+    }
+}
+static int cpu_profile_waiting(uintptr_t rip) {
+    static uintptr_t ntdll, ntdll_end, win32u, win32u_end;
+    if (!ntdll) {
+        MODULEINFO info;
+        HMODULE m=GetModuleHandleA("ntdll.dll");
+        if (m && K32GetModuleInformation(GetCurrentProcess(),m,&info,sizeof(info))) { ntdll=(uintptr_t)m; ntdll_end=ntdll+info.SizeOfImage; }
+        m=GetModuleHandleA("win32u.dll");
+        if (m && K32GetModuleInformation(GetCurrentProcess(),m,&info,sizeof(info))) { win32u=(uintptr_t)m; win32u_end=win32u+info.SizeOfImage; }
+    }
+    return (rip>=ntdll && rip<ntdll_end) || (rip>=win32u && rip<win32u_end);
+}
+/* The sampled thread's stack from rsp, copied while it was stopped; the caller chain is
+ * unwound from this copy after the thread runs again, so the profiler never calls the
+ * unwinder (and its locks) while a thread that may hold them is suspended. Host frames are
+ * unwound with their unwind tables (Win64 code keeps no walkable rbp chain), guest frames by
+ * their rbp chain; stack addresses in rbp are moved into the copy at each step. */
+static unsigned char cpu_profile_stack[16384] __attribute__((aligned(16)));
+static int cpu_profile_walk(const CONTEXT *thread, size_t got, uintptr_t *chain) {
+    if (got<16) return 0;
+    const uintptr_t real=(uintptr_t)thread->Rsp, copy=(uintptr_t)cpu_profile_stack;
+    CONTEXT c=*thread;
+    c.Rsp=copy;
+    if (c.Rbp>=real && c.Rbp<real+got) c.Rbp=c.Rbp-real+copy;
+    int depth=0;
+    for (int step=0; step<2*CPU_PROFILE_DEPTH && depth<CPU_PROFILE_DEPTH; ++step) {
+        if (c.Rsp<copy || c.Rsp+16>copy+got) break;
+        const uintptr_t rip=(uintptr_t)c.Rip;
+        if (image && rip-(uintptr_t)image<image_size) {
+            const uintptr_t fp=(uintptr_t)c.Rbp;
+            if (fp<copy || fp+16>copy+got) break;
+            const uintptr_t *frame=(const uintptr_t *)fp;
+            c.Rip=frame[1];
+            c.Rsp=fp+16;
+            c.Rbp=frame[0];
+        } else {
+            DWORD64 base=0;
+            PRUNTIME_FUNCTION entry=RtlLookupFunctionEntry(rip,&base,NULL);
+            if (entry) {
+                PVOID handler_data=NULL;
+                DWORD64 establisher=0;
+                RtlVirtualUnwind(UNW_FLAG_NHANDLER,base,rip,entry,&c,&handler_data,&establisher,NULL);
+            } else {
+                c.Rip=*(const DWORD64 *)(uintptr_t)c.Rsp; /* leaf: return address on top */
+                c.Rsp+=8;
+            }
+        }
+        if (c.Rbp>=real && c.Rbp<real+got) c.Rbp=c.Rbp-real+copy;
+        if (!c.Rip) break;
+        chain[depth++]=(uintptr_t)c.Rip;
+    }
+    return depth;
+}
+static DWORD WINAPI cpu_profiler_thread(LPVOID unused) {
+    (void)unused;
+    enum { THREADS=4 };
+    static CpuProfileThread threads[THREADS]={{.name="game thread"},{.name="GPU command thread"},
+                                              {.name="draw recording thread"},{.name="Vulkan recording thread"}};
+    LARGE_INTEGER frequency, start, now;
+    QueryPerformanceFrequency(&frequency);
+    fputs("CPU profile: on (GOW3_CPU_PROFILE), a report every second\n",stderr);
+    for (unsigned window=1;;++window) {
+        unsigned long ids[THREADS]={0,0,0,0};
+        uint64_t frames_start=0, frames_end=0, drain_start=0, drain_end=0;
+        gow3gpu_frame_threads(&ids[0],&ids[1],&frames_start);
+        gow3gpu_draw_rec_thread(&ids[2],&drain_start,&ids[3]);
+        uint64_t counts_start[3], counts_end[3];
+        gow3gpu_draw_counts(&counts_start[0],&counts_start[1],&counts_start[2]);
+        const uint64_t tsc_start=__rdtsc();
+        QueryPerformanceCounter(&start);
+        for (int t=0;t<THREADS;++t) {
+            CpuProfileThread *th=&threads[t];
+            if (th->id!=ids[t]) {
+                if (th->handle) CloseHandle(th->handle);
+                th->handle=ids[t] ? OpenThread(THREAD_SUSPEND_RESUME|THREAD_GET_CONTEXT|THREAD_QUERY_INFORMATION,FALSE,ids[t]) : NULL;
+                th->id=ids[t];
+                th->last_cycles=0;
+                if (th->handle) QueryThreadCycleTime(th->handle,&th->last_cycles);
+            }
+            th->window_cycles=0;
+            th->samples=th->waiting=0;
+            memset(th->self,0,sizeof(th->self));
+            memset(th->in,0,sizeof(th->in));
+        }
+        do {
+            compat_sleep_ns(1000000);
+            for (int t=0;t<THREADS;++t) {
+                CpuProfileThread *th=&threads[t];
+                ULONG64 cycles=0;
+                if (!th->handle || !QueryThreadCycleTime(th->handle,&cycles) || cycles==th->last_cycles) continue;
+                th->window_cycles+=cycles-th->last_cycles;
+                th->last_cycles=cycles;
+                CONTEXT c={.ContextFlags=CONTEXT_CONTROL|CONTEXT_INTEGER};
+                if (SuspendThread(th->handle)==(DWORD)-1) continue;
+                const int have_context=GetThreadContext(th->handle,&c);
+                size_t stack_got=0;
+                if (have_context && !cpu_profile_waiting((uintptr_t)c.Rip)) {
+                    for (size_t want=sizeof(cpu_profile_stack); want>=4096 && !stack_got; want/=2) {
+                        SIZE_T got=0;
+                        if (ReadProcessMemory(GetCurrentProcess(),(void *)(uintptr_t)c.Rsp,cpu_profile_stack,want,&got)) stack_got=got;
+                    }
+                }
+                ResumeThread(th->handle);
+                if (!have_context) continue;
+                if (cpu_profile_waiting((uintptr_t)c.Rip)) { ++th->waiting; continue; }
+                ++th->samples;
+                cpu_profile_count(th->self,(uintptr_t)c.Rip & ~(uintptr_t)15);
+                uintptr_t chain[CPU_PROFILE_DEPTH];
+                const int depth=cpu_profile_walk(&c,stack_got,chain);
+                for (int i=0;i<depth;++i) {
+                    int seen=0;
+                    for (int j=0;j<i;++j) seen|=chain[j]==chain[i];
+                    if (!seen) cpu_profile_count(th->in,chain[i]);
+                }
+            }
+            QueryPerformanceCounter(&now);
+        } while (now.QuadPart-start.QuadPart<frequency.QuadPart);
+        gow3gpu_frame_threads(&ids[0],&ids[1],&frames_end);
+        gow3gpu_draw_rec_thread(&ids[2],&drain_end,&ids[3]);
+        gow3gpu_draw_counts(&counts_end[0],&counts_end[1],&counts_end[2]);
+        const uint64_t frames=frames_end-frames_start, tsc=__rdtsc()-tsc_start;
+        const double wall_ms=1000.0*(double)(now.QuadPart-start.QuadPart)/(double)frequency.QuadPart;
+        const double drain_ms=tsc ? (double)(drain_end-drain_start)*wall_ms/(double)tsc : 0.0;
+        fprintf(stderr,"CPU profile %u: %" PRIu64 " frames; the GPU command thread waited %.2f ms per frame for the draw recording thread\n",
+                window,frames,frames ? drain_ms/(double)frames : 0.0);
+        if (frames)
+            fprintf(stderr,"  per frame: %.0f draws, %.0f dispatches, %.1f submissions\n",
+                    (double)(counts_end[0]-counts_start[0])/(double)frames,(double)(counts_end[1]-counts_start[1])/(double)frames,
+                    (double)(counts_end[2]-counts_start[2])/(double)frames);
+        for (int t=0;t<THREADS;++t) {
+            CpuProfileThread *th=&threads[t];
+            if (!th->handle) { fprintf(stderr,"  %s: not known yet\n",th->name); continue; }
+            const double ms=tsc ? (double)th->window_cycles*wall_ms/(double)tsc : 0.0;
+            fprintf(stderr,"  %s %lu: %.2f ms per frame (%.0f ms in the second), %u samples, %u caught waiting\n",
+                    th->name,th->id,frames ? ms/(double)frames : 0.0,ms,th->samples,th->waiting);
+            if (!th->samples) continue;
+            cpu_profile_print("self",th->self,th->samples);
+            cpu_profile_print("in",th->in,th->samples);
         }
         fflush(stderr);
     }
@@ -1164,6 +1346,8 @@ int main(int argc, char **argv) {
 #ifdef _WIN32
     atexit(report_exit_caller); /* registered last, so it runs first */
     if ((profiling=getenv("GOW3_PROFILE")!=NULL)) CloseHandle(CreateThread(NULL,0,profiler_thread,NULL,0,NULL));
+    if (gpu_enabled && getenv("GOW3_CPU_PROFILE") && getenv("GOW3_CPU_PROFILE")[0]=='1')
+        CloseHandle(CreateThread(NULL,0,cpu_profiler_thread,NULL,0,NULL));
 #endif
     entered_game=1;
     struct { uint64_t argc; const char *argv[2]; } params = {1, {"/app0/eboot.bin", NULL}};

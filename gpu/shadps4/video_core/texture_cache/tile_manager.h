@@ -61,6 +61,11 @@ private:
 
     vk::Pipeline GetTilingPipeline(const ImageInfo& info, bool is_tiler);
 
+    /// gow3: copies each texel of a small tiled image straight to its tiled address, in one
+    /// image-to-buffer copy. Returns false when the image needs the tiling shader.
+    bool TileSmallImage(Image& in_image, std::span<vk::BufferImageCopy> buffer_copies,
+                        const VideoCore::Buffer* out_buffer, u64 out_offset);
+
 private:
     const Vulkan::Instance& instance;
     Vulkan::Scheduler& scheduler;

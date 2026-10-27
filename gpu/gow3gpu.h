@@ -22,6 +22,14 @@ int gow3gpu_init(const Gow3GpuConfig *config);
 uintptr_t gow3gpu_resolve(const char *scoped_nid);
 /* Called first by the loader's SIGSEGV handler: 1 when a GPU page-tracking fault was handled. */
 int gow3gpu_handle_fault(void *ucontext, void *address);
+/* GOW3_CPU_PROFILE (Windows): the threads it samples and the counters it reports per frame.
+ * The game thread that flips frames, the GPU command thread and the frames shown so far: */
+void gow3gpu_frame_threads(unsigned long *game_thread, unsigned long *gpu_thread, uint64_t *frames);
+/* The draw recording thread, the TSC cycles the GPU command thread waited for it, and the
+ * Vulkan recording thread: */
+void gow3gpu_draw_rec_thread(unsigned long *thread, uint64_t *drain_cycles, unsigned long *vk_recorder);
+/* Draws, dispatches and graphics submissions so far: */
+void gow3gpu_draw_counts(uint64_t *draws, uint64_t *dispatches, uint64_t *submissions);
 /* GOW3_WRITE_LOG=1: prints the logged GPU-side writes to guest memory near the fault. */
 void gow3gpu_dump_guest_writes(void *ucontext);
 /* Keyboard text entry through the game window (IME dialog). begin returns 0 when

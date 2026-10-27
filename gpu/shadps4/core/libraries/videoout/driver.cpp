@@ -16,6 +16,7 @@
 #endif
 #include "common/assert.h"
 #include "gow3_toggles.h"
+#include "gow3_perf_stats.h"
 #include "gow3_settings.h"
 #include "gow3_graphics.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
@@ -518,6 +519,16 @@ void VideoOutDriver::Flip(const Request& req) {
                         Gow3Stats::tick_wait_ns.exchange(0) / (window * 1e7),
                         frames ? double(Gow3Stats::reduced_draws.exchange(0)) / frames : 0.0,
                         frames ? double(Gow3Stats::scene_draws.exchange(0)) / frames : 0.0);
+            if (frames) {
+                std::printf("Fence waits: per frame %.1f EOS handed to the recording thread, %.1f "
+                            "waited, %.1f GDS stores; downloads %.1f waited, %.1f skipped (none "
+                            "queued)\n",
+                            double(Gow3Stats::eos_deferred.exchange(0)) / frames,
+                            double(Gow3Stats::eos_waited.exchange(0)) / frames,
+                            double(Gow3Stats::eos_gds.exchange(0)) / frames,
+                            double(Gow3Stats::download_waits.exchange(0)) / frames,
+                            double(Gow3Stats::download_waits_skipped.exchange(0)) / frames);
+            }
             presenter->GetRasterizer().GetPipelineCache().ReportCompilerStats();
             Vulkan::WaitDiagnostics::Report();
             // Frame pacing: spread of the guest flip intervals (judder that the mean hides).
@@ -616,6 +627,8 @@ bool VideoOutDriver::SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg,
         port->flip_status.submit_tsc = Libraries::Kernel::sceKernelReadTsc();
     }
 
+    // gow3 (GOW3_CPU_PROFILE): the game's frames, per flip.
+    Gow3PerfStats::game_frames.fetch_add(1, std::memory_order_relaxed);
     if (!is_eop) {
         // Non EOP flips can arrive from any thread so ask GPU thread to perform them
         liverpool->SendCommand([=, this]() { SubmitFlipInternal(port, index, flip_arg, is_eop); });

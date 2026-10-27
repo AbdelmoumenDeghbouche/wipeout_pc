@@ -11,6 +11,7 @@
 #include "core/libraries/videoout/video_out.h"
 #include "core/libraries/videoout/videoout_error.h"
 #include "core/platform.h"
+#include "gow3_perf_stats.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
 
 extern std::unique_ptr<Vulkan::Presenter> presenter;
@@ -153,6 +154,7 @@ s32 PS4_SYSV_ABI sceVideoOutIsFlipPending(s32 handle) {
 }
 
 s32 PS4_SYSV_ABI sceVideoOutSubmitFlip(s32 handle, s32 bufferIndex, s32 flipMode, s64 flipArg) {
+    Gow3PerfStats::NoteGameThread(); // gow3: the thread GOW3_CPU_PROFILE samples
     auto* port = driver->GetPort(handle);
     if (!port) {
         LOG_ERROR(Lib_VideoOut, "Invalid handle = {}", handle);

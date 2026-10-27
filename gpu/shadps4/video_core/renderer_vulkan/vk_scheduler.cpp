@@ -310,6 +310,11 @@ void Scheduler::SyncRecording() {
 
 void Scheduler::RecorderThread(std::stop_token stoken) {
     Common::SetCurrentThreadName("gow3:VkRecorder");
+#ifdef _WIN32
+    // The first recording thread is the rasterizer's scheduler (GOW3_CPU_PROFILE).
+    unsigned long none = 0;
+    Gow3Stats::vk_recorder_thread_id.compare_exchange_strong(none, GetCurrentThreadId());
+#endif
     while (true) {
         // Spin briefly before sleeping: the next chunk usually follows within microseconds,
         // and a sleeping recorder costs the GPU thread a wake-up syscall per kick. With few

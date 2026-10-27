@@ -31,6 +31,30 @@ int main() {
     assert(queue.RequiredTick(0x1ff0, 1) == 6);
     assert(queue.RequiredTick(0x3000, 1) == 0);
     queue.Retire([](auto) { return true; }, [](auto&) {});
+    // A deeper queue: more entries fit, the oldest tick is the one to wait for.
+    queue.SetMaxEntries(512);
+    for (int i = 0; i < 511; ++i) queue.Push(0x1000, 1, 6 + i, i);
+    assert(queue.CanFit(1) && queue.OldestTick() == 6);
+    queue.Push(0x1000, 1, 600, 0);
+    assert(!queue.CanFit(1));
+    queue.Retire([](auto tick) { return tick <= 6; }, [](auto&) {});
+    assert(queue.CanFit(1) && queue.OldestTick() == 7);
+    queue.Retire([](auto) { return true; }, [](auto&) {});
+    assert(queue.Empty());
+    queue.SetMaxEntries(64);
+    // Lookups outside the pages the entries cover answer at once; the range shrinks as they retire.
+    queue.Push(0x50000, 4, 20, 0);
+    queue.Push(0x90000, 4, 21, 0);
+    assert(queue.RequiredTick(0x70000, 4096) == 0);   // between them: no page shared
+    assert(queue.RequiredTick(0x90002, 1) == 21);
+    queue.Retire([](auto tick) { return tick <= 20; }, [](auto&) {});
+    assert(queue.RequiredTick(0x50000, 4) == 0);      // retired: outside the range now
+    assert(queue.RequiredTick(0x90000, 4) == 21);
+    unsigned outside = 0;
+    queue.Cancel(0x50000, 4, [&](auto&) { ++outside; });
+    assert(outside == 0);
+    queue.Retire([](auto) { return true; }, [](auto&) {});
+    assert(queue.RequiredTick(0x90000, 4) == 0);
     queue.Push(0x1000, 64ull << 20, 7, 4);
     assert(!queue.CanFit(1));
     assert(queue.RequiredTick(0x1000, 0) == 0);

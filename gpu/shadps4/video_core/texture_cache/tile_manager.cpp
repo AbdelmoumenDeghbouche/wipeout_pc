@@ -23,6 +23,9 @@
 #include "video_core/host_shaders/tiling_micro_8_comp.h"
 #include "video_core/host_shaders/tiling_micro_96_comp.h"
 
+#include <algorithm>
+#include <bit>
+#include <boost/container/small_vector.hpp>
 #include <magic_enum/magic_enum.hpp>
 #include <vk_mem_alloc.h>
 
@@ -34,6 +37,218 @@ struct TilingInfo {
     u32 num_mips;
     std::array<ImageInfo::MipInfo, 16> mips;
 };
+
+namespace {
+
+// gow3: tiling.comp's address math on the CPU, for one texel of sample 0. Kept in step with
+// the shader (same names and cases) so both put a texel at the same tiled address.
+struct TexelTiling {
+    u32 bits_per_pixel;
+    AmdGpu::MicroTileMode micro_tile_mode;
+    u32 thickness;
+    bool is_macro;
+    AmdGpu::ArrayMode array_mode;
+    u32 pipe_config;
+    u32 bank_width;
+    u32 bank_height;
+    u32 num_banks;
+    u32 num_bank_bits;
+    u32 tile_split_bytes;
+    u32 macro_tile_aspect;
+    u32 bank_swizzle;
+};
+
+constexpr u32 MicroTileWidth = 8;
+constexpr u32 MicroTileHeight = 8;
+constexpr u32 NumPipeInterleaveBits = 8;
+
+constexpr u32 Bit(u32 value, u32 bit) {
+    return (value >> bit) & 1;
+}
+
+u32 PixelIndexWithinMicroTile(const TexelTiling& t, u32 x, u32 y, u32 z) {
+    const u32 x0 = Bit(x, 0), x1 = Bit(x, 1), x2 = Bit(x, 2);
+    const u32 y0 = Bit(y, 0), y1 = Bit(y, 1), y2 = Bit(y, 2);
+    const u32 z0 = Bit(z, 0), z1 = Bit(z, 1), z2 = Bit(z, 2);
+    u32 p0 = 0, p1 = 0, p2 = 0, p3 = 0, p4 = 0, p5 = 0, p6 = 0, p7 = 0, p8 = 0;
+    if (t.micro_tile_mode == AmdGpu::MicroTileMode::Display) {
+        switch (t.bits_per_pixel) {
+        case 8:
+            p0 = x0, p1 = x1, p2 = x2, p3 = y1, p4 = y0, p5 = y2;
+            break;
+        case 16:
+            p0 = x0, p1 = x1, p2 = x2, p3 = y0, p4 = y1, p5 = y2;
+            break;
+        case 32:
+            p0 = x0, p1 = x1, p2 = y0, p3 = x2, p4 = y1, p5 = y2;
+            break;
+        case 64:
+            p0 = x0, p1 = y0, p2 = x1, p3 = x2, p4 = y1, p5 = y2;
+            break;
+        case 128:
+            p0 = y0, p1 = x0, p2 = x1, p3 = x2, p4 = y1, p5 = y2;
+            break;
+        }
+    } else if (t.micro_tile_mode == AmdGpu::MicroTileMode::Thin ||
+               t.micro_tile_mode == AmdGpu::MicroTileMode::Depth) {
+        p0 = x0, p1 = y0, p2 = x1, p3 = y1, p4 = x2, p5 = y2;
+    } else {
+        if (t.bits_per_pixel == 8 || t.bits_per_pixel == 16) {
+            p0 = x0, p1 = y0, p2 = x1, p3 = y1, p4 = z0, p5 = z1;
+        } else if (t.bits_per_pixel == 32) {
+            p0 = x0, p1 = y0, p2 = x1, p3 = z0, p4 = y1, p5 = z1;
+        } else {
+            p0 = x0, p1 = y0, p2 = z0, p3 = x1, p4 = y1, p5 = z1;
+        }
+        p6 = x2, p7 = y2;
+        if (t.thickness == 8) {
+            p8 = z2;
+        }
+    }
+    return p0 | (p1 << 1) | (p2 << 2) | (p3 << 3) | (p4 << 4) | (p5 << 5) | (p6 << 6) |
+           (p7 << 7) | (p8 << 8);
+}
+
+u32 MicroTiledAddress(const TexelTiling& t, u32 x, u32 y, u32 slice, u32 pitch, u32 height) {
+    const u32 micro_tile_bytes = MicroTileWidth * MicroTileHeight * t.thickness * t.bits_per_pixel / 8;
+    const u32 slice_bytes = (pitch * height * t.thickness * t.bits_per_pixel + 7) / 8;
+    const u32 micro_tiles_per_row = pitch / MicroTileWidth;
+    const u32 slice_offset = (slice / t.thickness) * slice_bytes;
+    const u32 micro_tile_offset =
+        ((y / MicroTileHeight) * micro_tiles_per_row + x / MicroTileWidth) * micro_tile_bytes;
+    const u32 pixel_offset = PixelIndexWithinMicroTile(t, x, y, slice) * t.bits_per_pixel;
+    return slice_offset + micro_tile_offset + pixel_offset / 8;
+}
+
+u32 PipeFromCoord(const TexelTiling& t, u32 num_pipes, u32 x, u32 y, u32 slice) {
+    const u32 tx = x / MicroTileWidth;
+    const u32 ty = y / MicroTileHeight;
+    const u32 x3 = Bit(tx, 0), x4 = Bit(tx, 1), x5 = Bit(tx, 2), x6 = Bit(tx, 3);
+    const u32 y3 = Bit(ty, 0), y4 = Bit(ty, 1), y5 = Bit(ty, 2), y6 = Bit(ty, 3);
+    u32 p0 = 0, p1 = 0, p2 = 0, p3 = 0;
+    if (t.pipe_config == u32(AmdGpu::PipeConfig::P2)) {
+        p0 = x3 ^ y3;
+    } else if (t.pipe_config == u32(AmdGpu::PipeConfig::P8_32x32_8x16)) {
+        p0 = x4 ^ y3 ^ x5;
+        p1 = x3 ^ y4;
+        p2 = x5 ^ y5;
+    } else if (t.pipe_config == u32(AmdGpu::PipeConfig::P8_32x32_16x16)) {
+        p0 = x3 ^ y3 ^ x4;
+        p1 = x4 ^ y4;
+        p2 = x5 ^ y5;
+    } else if (t.pipe_config == u32(AmdGpu::PipeConfig::P16_32x32_8x16)) {
+        // PS4 Pro (#33).
+        p0 = x4 ^ y3;
+        p1 = x3 ^ y4;
+        p2 = x5 ^ y6;
+        p3 = x6 ^ y5;
+    }
+    u32 pipe = p0 | (p1 << 1) | (p2 << 2) | (p3 << 3);
+    u32 pipe_swizzle = 0;
+    if (t.array_mode == AmdGpu::ArrayMode::Array3DTiledThin1 ||
+        t.array_mode == AmdGpu::ArrayMode::Array3DTiledThick ||
+        t.array_mode == AmdGpu::ArrayMode::Array3DTiledXThick) {
+        pipe_swizzle += std::max(1u, num_pipes / 2 - 1) * (slice / t.thickness);
+    }
+    pipe_swizzle &= num_pipes - 1;
+    return pipe ^ pipe_swizzle;
+}
+
+u32 BankFromCoord(const TexelTiling& t, u32 num_pipes, u32 x, u32 y, u32 slice,
+                  u32 tile_split_slice) {
+    const u32 tx = x / MicroTileWidth / (t.bank_width * num_pipes);
+    const u32 ty = y / MicroTileHeight / t.bank_height;
+    const u32 x3 = Bit(tx, 0), x4 = Bit(tx, 1), x5 = Bit(tx, 2), x6 = Bit(tx, 3);
+    const u32 y3 = Bit(ty, 0), y4 = Bit(ty, 1), y5 = Bit(ty, 2), y6 = Bit(ty, 3);
+    u32 b0 = 0, b1 = 0, b2 = 0, b3 = 0;
+    if (t.num_banks == 16) {
+        b0 = x3 ^ y6;
+        b1 = x4 ^ y5 ^ y6;
+        b2 = x5 ^ y4;
+        b3 = x6 ^ y3;
+    } else if (t.num_banks == 8) {
+        b0 = x3 ^ y5;
+        b1 = x4 ^ y4 ^ y5;
+        b2 = x5 ^ y3;
+    } else if (t.num_banks == 4) {
+        b0 = x3 ^ y4;
+        b1 = x4 ^ y3;
+    } else if (t.num_banks == 2) {
+        b0 = x3 ^ y3;
+    }
+    u32 bank = b0 | (b1 << 1) | (b2 << 2) | (b3 << 3);
+
+    using enum AmdGpu::ArrayMode;
+    const auto mode = t.array_mode;
+    u32 slice_rotation = 0;
+    if (mode == Array2DTiledThin1 || mode == Array2DTiledThick || mode == Array2DTiledXThick) {
+        slice_rotation = (t.num_banks / 2 - 1) * (slice / t.thickness);
+    } else if (mode == Array3DTiledThin1 || mode == Array3DTiledThick ||
+               mode == Array3DTiledXThick) {
+        slice_rotation = std::max(1u, num_pipes / 2 - 1) * (slice / t.thickness) / num_pipes;
+    }
+    u32 tile_split_rotation = 0;
+    if (mode == Array2DTiledThin1 || mode == Array3DTiledThin1 || mode == ArrayPrt2DTiledThin1 ||
+        mode == ArrayPrt3DTiledThin1) {
+        tile_split_rotation = (t.num_banks / 2 + 1) * tile_split_slice;
+    }
+    bank ^= t.bank_swizzle + slice_rotation;
+    bank ^= tile_split_rotation;
+    return bank & (t.num_banks - 1);
+}
+
+u32 MacroTiledAddress(const TexelTiling& t, u32 x, u32 y, u32 slice, u32 pitch, u32 height) {
+    const bool p2 = t.pipe_config == u32(AmdGpu::PipeConfig::P2);
+    const bool p16 = t.pipe_config == u32(AmdGpu::PipeConfig::P16_32x32_8x16);
+    const u32 num_pipes = p2 ? 2 : (p16 ? 16 : 8);
+    const u32 num_pipe_bits = p2 ? 1 : (p16 ? 4 : 3);
+    const u32 pixel_offset = PixelIndexWithinMicroTile(t, x, y, slice) * t.bits_per_pixel;
+    u32 element_offset = pixel_offset / 8;
+
+    u32 micro_tile_bytes = MicroTileWidth * MicroTileHeight * t.thickness * t.bits_per_pixel / 8;
+    u32 slices_per_tile = 1;
+    u32 tile_split_slice = 0;
+    if (micro_tile_bytes > t.tile_split_bytes && t.thickness == 1) {
+        slices_per_tile = micro_tile_bytes / t.tile_split_bytes;
+        tile_split_slice = element_offset / t.tile_split_bytes;
+        element_offset %= t.tile_split_bytes;
+        micro_tile_bytes = t.tile_split_bytes;
+    }
+
+    const u32 macro_tile_pitch = MicroTileWidth * t.bank_width * num_pipes * t.macro_tile_aspect;
+    const u32 macro_tile_height = MicroTileHeight * t.bank_height * t.num_banks / t.macro_tile_aspect;
+    const u32 macro_tile_bytes = micro_tile_bytes * (macro_tile_pitch / MicroTileWidth) *
+                                 (macro_tile_height / MicroTileHeight) / (num_pipes * t.num_banks);
+    const u32 macro_tiles_per_row = pitch / macro_tile_pitch;
+    const u32 macro_tile_offset =
+        ((y / macro_tile_height) * macro_tiles_per_row + x / macro_tile_pitch) * macro_tile_bytes;
+    const u32 macro_tiles_per_slice = macro_tiles_per_row * (height / macro_tile_height);
+    const u32 slice_bytes = macro_tiles_per_slice * macro_tile_bytes;
+    const u32 slice_offset =
+        slice_bytes * (tile_split_slice + slices_per_tile * (slice / t.thickness));
+
+    const u32 tile_row_index = (y / MicroTileHeight) % t.bank_height;
+    const u32 tile_column_index = ((x / MicroTileWidth) / num_pipes) % t.bank_width;
+    const u32 tile_offset = (tile_row_index * t.bank_width + tile_column_index) * micro_tile_bytes;
+    const u32 total_offset = slice_offset + macro_tile_offset + element_offset + tile_offset;
+
+    if (AmdGpu::IsPrt(t.array_mode)) {
+        x %= macro_tile_pitch;
+        y %= macro_tile_height;
+    }
+    const u32 pipe = PipeFromCoord(t, num_pipes, x, y, slice);
+    const u32 bank = BankFromCoord(t, num_pipes, x, y, slice, tile_split_slice);
+
+    const u32 pipe_interleave_mask = (1u << NumPipeInterleaveBits) - 1;
+    u32 addr = total_offset & pipe_interleave_mask;
+    addr |= pipe << NumPipeInterleaveBits;
+    addr |= bank << (NumPipeInterleaveBits + num_pipe_bits);
+    addr |= (total_offset >> NumPipeInterleaveBits)
+            << (NumPipeInterleaveBits + num_pipe_bits + t.num_bank_bits);
+    return addr;
+}
+
+} // Anonymous namespace
 
 TileManager::TileManager(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
                          Vulkan::Runtime& runtime_, StreamBuffer& stream_buffer_)
@@ -287,6 +502,83 @@ std::pair<const Buffer*, u64> TileManager::DetileImage(const VideoCore::Buffer* 
     return {staging.buffer, staging.offset};
 }
 
+// gow3: WipEout reads tiny tiled render targets back every frame (its auto-exposure chain:
+// 1x1 to 8x8, about 35 per frame). Through the tiling shader each one added a staging copy,
+// a barrier and a dispatch in the middle of the frame, and races ran ~18% slower than before
+// the shader was used for them. Up to this many texels, each texel is copied to its tiled
+// address instead, in the one copy the download needs anyway.
+static constexpr u32 MaxTexelCopies = 64;
+
+bool TileManager::TileSmallImage(Image& in_image, std::span<vk::BufferImageCopy> buffer_copies,
+                                 const VideoCore::Buffer* out_buffer, u64 out_offset) {
+    const auto& info = in_image.info;
+    const u32 bpp = info.num_bits;
+    if (buffer_copies.size() != 1 || info.num_samples != 1 || info.props.is_block ||
+        info.props.is_volume || (bpp != 8 && bpp != 16 && bpp != 32 && bpp != 64 && bpp != 128)) {
+        return false;
+    }
+    const auto& copy = buffer_copies[0];
+    const u32 width = copy.imageExtent.width;
+    const u32 height = copy.imageExtent.height;
+    const u32 layers = copy.imageSubresource.layerCount;
+    if (copy.imageExtent.depth != 1 || width * height * layers > MaxTexelCopies) {
+        return false;
+    }
+    const auto micro_tile_mode = AmdGpu::GetMicroTileMode(info.tile_mode);
+    if (micro_tile_mode == AmdGpu::MicroTileMode::Thick) {
+        return false;
+    }
+
+    TexelTiling tiling{
+        .bits_per_pixel = bpp,
+        .micro_tile_mode = micro_tile_mode,
+        .thickness = AmdGpu::GetMicroTileThickness(info.array_mode),
+        .is_macro = AmdGpu::IsMacroTiled(info.array_mode),
+        .array_mode = info.array_mode,
+        .bank_swizzle = info.bank_swizzle,
+    };
+    if (tiling.is_macro) {
+        const auto macro_tile_mode =
+            AmdGpu::CalculateMacrotileMode(info.tile_mode, info.num_bits, info.num_samples);
+        tiling.pipe_config = u32(AmdGpu::GetPipeConfig(info.tile_mode));
+        tiling.bank_width = AmdGpu::GetBankWidth(macro_tile_mode);
+        tiling.bank_height = AmdGpu::GetBankHeight(macro_tile_mode);
+        tiling.num_banks = AmdGpu::GetNumBanks(macro_tile_mode);
+        tiling.num_bank_bits = std::bit_width(tiling.num_banks) - 1;
+        tiling.tile_split_bytes = AmdGpu::CalculateTileSplit(info.tile_mode, info.array_mode,
+                                                             micro_tile_mode, info.num_bits);
+        tiling.macro_tile_aspect = AmdGpu::GetMacrotileAspect(macro_tile_mode);
+    }
+
+    const auto& mip = info.mips_layout[0];
+    boost::container::small_vector<vk::BufferImageCopy, MaxTexelCopies> texel_copies;
+    for (u32 layer = 0; layer < layers; ++layer) {
+        for (u32 y = 0; y < height; ++y) {
+            for (u32 x = 0; x < width; ++x) {
+                const u32 address =
+                    tiling.is_macro ? MacroTiledAddress(tiling, x, y, layer, mip.pitch, mip.height)
+                                    : MicroTiledAddress(tiling, x, y, layer, mip.pitch, mip.height);
+                texel_copies.push_back(vk::BufferImageCopy{
+                    .bufferOffset = out_offset + mip.offset + address,
+                    .bufferRowLength = 0,
+                    .bufferImageHeight = 0,
+                    .imageSubresource{
+                        .aspectMask = copy.imageSubresource.aspectMask,
+                        .mipLevel = 0,
+                        .baseArrayLayer = copy.imageSubresource.baseArrayLayer + layer,
+                        .layerCount = 1,
+                    },
+                    .imageOffset = {s32(x), s32(y), 0},
+                    .imageExtent = {1, 1, 1},
+                });
+            }
+        }
+    }
+    runtime.DownloadImage(&in_image, out_buffer,
+                          std::span{texel_copies.data(), texel_copies.size()});
+    return true;
+}
+
 void TileManager::TileImage(Image& in_image, std::span<vk::BufferImageCopy> buffer_copies,
                             const VideoCore::Buffer* out_buffer, u64 out_offset) {
     const auto& info = in_image.info;
@@ -295,6 +587,9 @@ void TileManager::TileImage(Image& in_image, std::span<vk::BufferImageCopy> buff
             copy.bufferOffset += out_offset;
         }
         runtime.DownloadImage(&in_image, out_buffer, buffer_copies);
+        return;
+    }
+    if (TileSmallImage(in_image, buffer_copies, out_buffer, out_offset)) {
         return;
     }
 

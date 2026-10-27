@@ -13,6 +13,10 @@
 
 #include <cstdlib>
 #include "gow3_threads.h"
+#include "gow3_toggles.h"
+#ifdef _WIN32
+#include <windows.h>
+#endif
 
 #include <array>
 #include <atomic>
@@ -118,6 +122,7 @@ public:
             }
         }
         const u64 waited = __rdtsc() - start;
+        Gow3Stats::pipe_drain_cycles.fetch_add(waited, std::memory_order_relaxed);
         drain_cycles += waited;
         cycles_by_reason[slot] += waited;
     }
@@ -160,6 +165,9 @@ private:
         Common::SetCurrentThreadName("gow3:DrawRec");
         on_stage_b = true;
         stage_b_tid.store(static_cast<u32>(gettid()), std::memory_order_release);
+#ifdef _WIN32
+        Gow3Stats::draw_rec_thread_id.store(GetCurrentThreadId());
+#endif
         u64 at = 0;
         while (true) {
             // Packets follow each other within microseconds while a frame is decoded: spin,
