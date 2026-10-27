@@ -6,6 +6,7 @@
 #include <memory>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 #include <boost/container_hash/hash.hpp>
 
 #include "common/types.h"
@@ -74,6 +75,8 @@ private:
     StreamBuffer& stream_buffer;
     /// gow3: the device buffer every detiled upload up to its size goes through (DetileImage).
     std::unique_ptr<VideoCore::Buffer> detile_scratch;
+    /// Replaced detile buffers and the scheduler tick after which the GPU no longer uses them.
+    std::vector<std::pair<std::unique_ptr<VideoCore::Buffer>, u64>> retired_scratch;
     vk::UniqueDescriptorSetLayout desc_layout;
     vk::UniquePipelineLayout pl_layout;
     std::unordered_map<TilingKey, vk::UniquePipeline, TilingKey::Hash> tiling_pipelines;

@@ -475,18 +475,25 @@ std::pair<const Buffer*, u64> TileManager::DetileImage(const VideoCore::Buffer* 
         .range = sizeof(params),
     };
 
-    // gow3: detiled uploads up to DetileScratchSize share one device buffer. From the staging
-    // pool, each upload of a track load kept its own device buffer until the GPU finished the
-    // submission: about 1 GB of video memory on top of the new textures in a 2048 race (#72,
-    // #59). The copy into the image marks its read (UploadImage), FlushBarriers orders the
-    // next write after it, and the barrier below does so after the previous submission's copies.
-    constexpr u64 DetileScratchSize = 64_MB;
+    // gow3: detiled uploads share one device buffer, grown to the largest one (up to
+    // DetileScratchMax; a replaced buffer is freed once the GPU is past its last use). From the
+    // staging pool, each upload of a track load kept its own device buffer until the GPU
+    // finished the submission: about 1 GB of video memory on top of the new textures in a 2048
+    // race, 2.3 GB in PS4 Pro mode (#72, #59, #56). The copy into the image marks its read
+    // (UploadImage), FlushBarriers orders the next write after it, and the barrier below does
+    // so after the previous submission's copies.
+    constexpr u64 DetileScratchMin = 64_MB, DetileScratchMax = 512_MB;
     Vulkan::StagingBufferRef staging;
-    const bool scratch = info.guest_size <= DetileScratchSize;
+    const bool scratch = info.guest_size <= DetileScratchMax;
     if (scratch) {
-        if (!detile_scratch) {
+        std::erase_if(retired_scratch, [this](const auto& retired) { return scheduler.IsFree(retired.second); });
+        if (!detile_scratch || detile_scratch->SizeBytes() < info.guest_size) {
+            if (detile_scratch) {
+                retired_scratch.emplace_back(std::move(detile_scratch), scheduler.CurrentTick());
+            }
             detile_scratch = std::make_unique<VideoCore::Buffer>(
-                instance, 0, DetileScratchSize, MemoryType::DeviceLocal, "TileManager:DetileScratch");
+                instance, 0, std::max<u64>(DetileScratchMin, std::bit_ceil(u64{info.guest_size})),
+                MemoryType::DeviceLocal, "TileManager:DetileScratch");
         }
         staging = {.buffer = detile_scratch.get(), .size = info.guest_size, .type = MemoryType::DeviceLocal};
     } else {
