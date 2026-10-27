@@ -423,7 +423,7 @@
             <Line Type="bytes" Address="0x007f5406" Value="31db42895ca8fc" Pattern="45 85 ed 0f 84 af 00 00 00 85 db 0f 84 a7 00 00 00 48 8b 05 ?? ?? ?? ?? 41 ff cd 42 89 1c a8 e9 94 00 00 00" At="24"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all ships" Note="Every HD, HD Fury and 2048 ship and livery is open (not the VR versions, nor the Tigron and Van-Uber DLC teams), and other menu items with the same rules. Nothing is written to your save." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all ships" Note="Every HD, HD Fury and 2048 ship and livery is open, Tigron included (not the VR versions, nor the Van-Uber DLC team), and other menu items with the same rules. Nothing is written to your save." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <!-- PI_Item.cpp unlock rules (plugins/teams/Definition.xml: <Unlock locked="true" team=".."
              MedalCountHD="87"/>, loyalty="4000", ...): the parser at 0x3f8880 keeps each rule's text in
              the item's condition (+0x60 Grid, +0x70 MedalCount, +0x78 HD, +0x80 FURY, +0x88 TimePlayed, +0x90 Loyalty).
@@ -444,6 +444,9 @@
             <!-- WipEout 2048 ships (SP.xml shipData: m_pCampaignUnlock, m_rankUnlock): the lookup at 0x5a3650
                  says open when the ship is already marked open (jne); always taking that jump opens all 20. -->
             <Line Type="bytes" Address="0x009a36ee" Value="eb" Pattern="85 c0 0f 85 ?? ?? ?? ?? 41 80 7f 4c 00 b0 01 75 7d 49 8b 47 40 48 85 c0 74 0c 83 b8 c0 03 00 00 02 41 0f 9f 47 4c" At="15"/>
+            <!-- Tigron (no rule in Definition.xml, earned in play): the team check at 0x3f9660 opens it
+                 when the count from 0x3e88c0 is above 4 (cmp eax,4; setg r13b). mov r13b,1 opens it. -->
+            <Line Type="bytes" Address="0x007f9b4d" Value="41b501 0f1f4000" Pattern="31 ff be ff ff ff ff ba ff ff ff ff e8 ?? ?? ?? ?? 83 f8 04 41 0f 9f c5 44 89 e8" At="17"/>
         </PatchList>
     </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Cheat - Van Uber team (owned DLC)" Note="The Van Über team DLC (unlock-only, no package) is open, for players whose PSN account owns it: the port has no PSN entitlement. Nothing is written to your save." Author="ahmanwoods" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">

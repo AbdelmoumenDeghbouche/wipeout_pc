@@ -722,8 +722,8 @@ CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all 
             'save. Off: your own rank comes back.')),
           ('cheat_ships', 'Cheat - Unlock all ships', 'Unlock all ships (HD, HD Fury and 2048)',
            ('Every ship and livery is open: the ones that need medals, team loyalty, play time or a campaign '
-            'grid, and the 2048 ships that need a rank, a 2048 event or a prototype challenge. Not the VR '
-            'versions, nor the Tigron and Van-Uber DLC teams. Off: they need your own progress again.')),
+            'grid, Tigron, and the 2048 ships that need a rank, a 2048 event or a prototype challenge. Not the VR '
+            'versions, nor the Van-Uber team (their own cheats below). Off: they need your own progress again.')),
           ('cheat_van_uber', 'Cheat - Van Uber team (owned DLC)', 'Van Über team (owned DLC)',
            ('For a copy whose PSN account owns the Van Über team DLC: the game sees it as installed, offline. '
             "Off: the team needs the console's entitlement again.")),
