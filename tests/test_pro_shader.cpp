@@ -221,5 +221,39 @@ int main() {
             }
         }
     }
-    std::puts("PASS: Pro shader decoding and translation (65 cases)");
+    for (bool sd : {false, true}) {
+        // Pro SDWA compare v_cmp v242, v11 (issue #55): SD=1 writes the mask to SDST = s[34:35].
+        const std::array<u32, 2> code{0x7c0616f9u, sd ? 0x0686a2f2u : 0x068600f2u};
+        Gcn::GcnCodeSlice slice(code.data(), code.data() + code.size());
+        Gcn::GcnDecodeContext decoder;
+        const auto inst = decoder.decodeInstruction(slice);
+        assert(slice.atEnd());
+        if (inst.dst[1].field != (sd ? Gcn::OperandField::ScalarGPR : Gcn::OperandField::VccLo) ||
+            (sd && inst.dst[1].code != 34)) {
+            std::fprintf(stderr, "FAIL: SDWA compare with SD=%d decodes the wrong mask\n", sd);
+            return 1;
+        }
+        Info info{};
+        info.hw_stage = HwStage::Fragment;
+        info.sw_stage = SwStage::Fragment;
+        RuntimeInfo runtime{};
+        runtime.Initialize(info.hw_stage, info.sw_stage);
+        Profile profile{};
+        Common::ObjectPool<IR::Inst> pool;
+        IR::Block block(pool);
+        Gcn::Translator translator(info, runtime, profile);
+        translator.Translate(&block, 0, IR::Condition::True, {&inst, 1});
+        assert(!info.translation_failed);
+        unsigned vcc_writes = 0, sgpr_writes = 0;
+        for (const auto& op : block) {
+            vcc_writes += op.GetOpcode() == IR::Opcode::SetVccLo ||
+                          op.GetOpcode() == IR::Opcode::SetVccHi;
+            sgpr_writes += op.GetOpcode() == IR::Opcode::SetScalarRegister;
+        }
+        if (vcc_writes != (sd ? 0u : 2u) || sgpr_writes != (sd ? 2u : 0u)) {
+            std::fprintf(stderr, "FAIL: SDWA compare with SD=%d writes the wrong mask\n", sd);
+            return 1;
+        }
+    }
+    std::puts("PASS: Pro shader decoding and translation (67 cases)");
 }
