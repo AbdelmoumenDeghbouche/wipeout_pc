@@ -19,8 +19,17 @@
 #include <windows.h>
 /* 64-bit sizes and times; directories are never opened as CRT descriptors. */
 typedef struct _stat64 HostStat;
-#define host_stat(path,s) _stat64(path,s)
 #define host_fstat(fd,s) _fstat64(fd,s)
+/* The UCRT's fast _stat64 (Windows 11 24H2+) describes a file symlink itself, size 0: with
+   Developer Mode the update view links the psarcs that way, and the game found no files in
+   them (#90, #44). An open descriptor follows the link; directories cannot be descriptors. */
+static int host_stat(const char *path,HostStat *s) {
+    int fd=_open(path,_O_RDONLY|_O_BINARY);
+    if (fd<0) return _stat64(path,s);
+    int r=_fstat64(fd,s);
+    _close(fd);
+    return r;
+}
 #define host_lseek _lseeki64
 #define O_DIRECTORY 0x40000000 /* gow3 marker, removed before _open */
 #else
