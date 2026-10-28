@@ -446,14 +446,12 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Startup Hang'], '01.00', SEGMENTS),
                          [(0x67a514, bytes.fromhex('488903 c605a84f470001 e8bd7bd5ff 803d664e470000'))])
 
-    def test_wipeout_zone_fix_checks_the_render_list_index(self):
-        # #79: both reads of the render list index (0x9a80ac) skip the call when it is -1; mov eax and
-        # mov dl,0xff make room for test/js in the same 19 bytes, the rel32s still reach the index
-        # and the two list tables (0xed5dd0, 0xed5df0).
+    def test_wipeout_zone_fix_draws_the_last_opened_list(self):
+        # #79: the render thread's step INDEX += 1 (0x9a80ac) becomes INDEX = (NEXT - 1) & 3, NEXT being
+        # the game thread's next slot (0xed5dc4); the same 17 bytes, the rel32 to INDEX unchanged.
         self.assertIn('Bug Fix - Zone crash above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS),
-                         [(0x665c7d, bytes.fromhex('8b0529243400 85c0 7815 488d0d42018700 b2ff')),
-                          (0x665ddc, bytes.fromhex('8b05ca223400 85c0 7815 488d0d03008700 b2ff'))])
+                         [(0x665e66, bytes.fromhex('8b0558ff8600 ffc8 83e003 890535223400'))])
 
     def test_wipeout_cheats_are_off_unless_chosen(self):
         # The Cheats page adds them; the points total returns 99998 (mov eax; ret) and the rank table holds 0.
