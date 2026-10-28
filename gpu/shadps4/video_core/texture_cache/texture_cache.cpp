@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <filesystem>
+#include <map>
 #include <xxhash.h>
 #include "video_core/amdgpu/liverpool.h"
 
@@ -22,6 +23,8 @@
 #include "video_core/texture_cache/aliasing.h"
 #include "video_core/texture_cache/host_compatibility.h"
 #include "video_core/texture_cache/texture_cache.h"
+
+#include <vk_mem_alloc.h>
 #include <vulkan/vulkan_format_traits.hpp>
 #include "video_core/texture_cache/tile_manager.h"
 
@@ -1689,6 +1692,21 @@ void TextureCache::GarbageCollectImages() {
         const auto now = std::chrono::steady_clock::now();
         if (now - last >= std::chrono::seconds(1)) {
             last = now;
+            // VMA's blocks against what lives in them, in the device-local heaps: blocks kept after
+            // their images are gone show as blocks well above allocations.
+            VmaBudget budgets[VK_MAX_MEMORY_HEAPS]{};
+            vmaGetHeapBudgets(instance.GetAllocator(), budgets);
+            const VkPhysicalDeviceMemoryProperties* heaps{};
+            vmaGetMemoryProperties(instance.GetAllocator(), &heaps);
+            u64 vma_blocks = 0, vma_allocations = 0;
+            for (u32 heap = 0; heap < heaps->memoryHeapCount; ++heap) {
+                if (heaps->memoryHeaps[heap].flags & VK_MEMORY_HEAP_DEVICE_LOCAL_BIT) {
+                    vma_blocks += budgets[heap].statistics.blockBytes;
+                    vma_allocations += budgets[heap].statistics.allocationBytes;
+                }
+            }
+            std::printf("Memory: VMA device blocks %llu MiB, allocations %llu MiB\n",
+                        (unsigned long long)(vma_blocks >> 20), (unsigned long long)(vma_allocations >> 20));
             std::printf("Memory: device %lld MiB (pressure %llu), images %lld MiB (%lld), resident "
                         "buffers %lld MiB, staging %lld MiB (device %lld+%lld, upload %lld+%lld, "
                         "download %lld+%lld)\n",
@@ -1701,6 +1719,47 @@ void TextureCache::GarbageCollectImages() {
                         (long long)Gow3Stats::staging_mib[0][0].load(), (long long)Gow3Stats::staging_mib[0][1].load(),
                         (long long)Gow3Stats::staging_mib[1][0].load(), (long long)Gow3Stats::staging_mib[1][1].load(),
                         (long long)Gow3Stats::staging_mib[2][0].load(), (long long)Gow3Stats::staging_mib[2][1].load());
+        }
+        // GOW3_IMAGE_CENSUS=1: every 10 s, the images by kind, format and size (4 GB cards, #16).
+        static const bool census = std::getenv("GOW3_IMAGE_CENSUS") != nullptr;
+        static auto last_census = now;
+        if (census && now - last_census >= std::chrono::seconds(10)) {
+            last_census = now;
+            std::scoped_lock lock{mutex};
+            static constexpr const char* kinds[] = {"texture", "depth", "target", "storage"};
+            std::map<std::string, std::pair<u64, u32>> groups;
+            u64 by_kind[4]{}, stale = 0;
+            const u64 tick = scheduler.CurrentTick();
+            for (const Image& image : slot_images) {
+                u64 bytes = 0;
+                for (const auto& backing : image.backing_images) {
+                    bytes += backing.image.size_bytes;
+                }
+                const int kind = image.usage.depth_target ? 1 : image.usage.render_target ? 2
+                                 : image.usage.storage    ? 3 : 0;
+                by_kind[kind] += bytes;
+                stale += tick - image.tick_accessed_last > 1000 ? bytes : 0;
+                auto& group = groups[fmt::format("{} {} {}x{}x{} mips {} samples {} backings {}", kinds[kind],
+                                                 vk::to_string(image.info.pixel_format), image.info.size.width,
+                                                 image.info.size.height, image.info.resources.layers,
+                                                 image.info.resources.levels, image.info.num_samples,
+                                                 image.backing_images.size())];
+                group.first += bytes;
+                ++group.second;
+            }
+            std::vector<std::pair<u64, std::string>> top;
+            for (const auto& [name, group] : groups) {
+                top.emplace_back(group.first, fmt::format("{} x{}", name, group.second));
+            }
+            std::sort(top.rbegin(), top.rend());
+            std::printf("Image census: textures %llu MiB, depth %llu, targets %llu, storage %llu; not used "
+                        "for 1000 submissions %llu MiB\n",
+                        (unsigned long long)(by_kind[0] >> 20), (unsigned long long)(by_kind[1] >> 20),
+                        (unsigned long long)(by_kind[2] >> 20), (unsigned long long)(by_kind[3] >> 20),
+                        (unsigned long long)(stale >> 20));
+            for (size_t i = 0; i < std::min<size_t>(top.size(), 20); ++i) {
+                std::printf("  %6.1f MiB %s\n", top[i].first / 1048576.0, top[i].second.c_str());
+            }
         }
     }
     if (total_used_memory < trigger_gc_memory) {

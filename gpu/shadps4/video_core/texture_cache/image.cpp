@@ -111,6 +111,15 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
         .pUserData = nullptr,
     };
 
+    // gow3: big images (8 MiB and up: the large textures and screen-size targets) get memory of
+    // their own, freed with them. In VMA's shared 256 MiB blocks a race's big textures left holes
+    // that menu images kept alive: after a 2048 race 2.4 GB of blocks held 1.1 GB of images, and
+    // 4 GB cards ran out of video memory at the next load (#16, #72).
+    const vk::DeviceImageMemoryRequirements query{.pCreateInfo = &image_ci};
+    if (device.getImageMemoryRequirements(query).memoryRequirements.size >= (8ull << 20)) {
+        alloc_ci.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+    }
+
     const VkImageCreateInfo image_ci_unsafe = static_cast<VkImageCreateInfo>(image_ci);
     VkImage unsafe_image{};
     VmaAllocationInfo alloc_info{};
