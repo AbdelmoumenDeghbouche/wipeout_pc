@@ -304,7 +304,7 @@ class ControlMapTest(unittest.TestCase):
     def test_graphics_defaults_match_the_game(self):
         d = launcher.INI_DEFAULTS
         self.assertEqual((d['display_mode'], d['vsync'], d['fps_limit'], d['engine_fps']), ('windowed', '1', '0', '120'))
-        self.assertEqual([v for v, _t in launcher.FPS_LIMITS], ['30', '60', '100', '120', '240', '0'])
+        self.assertEqual([v for v, _t in launcher.FPS_LIMITS], ['30', '40', '60', '100', '120', '240', '0'])
         self.assertEqual(d['frames_queued'], '1')
         self.assertEqual([v for v, _t in launcher.FRAMES_QUEUED], ['1', '2', '0'])
         self.assertNotIn('GOW3_FRAMES_AHEAD', launcher.game_environment({**launcher.APP_DEFAULTS, 'frames_ahead': '2'}))
@@ -814,9 +814,9 @@ class QuietStreamTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.40')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.41'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.39'))
+        self.assertEqual(launcher.VERSION, '0.2.41')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.42'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.40'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.
