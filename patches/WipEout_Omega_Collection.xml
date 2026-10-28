@@ -488,22 +488,24 @@
             <Line Type="bytes" Address="0x00bb334d" Value="c5f8118b90000000c5f811b3a0000000c5f811bbb0000000c57a1095dcfeffff53534c89e3e8{rel:H:0}5b5b0f1f800000000090" Pattern="c5 f8 11 83 80 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 f8 11 8b 90 00 00 00 c5 f8 11 b3 a0 00 00 00 c5 f8 11 bb b0 00 00 00 49 8b 87 c8 75 00 00 c5 fa 10 88 b8 04 00 00 e8 ?? ?? ?? ?? 31 d2 4c 89 e7 4c 89 f6 e8 ?? ?? ?? ??" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Zone crash above 60 FPS" Note="Fixes a crash in Zone mode at high frame rates (the game used its render list after closing it). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
-        <!-- 0x665bb0 checks that the current render list index (0x9a80ac) is not -1, calls a few
-             functions, then reads the index again at 0x665c7d and 0x665ddc and passes
-             table[index] (0xed5dd0, 0xed5df0) to 0x7f2ff0 without checking. When the list was closed
-             in between (index -1), table[-1] is another variable read as a list, and 0x7f2ff0 faulted
-             reading -1 at 0x7f34bb: Zone at 240 FPS with the effects fix, after 40 s to a few
-             minutes (#79). Each site now skips the call when the index is negative: mov eax (6 bytes)
-             instead of movsxd (7), and mov dl,0xff (2) instead of mov edx,0xff (5); 0x7f2ff0 only
-             uses dl. The same 19 bytes, then the call as before. -->
-        <Target Name="INDEX1" Address="0x00da80ac" Pattern="41 8b b6 74 0e 00 00 e8 ?? ?? ?? ?? 48 63 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ba ff 00 00 00 4c 89 f6 48 8b 3c c1 e8" At="15" Ref="1"/>
-        <Target Name="TABLE1" Address="0x012d5dd0" Pattern="41 8b b6 74 0e 00 00 e8 ?? ?? ?? ?? 48 63 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ba ff 00 00 00 4c 89 f6 48 8b 3c c1 e8" At="22" Ref="1"/>
-        <Target Name="INDEX2" Address="0x00da80ac" Pattern="48 83 f8 06 72 c4 48 63 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ba ff 00 00 00 4c 89 f6 48 8b 3c c1 e8" At="9" Ref="1"/>
-        <Target Name="TABLE2" Address="0x012d5df0" Pattern="48 83 f8 06 72 c4 48 63 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ba ff 00 00 00 4c 89 f6 48 8b 3c c1 e8" At="16" Ref="1"/>
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Zone crash above 60 FPS" Note="Fixes a crash in HD Zone events at high frame rates (the HUD was drawn from a list the game was refilling). Always on." Author="nero" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <!-- Four pairs of 2D draw lists (0xed5dd0, 0xed5df0; not used on 2048 tracks) form a ring
+             between the game thread and the render thread. The game thread (0x5f2d30, 0x5f55e7) opens
+             slot NEXT [0xed5dc4], NEXT += 1, resets the lists (cursor 1, the next of their 3 buffers),
+             fills them and sets the ready flag [0xed67f8]. The render thread (0x665bb0), when the
+             flag is set, draws slot INDEX [0x9a80ac] (0x7f2ff0), INDEX += 1, and clears the flag.
+             A flag set again while the render thread is still drawing is cleared with it: that frame
+             is never drawn and INDEX falls one slot further behind NEXT. Above 60 FPS this happens
+             often, INDEX laps around the ring, and the game thread reopens the slot being drawn:
+             0x7f2ff0 read the old buffer with the new cursor, walked into vertex data and took
+             0x6000000000000000 for a draw object (0x7f34bb; Windows reports the non-canonical
+             address as ffffffffffffffff). The render thread now steps to the game thread's last
+             opened slot, INDEX = (NEXT - 1) & 3, in place of INDEX + 1: it draws the newest frame
+             once the flag is set after its fill and never falls behind. Same 17 bytes. -->
+        <Target Name="NEXT" Address="0x012d5dc4" Pattern="8d 40 01 83 e0 03 89 05 ?? ?? ?? ?? 41 0f b6 46 40" At="8" Ref="1"/>
+        <Target Name="INDEX" Address="0x00da80ac" Pattern="41 80 67 01 fb 8b 05 ?? ?? ?? ?? ff c0 83 e0 03 89 05 ?? ?? ?? ?? eb 07" At="18" Ref="1"/>
         <PatchList>
-            <Line Type="bytes" Address="0x00a65c7d" Pattern="41 8b b6 74 0e 00 00 e8 ?? ?? ?? ?? 48 63 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ba ff 00 00 00 4c 89 f6 48 8b 3c c1 e8" At="12" Value="8b 05 {rel:INDEX1:0} 85 c0 78 15 48 8d 0d {rel:TABLE1:0} b2 ff"/>
-            <Line Type="bytes" Address="0x00a65ddc" Pattern="48 83 f8 06 72 c4 48 63 05 ?? ?? ?? ?? 48 8d 0d ?? ?? ?? ?? ba ff 00 00 00 4c 89 f6 48 8b 3c c1 e8" At="6" Value="8b 05 {rel:INDEX2:0} 85 c0 78 15 48 8d 0d {rel:TABLE2:0} b2 ff"/>
+            <Line Type="bytes" Address="0x00a65e66" Pattern="41 80 67 01 fb 8b 05 ?? ?? ?? ?? ff c0 83 e0 03 89 05 ?? ?? ?? ?? eb 07" At="5" Value="8b 05 {rel:NEXT:0} ff c8 83 e0 03 89 05 {rel:INDEX:0}"/>
         </PatchList>
     </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all HD and Fury events" Note="Every event of the HD and HD Fury campaigns is open: the game counts 99998 campaign points. Nothing is written to your save; off, the events need your own points again." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
