@@ -1591,6 +1591,45 @@ EXTRA['es'].update({
         'ningún parche sirve para tu eboot.bin: añade la actualización del juego (Juego > Carpeta de la actualización)',
 })
 
+EXTRA['pt'].update({
+    'Show the log file': 'Mostrar o arquivo de log',
+    'The graphics card ran out of video memory. Choose a lower Graphics > Render resolution (900p or 720p), '
+    'turn off PS4 Pro mode, and close other programs.':
+        'A placa de vídeo ficou sem memória de vídeo. Escolha uma Gráficos > Resolução de renderização menor '
+        '(900p ou 720p), desligue o modo PS4 Pro e feche outros programas.',
+    'First connected': 'Primeiro conectado',
+    'Second connected': 'Segundo conectado',
+    'Third connected': 'Terceiro conectado',
+    'Fourth connected': 'Quarto conectado',
+    'With several gamepads connected: the one that plays. Player 2 gets the next free one.':
+        'Com vários controles conectados: o que joga. O jogador 2 fica com o próximo livre.',
+    'Keep the song between races': 'Manter a música entre as corridas',
+    'Each race goes on with the song that was playing. Off: a new song starts with each race.':
+        'Cada corrida continua com a música que estava tocando. Desligado: uma nova música começa a cada corrida.',
+    'The game stopped because of an error (code {}).': 'O jogo parou por causa de um erro (código {}).',
+    'To report it, attach this file to your GitHub issue:\n{}\n\nShow the file now?':
+        'Para relatar, anexe este arquivo à sua issue no GitHub:\n{}\n\nMostrar o arquivo agora?',
+})
+EXTRA['es'].update({
+    'Show the log file': 'Mostrar el archivo de log',
+    'The graphics card ran out of video memory. Choose a lower Graphics > Render resolution (900p or 720p), '
+    'turn off PS4 Pro mode, and close other programs.':
+        'La tarjeta gráfica se quedó sin memoria de vídeo. Elige una Gráficos > Resolución de render menor '
+        '(900p o 720p), desactiva el modo PS4 Pro y cierra otros programas.',
+    'First connected': 'Primero conectado',
+    'Second connected': 'Segundo conectado',
+    'Third connected': 'Tercero conectado',
+    'Fourth connected': 'Cuarto conectado',
+    'With several gamepads connected: the one that plays. Player 2 gets the next free one.':
+        'Con varios mandos conectados: el que juega. El jugador 2 usa el siguiente libre.',
+    'Keep the song between races': 'Mantener la canción entre carreras',
+    'Each race goes on with the song that was playing. Off: a new song starts with each race.':
+        'Cada carrera sigue con la canción que sonaba. Desactivado: empieza una canción nueva en cada carrera.',
+    'The game stopped because of an error (code {}).': 'El juego se detuvo por un error (código {}).',
+    'To report it, attach this file to your GitHub issue:\n{}\n\nShow the file now?':
+        'Para informarlo, adjunta este archivo a tu issue de GitHub:\n{}\n\n¿Mostrar el archivo ahora?',
+})
+
 _tables = {}
 
 

@@ -262,7 +262,7 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
      * the race intro, fades out between menus and races, and starts again for each race. Our songs
      * play at full level while the game's music is within 10 dB of its usual level, follow its
      * fades below that, wait (keeping their place) while it is silent, and after 1 s of silence
-     * the next song starts with it. The level is smoothed (up in ~50 ms, down over ~1 s) and only a
+     * the next song starts with it ("music_continue": the same song goes on, #93). The level is smoothed (up in ~50 ms, down over ~1 s) and only a
      * silence of 0.25 s or more counts: taken block by block (10 ms), the dips between beats and
      * short drop-outs of the game's stream made the songs choppy (#66). */
     static double game_ref, game_env, follow;
@@ -273,7 +273,7 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     const double game_rms=sqrt(game_ms/(2.0*frames));
     game_env+=fmin(1.0,frames/(48000.0*(game_rms>game_env ? 0.05 : 1.0)))*(game_rms-game_env);
     if (game_rms>1e-5) {
-        if (silent_frames>=48000 && heard) { runtime_music_step(1); heard=0; }
+        if (silent_frames>=48000 && heard && !gow3gpu_music_continue()) { runtime_music_step(1); heard=0; }
         silent_frames=0;
         /* Its usual level: up within ~1 s, down over ~10 s (a fade lasts ~2 s). */
         game_ref=game_ref>0 ? game_ref+frames/(48000.0*(game_env>game_ref ? 1.0 : 10.0))*(game_env-game_ref) : game_env;

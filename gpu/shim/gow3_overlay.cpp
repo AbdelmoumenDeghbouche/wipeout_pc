@@ -496,7 +496,7 @@ void PerformanceTab() {
     auto& s = Gow3Settings::Get();
     ImGui::SeparatorText("Live");
     if (BeginRows("##live")) {
-        static const char* const fps_labels[] = {"30", "60", "100", "120", "240", "Unlimited"};
+        static const char* const fps_labels[] = {"30", "40", "60", "100", "120", "240", "Unlimited"};
         ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
                   "Caps the frame rate. The engine frame rate (below) is the highest it can go.");
         const int effective = G::EffectiveFps(s.fps_limit, s.applied_engine_fps);
@@ -616,6 +616,8 @@ void MusicTab() {
     if (BeginRows("##music")) {
         CheckRow("Play my music", s.music, "Your songs instead of the game's music. Off: the game's music.");
         CheckRow("Shuffle", s.music_shuffle, "Random order. Off: the songs play in the order of the list.");
+        CheckRow("Keep the song between races", s.music_continue,
+                 "Each race goes on with the song that was playing. Off: a new song starts with each race.");
         SliderRow("Music volume", s.music_volume, 0, 200, "%d%%",
                   "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
                   "sound alike.");

@@ -45,6 +45,6 @@ body:
     id: log
     attributes:
       label: user/last_run.log
-      description: Attach the file from the port's folder.
+      description: "To find it: launcher > Advanced > Log > Show the log file. It is in the user folder next to WipEout.exe (or in your saves folder, if you changed it). Drag and drop it here."
     validations:
       required: true

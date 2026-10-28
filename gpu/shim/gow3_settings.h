@@ -88,6 +88,8 @@ struct Values {
     /// in random order. Live.
     std::atomic<bool> music{true};
     std::atomic<bool> music_shuffle{true};
+    /// A race goes on with the song that was playing, from where it stopped (#93). Live.
+    std::atomic<bool> music_continue{false};
     /// Their loudness in percent, 0 to 200; 100 is about the game's own music. Live.
     std::atomic<int> music_volume{100};
     // Startup: run.py turns them into patches and environment variables; "Apply and restart".

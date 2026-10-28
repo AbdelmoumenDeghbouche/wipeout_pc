@@ -118,7 +118,14 @@ static void play_click(PadData *d) {
     if (now>=down && now<up) d->buttons|=BTN_TOUCHPAD;
 }
 
-/* Opens the first gamepad SDL knows about; called under lock. */
+/* GOW3_GAMEPAD=N: player 1 is the Nth connected gamepad (#88: arcade cabinets with several
+ * sticks); the first when fewer are connected. */
+static int preferred_gamepad(int count) {
+    static int wanted;
+    if (!wanted) { const char *env=getenv("GOW3_GAMEPAD"); wanted=env && atoi(env)>0 ? atoi(env) : 1; }
+    return wanted<=count ? wanted-1 : 0;
+}
+/* Opens player 1's gamepad (preferred_gamepad); called under lock. */
 static SDL_Gamepad *current_gamepad(void) {
     if (!sdl_ready) sdl_ready = SDL_WasInit(SDL_INIT_GAMEPAD) ? 1 : SDL_InitSubSystem(SDL_INIT_GAMEPAD) ? 1 : -1;
     if (sdl_ready<0) return NULL;
@@ -127,7 +134,7 @@ static SDL_Gamepad *current_gamepad(void) {
         int count=0;
         SDL_JoystickID *ids=SDL_GetGamepads(&count);
         if (ids && count>0) {
-            gamepad=SDL_OpenGamepad(ids[0]);
+            gamepad=SDL_OpenGamepad(ids[preferred_gamepad(count)]);
             if (gamepad) { ++connected_count; printf("Runtime: gamepad connected: %s\n",SDL_GetGamepadName(gamepad)); }
         }
         SDL_free(ids);

@@ -432,6 +432,10 @@ extern "C" int gow3gpu_music_shuffle(void) {
     return Gow3Settings::Get().music_shuffle.load(std::memory_order_relaxed);
 }
 
+extern "C" int gow3gpu_music_continue(void) {
+    return Gow3Settings::Get().music_continue.load(std::memory_order_relaxed);
+}
+
 extern "C" int gow3gpu_music_volume(void) {
     return Gow3Settings::Get().music_volume.load(std::memory_order_relaxed);
 }

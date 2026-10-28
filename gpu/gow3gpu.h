@@ -57,6 +57,8 @@ void gow3gpu_notice(const char *utf8);
 /* gow3.ini "music" and "music_shuffle": the player's songs play, in random order (runtime_music.c). */
 int gow3gpu_music_on(void);
 int gow3gpu_music_shuffle(void);
+/* gow3.ini "music_continue": a race goes on with the song that was playing (#93). */
+int gow3gpu_music_continue(void);
 /* gow3.ini "music_volume": their loudness in percent (100: about the game's own music). */
 int gow3gpu_music_volume(void);
 /* Mouse movement in px that counts as one step of a stick prompt, set in the menu. */

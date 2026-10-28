@@ -410,7 +410,7 @@ def heading_font(size, fallback=None, every_language=False):
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
-             'stale_readback', 'music', 'music_shuffle'}
+             'stale_readback', 'music', 'music_shuffle', 'music_continue'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
 INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
@@ -419,11 +419,11 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'render_resolution': 'native', 'engine_fps': '120',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
                 'anisotropy': '0', 'vibration': '100', 'stick_deadzone': '0', 'mouse_prompt_distance': '48', 'mouse_lock': '1',
-                'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100', 'music': '1', 'music_shuffle': '1',
+                'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100', 'music': '1', 'music_shuffle': '1', 'music_continue': '0',
                 'music_volume': '100'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
-FPS_LIMITS = [('30', ('30',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
+FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
 PAGES = ('home', 'graphics', 'performance', 'game', 'cheats', 'music', 'controls', 'mods', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
@@ -431,6 +431,8 @@ PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
+GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('3', ('Third connected',)),
+                   ('4', ('Fourth connected',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
@@ -438,7 +440,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation',
+                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1',
                 'controls_layout': 2,
                 'glyph_style': 'off'}
 
@@ -1199,6 +1201,7 @@ def game_environment(s):
         env['GOW3_PATCHES'] = ';'.join([n for n in env.get('GOW3_PATCHES', '').split(';') if n] + cheats)
     if s['user_dir']:
         env['GOW3_USER_DIR'] = s['user_dir']
+    env['GOW3_GAMEPAD'] = str(s.get('gamepad_number') or '1')
     env.pop('GOW3_MUSIC_DIR', None)
     if s.get('music_dir'):
         env['GOW3_MUSIC_DIR'] = s['music_dir']
@@ -2038,6 +2041,8 @@ class Launcher:
                     _('Empty: the music folder next to your saves.'), on_change=self.refresh_music)
         self.check(f, 'music', 'ini', _('Play my music'), _("Off: the game's own music, even with songs in the folder."))
         self.check(f, 'music_shuffle', 'ini', _('Shuffle'), _('Off: the songs play in the order of the list below.'))
+        self.check(f, 'music_continue', 'ini', _('Keep the song between races'),
+                   _('Each race goes on with the song that was playing. Off: a new song starts with each race.'))
         self.row(f, _('Music volume'), self.slider(f, 'music_volume', 0, 200, '%'),
                  _("100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
                    "sound alike."))
@@ -2299,6 +2304,8 @@ class Launcher:
             ttk.Radiobutton(names, text=PAD_STYLE_NAMES[value], value=value, variable=self.pad_style,
                             command=self.relabel_pad_controls).pack(side='left', padx=self.px((0, 14)))
         self.row(f, _('Controller type'), names)
+        self.row(f, _('Gamepad'), self.choice(f, 'gamepad_number', 'app', GAMEPAD_NUMBERS),
+                 _('With several gamepads connected: the one that plays. Player 2 gets the next free one.'))
         self.row(f, _('Vibration'), self.slider(f, 'vibration', 0, 100, '%'), _("Strength of the gamepad's vibration; 0% turns it off."))
         self.row(f, _('Stick deadzone'), self.slider(f, 'stick_deadzone', 0, 50, '%'), _("Ignores small stick movements, for a stick that drifts. 0% keeps the game's own."))
         table = mapping_table(f)
@@ -2539,6 +2546,7 @@ class Launcher:
         buttons.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=self.px((6, 8)))
         ttk.Button(buttons, text=_('Copy', 'Копировать'), command=self.copy_log).pack(side='left')
         ttk.Button(buttons, text=_('Clear', 'Очистить'), command=lambda: self.set_log('')).pack(side='left', padx=self.px(6))
+        ttk.Button(buttons, text=_('Show the log file'), command=self.show_log_file).pack(side='left')
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we')
         self.log = tk.Text(holder, wrap='none', height=18, bg='#080a0c', fg='#cfc6bc', insertbackground=TEXT,
@@ -3073,9 +3081,14 @@ class Launcher:
                     if self.job:
                         self.job.close()
                     if getattr(self, 'hidden_for_game', False):
-                        self.root.destroy()
-                        return
+                        if item[0] == 0:
+                            self.root.destroy()
+                            return
+                        self.hidden_for_game = False
+                        self.root.deiconify()
                     self.refresh_status()
+                    if item[0] != 0:
+                        self.root.after(0, self.report_crash, item[0])
                 else:
                     self.exit_hint = exit_hint(item) or getattr(self, 'exit_hint', None)
                     if 'Entering original x86-64 code' in item:
@@ -3105,6 +3118,24 @@ class Launcher:
     def copy_log(self):
         self.root.clipboard_clear()
         self.root.clipboard_append(self.log.get('1.0', 'end'))
+
+    def show_log_file(self):
+        """Opens the folder of last_run.log with the file selected, for a bug report."""
+        path = run_log_path(self.app)
+        if WINDOWS and path.is_file():
+            subprocess.Popen(['explorer', '/select,', str(path)])
+        else:
+            self.open_path(str(path.parent))
+
+    def report_crash(self, code):
+        # Players could not find last_run.log: after a crash, say where it is.
+        text = _('The game stopped because of an error (code {}).').format(code)
+        if getattr(self, 'exit_hint', None):
+            text += '\n\n' + self.exit_hint
+        text += '\n\n' + _('To report it, attach this file to your GitHub issue:\n{}\n\nShow the file now?').format(
+            run_log_path(self.app))
+        if self.messagebox.askyesno(APP_NAME, text, icon='warning'):
+            self.show_log_file()
 
     def open_path(self, path, key=None):
         if key == 'user_dir' and not path:
@@ -3536,6 +3567,11 @@ def exit_hint(line):
                  'Windows page file grow (for example 16384 MB initial, 32768 MB maximum), and start again.',
                  'Windows не смог выделить память для игры. Закройте другие программы или дайте файлу '
                  'подкачки Windows расти (например, 16384 МБ исходный, 32768 МБ максимальный) и запустите снова.')
+    if 'ErrorOutOfDeviceMemory' in line:
+        return _('The graphics card ran out of video memory. Choose a lower Graphics > Render resolution '
+                 '(900p or 720p), turn off PS4 Pro mode, and close other programs.',
+                 'Видеокарте не хватило видеопамяти. Выберите меньшее значение в «Графика > Разрешение '
+                 'рендера» (900p или 720p), выключите режим PS4 Pro и закройте другие программы.')
     if 'guest raised debug exception code=0xa0020001' in line:
         return _('The game stopped while reading its files: the game dump may be incomplete. Extract the pkg '
                  'again and check that the game folder is about 40 GB.',
