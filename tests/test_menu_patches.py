@@ -35,6 +35,17 @@ class MenuPatchTests(unittest.TestCase):
             self.assertIn(b'\n   <Slider name="Eliminations"', patched)
             self.assertIn(b'maxSlide="2000" default="200"', patched)
 
+    def test_limit_takes_one_indentation_space_per_extra_digit(self):
+        with tempfile.TemporaryDirectory() as folder:
+            archive(Path(folder) / 'data09.psarc', MENU)
+            [(_g, _o, old, new)] = menu_patches.eliminator_patches(folder, 750)
+            self.assertEqual((len(old), new), (len(new), old.replace(b'"600"', b'"750"')))
+            [(_g, _o, old, new)] = menu_patches.eliminator_patches(folder, 5000)
+            self.assertEqual(new, old[1:].replace(b'"600"', b'"5000"'))
+            [(_g, _o, old, new)] = menu_patches.eliminator_patches(folder, 12000)
+            self.assertEqual(new, old[2:].replace(b'"600"', b'"12000"'))
+            self.assertEqual(menu_patches.eliminator_patches(folder, 600), [])
+
     def test_compressed_or_missing_menus_are_left_alone(self):
         with tempfile.TemporaryDirectory() as folder:
             self.assertEqual(menu_patches.eliminator_patches(folder), [])

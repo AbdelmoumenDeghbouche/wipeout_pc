@@ -444,7 +444,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
                 'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
                 'controls_layout': 2,
-                'glyph_style': 'off'}
+                'glyph_style': 'off', 'eliminator_limit': '2000'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -1228,6 +1228,7 @@ def game_environment(s):
     env['GOW3_PATCHES_DIR'] = s['patches_dir'] or str(DATA_DIR / 'patches')
     env['GOW3_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
     env['GOW3_LANGUAGE'] = s['language']
+    env['GOW3_ELIMINATOR_LIMIT'] = str(s.get('eliminator_limit', APP_DEFAULTS['eliminator_limit']))
     env['GOW3_DISCORD'] = '1' if s.get('discord_rpc') else '0'
     if s['hdr']:
         env['GOW3_HDR'] = '1'
@@ -1649,11 +1650,11 @@ class Launcher:
         self.ttk.Label(parent, text=text, style='Muted.TLabel', wraplength=self.px(680), justify='left').grid(
             row=self.next_row(parent), column=0, columnspan=2, sticky='w', pady=self.px((top, 0)))
 
-    def slider(self, parent, key, low, high, unit):
-        """A gow3.ini number on a slider, with its value beside it."""
+    def slider(self, parent, key, low, high, unit, store='ini', step=1):
+        """A gow3.ini (or launcher) number on a slider, with its value beside it."""
         holder = self.ttk.Frame(parent)
-        amount = self.var(key, 'ini')
-        self.tk.Scale(holder, from_=low, to=high, orient='horizontal', variable=amount, showvalue=False,
+        amount = self.var(key, store)
+        self.tk.Scale(holder, from_=low, to=high, resolution=step, orient='horizontal', variable=amount, showvalue=False,
                       length=self.px(260), width=self.px(12), sliderlength=self.px(18), bg=ACCENT, troughcolor=CARD,
                       activebackground=ACCENT_HI, highlightthickness=0, bd=0, sliderrelief='flat').pack(side='left')
         value = self.ttk.Label(holder, width=7)
@@ -2049,6 +2050,13 @@ class Launcher:
         self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app',
                                                                   lambda: game_languages(self.meta_dir())))
         self.build_patches(f)
+        # scripts/menu_patches.py (#89): each digit over 3 takes an indentation space (the menu has 4).
+        self.section(f, _('In-game menu patches', 'Патчи меню игры'))
+        self.row(f, _('Eliminator target limit', 'Предел цели Eliminator'),
+                 self.slider(f, 'eliminator_limit', 600, 10000, '', store='app', step=100),
+                 _("The highest target of the Eliminator slider in the race setup (the game's own: 600 points).",
+                   'Наибольшая цель ползунка Eliminator в настройке гонки (в самой игре: 600 очков).'),
+                 restart=True)
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
