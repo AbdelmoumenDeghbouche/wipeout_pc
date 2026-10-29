@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "../shadps4/common/wipeout_oc_env.h"
-#include "gow3_copy.h"
-#include "gow3_threads.h"
+#include "wipeout_oc_copy.h"
+#include "wipeout_oc_threads.h"
 
 #include <algorithm>
 #include <atomic>
@@ -14,7 +14,7 @@
 #include <thread>
 #include <vector>
 
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "common/thread.h"
 
 namespace Gow3Copy {

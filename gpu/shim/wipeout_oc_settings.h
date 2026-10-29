@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: user settings changed at run time from the in-game menu (gow3_overlay.h) and kept
+// gow3: user settings changed at run time from the in-game menu (wipeout_oc_overlay.h) and kept
 // in gow3.ini (GOW3_CONFIG overrides the path). Environment variables override the file at
 // start. Readers load the atomics every frame; writers are the menu and Load().
 
@@ -40,7 +40,7 @@ struct Values {
     std::atomic<float> reactive_max{0.9f};
     std::atomic<int> debug_view{DebugNone};
     std::atomic<bool> show_fps{false};
-    /// Performance overlay (gow3_perf_stats.h): items shown, font size and background opacity
+    /// Performance overlay (wipeout_oc_perf_stats.h): items shown, font size and background opacity
     /// in percent, corner (0 top left, 1 top right, 2 bottom left, 3 bottom right), layout
     /// (0 one line, 1 one item per line). menu_tab: the menu's last tab.
     std::atomic<unsigned> overlay_items{7};
@@ -58,7 +58,7 @@ struct Values {
     /// Damage hook (src/actor_hook.h): enemy health bar, off by default.
     std::atomic<bool> enemy_health_bar{false};
     std::atomic<bool> actor_watch_supported{false};
-    // Graphics (gow3_graphics.h). Live: applied on the next frame.
+    // Graphics (wipeout_oc_graphics.h). Live: applied on the next frame.
     std::atomic<int> display_mode{0};
     std::atomic<bool> vsync{true};
     std::atomic<int> fps_limit{0};

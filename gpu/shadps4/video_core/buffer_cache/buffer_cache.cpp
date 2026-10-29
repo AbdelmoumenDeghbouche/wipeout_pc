@@ -10,8 +10,8 @@
 #include <bit>
 #include <cstdlib>
 #include <magic_enum/magic_enum.hpp>
-#include "gow3_copy.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_copy.h"
+#include "wipeout_oc_toggles.h"
 #include "common/alignment.h"
 #include "core/memory.h"
 #include "video_core/amdgpu/liverpool.h"

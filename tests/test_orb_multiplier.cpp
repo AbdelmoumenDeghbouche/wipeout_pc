@@ -8,7 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 #ifdef _WIN32
 #include <windows.h>
 #else

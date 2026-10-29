@@ -15,8 +15,8 @@
 
 #include <vk_mem_alloc.h>
 
-#include "gow3_settings.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_settings.h"
+#include "wipeout_oc_toggles.h"
 #include "ffx_vk_portable.h"
 #include "video_core/host_shaders/upscale_merge_comp.h"
 #include "video_core/host_shaders/upscale_merge_r11_comp.h"

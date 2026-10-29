@@ -276,8 +276,8 @@ def main():
         icon_file = game / 'sce_sys' / 'icon0.png'
         if not WINDOWS:
             env.setdefault('SDL_APP_ID', 'gow3')
-            if (PORT / 'launcher' / 'gow3.png').is_file():
-                icon_file = PORT / 'launcher' / 'gow3.png'
+            if (PORT / 'launcher' / 'wipeout_oc.png').is_file():
+                icon_file = PORT / 'launcher' / 'wipeout_oc.png'
         try:
             from PIL import Image
             with Image.open(icon_file) as icon:
@@ -327,7 +327,7 @@ def main():
             env['WIPEOUT_OC_VBLANK_HZ'] = '60'
             derived.append('WIPEOUT_OC_VBLANK_HZ')
         # Without the frame rate patch the engine steps 1/60 s per frame: the present thread must
-        # not flip faster (gow3_graphics.h PresentLimit), or the game speeds up. A game whose
+        # not flip faster (wipeout_oc_graphics.h PresentLimit), or the game speeds up. A game whose
         # engine steps by the real time (its profile sets the rate) keeps the profile's.
         if 'WIPEOUT_OC_ENGINE_FPS' not in env:
             env['WIPEOUT_OC_ENGINE_FPS'] = str(engine_fps)

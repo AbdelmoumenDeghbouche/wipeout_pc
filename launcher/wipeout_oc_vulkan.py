@@ -113,7 +113,7 @@ def configure(env, manifest_dirs=MANIFEST_DIRS, library_dirs=LIBRARY_DIRS):
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: gow3_vulkan.py <program> [args...]", file=sys.stderr)
+        print("Usage: wipeout_oc_vulkan.py <program> [args...]", file=sys.stderr)
         return 1
     try:
         print(configure(os.environ), file=sys.stderr, flush=True)

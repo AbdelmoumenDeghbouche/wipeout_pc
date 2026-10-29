@@ -726,7 +726,7 @@ void *runtime_low_map(size_t size, int prot) {
     return p==MAP_FAILED ? NULL : p;
 #endif
 }
-/* ---- GPU library interface (gpu/shim/gow3gpu.cpp) ---- */
+/* ---- GPU library interface (gpu/shim/wipeout_oc_gpu.cpp) ---- */
 /* Optimizations switched off at run time (diagnostics): the number in the file named by
  * GOW3_TOGGLE_FILE, re-read every 250 ms. Bits: 1 region cache, 2 fetch shader cache,
  * 4 page tracking early exit, 8 pending-op poll limit, 16 threaded Vulkan recording,
@@ -742,7 +742,7 @@ void *runtime_low_map(size_t size, int prot) {
  * 262144 with GOW3_ASYNC_FENCES=1: wait for guest copies at fences again,
  * 524288 small guest copies batched for the copy threads instead of the recording thread,
  * 1073741824 the lock-free UpdateImage path for clean, tracked images. */
-/* Bits 32 and up: the draw pipeline and related GPU thread work (gpu/shim/gow3_toggles.h). */
+/* Bits 32 and up: the draw pipeline and related GPU thread work (gpu/shim/wipeout_oc_toggles.h). */
 uint64_t runtime_disabled_optimizations;
 /* Speculative readers of guest memory (GPU draw-preparation workers) register a recovery
  * point: a fault on that thread jumps back to it instead of terminating (probe.c). */

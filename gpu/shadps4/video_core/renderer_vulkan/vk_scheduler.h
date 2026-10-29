@@ -18,7 +18,7 @@
 #include <thread>
 #include <queue>
 
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "common/assert.h"
 #include "common/interval_set.h"
 #include "common/unique_function.h"

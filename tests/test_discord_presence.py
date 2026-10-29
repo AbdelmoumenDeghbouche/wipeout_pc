@@ -395,7 +395,7 @@ class WindowsPipeTransport(unittest.TestCase):
 class LauncherSwitch(unittest.TestCase):
     def setUp(self):
         sys.path.insert(0, str(ROOT / 'launcher'))
-        import gow3_launcher_win as launcher
+        import wipeout_oc_launcher_win as launcher
         self.launcher = launcher
 
     def environment(self, **settings):
@@ -411,13 +411,13 @@ class LauncherSwitch(unittest.TestCase):
         self.assertEqual(self.environment(discord_rpc=True)['WIPEOUT_OC_DISCORD'], '1')
 
     def test_label_is_translated(self):
-        import gow3_lang
-        self.assertEqual(gow3_lang.table('es')['Show Discord Rich Presence'], 'Mostrar Discord Rich Presence')
-        self.assertIn('Discord', gow3_lang.table('pt')['Show Discord Rich Presence'])
-        self.assertEqual(gow3_lang.table('es')[
+        import wipeout_oc_lang
+        self.assertEqual(wipeout_oc_lang.table('es')['Show Discord Rich Presence'], 'Mostrar Discord Rich Presence')
+        self.assertIn('Discord', wipeout_oc_lang.table('pt')['Show Discord Rich Presence'])
+        self.assertEqual(wipeout_oc_lang.table('es')[
             'Shows only the game name and the time played on your Discord profile.'],
             'Muestra en tu perfil de Discord solo el nombre del juego y el tiempo jugado.')
-        self.assertEqual(gow3_lang.table('es')['Game multisampling'], 'Multisampling del juego')
+        self.assertEqual(wipeout_oc_lang.table('es')['Game multisampling'], 'Multisampling del juego')
 
 
 if __name__ == '__main__':

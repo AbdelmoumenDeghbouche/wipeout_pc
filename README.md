@@ -54,7 +54,7 @@ Thanks to everyone who has played, tested and reported so far!
 | HDR | Done; the darker picture when RCAS runs is fixed, waiting for a test (#4) |
 | Sound: music and effects (Audio3d) | Done; the effects are new, please report anything that sounds wrong |
 | Your own music (custom soundtrack) | Done: see [Your own music](#your-own-music) (#47) |
-| Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |
+| Launcher and settings | Done (`launcher/wipeout_oc_launcher_win.py`) |
 | Windows package (zip) | Done (`packaging/windows/package.sh`, Actions > Windows zip) |
 | Linux | Builds from source; no package yet |
 | PS4 Pro mode | Experimental (`WIPEOUT_OC_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
@@ -149,7 +149,7 @@ Then move the update's files over the base game folder, or pass the update folde
 Start the launcher, choose your game folder on the **Game** page, then click **Play**:
 
 ```powershell
-python launcher\gow3_launcher_win.py
+python launcher\wipeout_oc_launcher_win.py
 ```
 
 The **Advanced** page can put a shortcut on the desktop. Settings: display mode, frame rate

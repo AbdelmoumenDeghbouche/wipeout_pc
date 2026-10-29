@@ -3,7 +3,7 @@
 
 #pragma once
 
-#include "gow3_copy.h"
+#include "wipeout_oc_copy.h"
 
 #include <deque>
 #include <boost/container/small_vector.hpp>

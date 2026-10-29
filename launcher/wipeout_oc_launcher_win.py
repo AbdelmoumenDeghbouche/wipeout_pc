@@ -70,7 +70,7 @@ RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/la
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
 # Never copied over an installation by an update (the package does not hold them either).
 USER_FILES = ('user', 'out', 'mods', 'gow3.ini', 'wipeout_oc.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
-# The title face (Russo One), next to gow3.ico; main() registers it for this process only.
+# The title face (Russo One), next to wipeout_oc.ico; main() registers it for this process only.
 FONT_FILE = PORT_DIR / 'launcher' / 'RussoOne-Regular.ttf'
 FR_PRIVATE = 0x10
 
@@ -217,11 +217,11 @@ def list_gpus():
 
 # ---------------------------------------------------------------------------------------------
 # Languages: every text is written in English with the Russian next to it; the other
-# languages are in gow3_lang.py, keyed by the English text.
+# languages are in wipeout_oc_lang.py, keyed by the English text.
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import button_icons  # noqa: E402
-import gow3_lang  # noqa: E402
+import wipeout_oc_lang  # noqa: E402
 
 LANG = 'en'
 FONT_LOADED = False  # set by main() for the window; the command-line roles never need the font
@@ -352,7 +352,7 @@ def _(en, ru=None):
         return _(en[:-len(WARN)], ru and ru.removesuffix(WARN)) + WARN
     if LANG == 'ru':
         return ru or en
-    return gow3_lang.table(LANG).get(en) or en
+    return wipeout_oc_lang.table(LANG).get(en) or en
 
 
 def environment_language():
@@ -370,7 +370,7 @@ def windows_language():
         primary = ctypes.windll.kernel32.GetUserDefaultUILanguage() & 0x3ff
     except (AttributeError, OSError):
         return 'en'
-    return gow3_lang.WINDOWS_LANGUAGES.get(primary, 'en')
+    return wipeout_oc_lang.WINDOWS_LANGUAGES.get(primary, 'en')
 
 
 def register_font(path):
@@ -708,7 +708,7 @@ DRAW_PIPE = [('', ('Auto (8+ threads)', 'Авто (8+ потоков)')), ('1', 
 # faults at boot (#37), and with them off the race draws black.
 READBACKS = [('', ('Relaxed (default)', 'Relaxed (по умолчанию)')), ('0', ('Off', 'Выключены'))]
 # WIPEOUT_OC_NO_MSAA: '' leaves the game's own default, off on AMD's and Intel's Windows drivers
-# (video_core/amdgpu/gow3_msaa_default.h); no_msaa_options names the chosen card in Automatic.
+# (video_core/amdgpu/wipeout_oc_msaa_default.h); no_msaa_options names the chosen card in Automatic.
 NO_MSAA = [('', ('Automatic',)), ('1', ('Off (fixes black lines)',)), ('0', ('On',))]
 NO_MSAA_HINT = ("The game's 2-sample depth buffer, read as a texture by its lighting. AMD's and Intel's Windows "
                 'drivers read it wrong and the lighting shows black lines, so Automatic turns multisampling off '
@@ -735,7 +735,7 @@ CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all 
           ('cheat_vr_ships', 'Cheat - VR ships outside VR', 'VR ship liveries outside VR',
            ('The VR HD and VR Fury liveries can be picked on a normal screen too, once they are unlocked. '
             'Off: they need PlayStation VR mode again.')))
-UI_LANGUAGES = gow3_lang.LANGUAGE_NAMES
+UI_LANGUAGES = wipeout_oc_lang.LANGUAGE_NAMES
 
 def fsr4_folder():
     """Next to the port; in the data directory when the port is read-only (AppImage)."""
@@ -1098,7 +1098,7 @@ def write_linux_shortcut(command, appimage, icon_source, desktop, home=None, env
 
 def steam_icon(game):
     """Picture of the Steam shortcut's icon: the launcher's own on Linux, the game's on Windows."""
-    return Path(game) / 'sce_sys' / 'icon0.png' if WINDOWS else PORT_DIR / 'launcher' / 'gow3.png'
+    return Path(game) / 'sce_sys' / 'icon0.png' if WINDOWS else PORT_DIR / 'launcher' / 'wipeout_oc.png'
 
 
 def steam_launch_command():
@@ -1396,7 +1396,7 @@ class Launcher:
 
     def set_icon(self):
         game_icon = self.artwork_file('icon0.png')
-        self.icon = window_icon(self.root, self.tk, game_icon, PORT_DIR / 'launcher' / 'gow3.png',
+        self.icon = window_icon(self.root, self.tk, game_icon, PORT_DIR / 'launcher' / 'wipeout_oc.png',
                                 CONFIG_DIR / 'game_icon.ico')
 
     # ---- look --------------------------------------------------------------------------------
@@ -3435,7 +3435,7 @@ class Launcher:
             pythonw = Path(sys.executable).with_name('pythonw.exe')
             target = str(pythonw if pythonw.exists() else sys.executable)
             icon = CONFIG_DIR / 'game_icon.ico'
-            arguments, icon = Path(__file__).resolve(), icon if icon.is_file() else PORT_DIR / 'launcher' / 'gow3.ico'
+            arguments, icon = Path(__file__).resolve(), icon if icon.is_file() else PORT_DIR / 'launcher' / 'wipeout_oc.ico'
         script = ('$s=(New-Object -ComObject WScript.Shell).CreateShortcut([Environment]::GetFolderPath("Desktop")'
                   f'+"\\{APP_NAME}.lnk");'
                   f'$s.TargetPath="{target}";$s.WorkingDirectory="{PORT_DIR}";$s.IconLocation="{icon}";'
@@ -3456,7 +3456,7 @@ class Launcher:
         except OSError:
             desktop = ''
         try:
-            created = write_linux_shortcut(command, launcher, PORT_DIR / 'launcher' / 'gow3.png',
+            created = write_linux_shortcut(command, launcher, PORT_DIR / 'launcher' / 'wipeout_oc.png',
                                            Path(desktop) if desktop else Path.home() / 'Desktop')
         except OSError as error:
             self.messagebox.showerror(APP_NAME, str(error))
@@ -3673,7 +3673,7 @@ def main():
     LANG = settings.get('ui_language') or windows_language()
     if not WINDOWS:
         integrate_desktop(settings.get('desktop_integration', True), os.environ.get('APPIMAGE'),
-                          PORT_DIR / 'launcher' / 'gow3.png', DATA_DIR)
+                          PORT_DIR / 'launcher' / 'wipeout_oc.png', DATA_DIR)
     if WINDOWS and args[:1] == ['--install-update'] and len(args) == 3:
         sys.exit(install_update(args[1], args[2]))
     if WINDOWS and FROZEN and UPDATE_DIR not in PORT_DIR.parents:

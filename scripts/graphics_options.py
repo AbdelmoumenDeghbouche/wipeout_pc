@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Startup graphics options of gow3.ini (gpu/shim/gow3_graphics.h) for run.py.
+"""Startup graphics options of gow3.ini (gpu/shim/wipeout_oc_graphics.h) for run.py.
 
 The in-game menu and the launcher write them; run.py turns them into game patches and
 environment variables at every start, so "Apply and restart" uses the new values. After a

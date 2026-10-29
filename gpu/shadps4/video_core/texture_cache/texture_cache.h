@@ -10,7 +10,7 @@
 #include "video_core/texture_cache/readback_queue.h"
 #include "video_core/texture_cache/readback_sources.h"
 #include <chrono>
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include <optional>
 #include <cstdlib>
 #include "video_core/renderer_vulkan/vk_staging_buffer_pool.h"

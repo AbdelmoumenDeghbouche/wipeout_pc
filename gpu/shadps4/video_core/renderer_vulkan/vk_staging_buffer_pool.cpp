@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include "../../common/wipeout_oc_env.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include <algorithm>
 #include <bit>
 #include <cstdlib>

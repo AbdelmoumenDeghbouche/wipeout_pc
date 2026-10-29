@@ -101,7 +101,7 @@ python tools/make_ultrawide_patch.py path/to/eboot.bin 3840 1080 --mod extras/mo
 The two numbers are the width and the height. A new size is marked "not tested" in the patch note until it
 is added to `TESTED_IN_GAME` in the tool. A mod's resolutions are listed by the launcher and the game menu from
 its patch file; to make a size built in, also add its entry to `patches/God_of_War_III_Remastered.xml` and its
-name to the resolution lists (`scripts/graphics_options.py`, `gpu/shim/gow3_graphics.h`, `gow3_overlay.cpp`).
+name to the resolution lists (`scripts/graphics_options.py`, `gpu/shim/wipeout_oc_graphics.h`, `wipeout_oc_overlay.cpp`).
 
 ## Reference build addresses
 

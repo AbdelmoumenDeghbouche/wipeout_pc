@@ -13,7 +13,7 @@ from unittest import mock
 sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ROOT / 'launcher'))
 import run
-import gow3_launcher_win as launcher
+import wipeout_oc_launcher_win as launcher
 from test_probe import package
 from environment import clear_derived, normalize
 
@@ -40,7 +40,7 @@ class EnvironmentCompatibilityTests(unittest.TestCase):
 
     def test_import_time_data_dir_prefers_new_by_presence(self):
         code = (f'import sys; sys.path.insert(0, {str(ROOT / "launcher")!r}); '
-                'import gow3_launcher_win as app; print(app.DATA_DIR)')
+                'import wipeout_oc_launcher_win as app; print(app.DATA_DIR)')
         for old, new, wanted in ((None, None, str(ROOT)), ('old', None, 'old'), (None, 'new', 'new'),
                                  ('old', 'new', 'new'), ('old', '', '.'), ('old', '0', '0')):
             env = dict(os.environ)
@@ -101,11 +101,11 @@ class EnvironmentCompatibilityTests(unittest.TestCase):
                 self.assertNotIn('GOW3_DERIVED', env)
 
     def test_vulkan_entry_cleans_derived_before_alias_normalization(self):
-        import gow3_vulkan
+        import wipeout_oc_vulkan
         for inherited, wanted in DERIVED_INPUTS:
             with self.subTest(inherited=inherited):
                 env = dict(inherited)
-                gow3_vulkan.configure(env, manifest_dirs=(), library_dirs=())
+                wipeout_oc_vulkan.configure(env, manifest_dirs=(), library_dirs=())
                 self.assertEqual(env.get('WIPEOUT_OC_VBLANK_HZ'), wanted)
                 self.assertNotIn('WIPEOUT_OC_DERIVED', env)
                 self.assertNotIn('GOW3_DERIVED', env)

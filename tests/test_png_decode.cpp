@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <vector>
 
-#include "../gpu/shim/gow3_png.h"
+#include "../gpu/shim/wipeout_oc_png.h"
 
 // 2x2 RGB: red, green / blue, white.
 static const unsigned char kPng[] = {

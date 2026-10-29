@@ -1,5 +1,5 @@
 """Draws the port's icon (an omega, for Omega Collection, on a dark blue field) as .ico and .png. Needs Pillow.
-usage: make_icon.py launcher/gow3.ico launcher/gow3.png"""
+usage: make_icon.py launcher/wipeout_oc.ico launcher/wipeout_oc.png"""
 import sys
 from PIL import Image, ImageDraw, ImageFilter
 

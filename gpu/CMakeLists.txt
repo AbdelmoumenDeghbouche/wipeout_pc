@@ -166,7 +166,7 @@ target_sources(gow3gpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/img
 target_include_directories(gow3gpu PRIVATE third_party/imgui third_party/imgui/backends)
 target_compile_definitions(gow3gpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
     GOW3_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
-set_source_files_properties(shim/gow3_overlay.cpp PROPERTIES
+set_source_files_properties(shim/wipeout_oc_overlay.cpp PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf)
 target_include_directories(gow3gpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include)
 target_compile_definitions(gow3gpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
@@ -183,7 +183,7 @@ if (WIN32)
     # Guest code is entered with the System V ABI; NOMINMAX/WIN32_LEAN_AND_MEAN keep
     # <windows.h> out of the way of std::min/max and the Vulkan/SDL headers.
     target_compile_definitions(gow3gpu PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_compile_options(gow3gpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/gow3_win_compat.h)
+    target_compile_options(gow3gpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/wipeout_oc_win_compat.h)
     target_link_libraries(gow3gpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh)
 else()
     target_link_libraries(gow3gpu PUBLIC PkgConfig::X11)
@@ -200,7 +200,7 @@ if (WIN32)
     set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
     add_executable(gow3-probe ../src/probe.c ${GOW3_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
         ../src/isa_rewrite.c ../src/isa_emulate.c ../src/redzone.cpp
-        ../packaging/windows/gow3-probe.rc)
+        ../packaging/windows/wipeout_oc_probe.rc)
     # redzone.cpp: Zydis decodes the game's functions, xbyak writes the trampolines.
     set_source_files_properties(../src/redzone.cpp PROPERTIES COMPILE_OPTIONS "-std=c++20")
     set_target_properties(gow3-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
@@ -265,7 +265,7 @@ if (WIN32)
     target_compile_options(mutex-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
     target_include_directories(mutex-test PRIVATE .. ../src)
     target_link_libraries(mutex-test PRIVATE -pthread)
-    add_executable(gow3-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/gow3-gpu-capabilities.rc)
+    add_executable(gow3-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/wipeout_oc_gpu_capabilities.rc)
     target_include_directories(gow3-gpu-capabilities PRIVATE shadps4)
     target_link_libraries(gow3-gpu-capabilities PRIVATE Vulkan::Vulkan)
     # "Play God of War III.exe": the game with the launcher's saved settings, no launcher window.
@@ -327,7 +327,7 @@ if (WIN32)
         target_link_libraries(${test} PRIVATE onecore)
     endforeach()
 endif()
-add_executable(png-decode-test EXCLUDE_FROM_ALL ../tests/test_png_decode.cpp shim/gow3_png.cpp)
+add_executable(png-decode-test EXCLUDE_FROM_ALL ../tests/test_png_decode.cpp shim/wipeout_oc_png.cpp)
 target_compile_options(png-decode-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 target_link_libraries(png-decode-test PRIVATE PkgConfig::FFMPEG)
 add_executable(aliasing-test EXCLUDE_FROM_ALL ../tests/test_aliasing.cpp
@@ -425,19 +425,19 @@ add_dependencies(camera-motion-test host_shaders)
 
 # gow3: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.
 add_executable(upscaler-support-test EXCLUDE_FROM_ALL ../tests/test_upscaler_support.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_oc_settings.cpp)
 target_include_directories(upscaler-support-test PRIVATE shim)
 target_compile_options(upscaler-support-test PRIVATE -UNDEBUG)
 add_executable(orb-multiplier-test EXCLUDE_FROM_ALL ../tests/test_orb_multiplier.cpp
-    shim/gow3_orbs.cpp shim/gow3_settings.cpp)
+    shim/gow3_orbs.cpp shim/wipeout_oc_settings.cpp)
 target_include_directories(orb-multiplier-test PRIVATE shim)
 target_compile_options(orb-multiplier-test PRIVATE -UNDEBUG)
 add_executable(stat-multipliers-test EXCLUDE_FROM_ALL ../tests/test_stat_multipliers.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_oc_settings.cpp)
 target_include_directories(stat-multipliers-test PRIVATE shim)
 target_compile_options(stat-multipliers-test PRIVATE -UNDEBUG)
 add_executable(perf-overlay-test EXCLUDE_FROM_ALL ../tests/test_perf_overlay.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_oc_settings.cpp)
 target_include_directories(perf-overlay-test PRIVATE shim)
 target_compile_options(perf-overlay-test PRIVATE -UNDEBUG)
 add_executable(cheat-hooks-test EXCLUDE_FROM_ALL ../tests/test_cheat_hooks.cpp)
@@ -451,11 +451,11 @@ add_executable(wait-diagnostics-test EXCLUDE_FROM_ALL ../tests/test_wait_diagnos
 target_include_directories(wait-diagnostics-test PRIVATE shadps4)
 target_compile_options(wait-diagnostics-test PRIVATE -UNDEBUG)
 add_executable(graphics-settings-test EXCLUDE_FROM_ALL ../tests/test_graphics_settings.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_oc_settings.cpp)
 target_include_directories(graphics-settings-test PRIVATE shim)
 target_compile_options(graphics-settings-test PRIVATE -UNDEBUG)
 add_executable(settings-paths-test EXCLUDE_FROM_ALL ../tests/test_settings_paths.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_oc_settings.cpp)
 target_include_directories(settings-paths-test PRIVATE shim)
 target_compile_options(settings-paths-test PRIVATE -UNDEBUG)
 add_executable(actor-hook-test EXCLUDE_FROM_ALL ../tests/test_actor_hook.cpp)

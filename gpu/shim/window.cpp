@@ -8,9 +8,9 @@
 #include "common/assert.h"
 #include "common/logging/log.h"
 #include "sdl_window.h"
-#include "gow3_overlay.h"
-#include "gow3_graphics.h"
-#include "gow3_settings.h"
+#include "wipeout_oc_overlay.h"
+#include "wipeout_oc_graphics.h"
+#include "wipeout_oc_settings.h"
 
 namespace Frontend {
 

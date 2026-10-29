@@ -4,7 +4,7 @@
 #include "../../common/wipeout_oc_env.h"
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "video_core/renderer_vulkan/vk_lighting_test.h"
 #include "video_core/renderer_vulkan/vk_pass_census.h"
@@ -23,7 +23,7 @@
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_gpu_profiler.h"
-#include "gow3_threads.h"
+#include "wipeout_oc_threads.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_hle.h"

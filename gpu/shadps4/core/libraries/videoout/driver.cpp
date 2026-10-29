@@ -16,10 +16,10 @@
 #include <sys/resource.h>
 #endif
 #include "common/assert.h"
-#include "gow3_toggles.h"
-#include "gow3_perf_stats.h"
-#include "gow3_settings.h"
-#include "gow3_graphics.h"
+#include "wipeout_oc_toggles.h"
+#include "wipeout_oc_perf_stats.h"
+#include "wipeout_oc_settings.h"
+#include "wipeout_oc_graphics.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
 #include "common/thread.h"

@@ -1,15 +1,15 @@
 #include "../shadps4/common/wipeout_oc_env.h"
-#include "gow3_write_log.h"
+#include "wipeout_oc_write_log.h"
 // gow3: glue between the C loader and the vendored shadPS4 video core.
-#include "gow3_overlay.h"
-#include "gow3_perf_stats.h"
-#include "gow3_png.h"
-#include "gow3_settings.h"
-#include "gow3_copy.h"
+#include "wipeout_oc_overlay.h"
+#include "wipeout_oc_perf_stats.h"
+#include "wipeout_oc_png.h"
+#include "wipeout_oc_settings.h"
+#include "wipeout_oc_copy.h"
 #ifndef _WIN32
 #include <sys/resource.h>
 #endif
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include <algorithm>
 #include <atomic>
 #include <condition_variable>
@@ -24,7 +24,7 @@
 #include <thread>
 #include <vector>
 #include <SDL3/SDL.h>
-#include "../gow3gpu.h"
+#include "../wipeout_oc_gpu.h"
 #include "common/elf_info.h"
 #include "common/logging/log.h"
 #include "core/libraries/kernel/orbis_error.h"

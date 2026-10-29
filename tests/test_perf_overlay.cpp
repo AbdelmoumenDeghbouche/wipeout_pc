@@ -1,12 +1,12 @@
-// Performance overlay text and settings (gow3_perf_stats.h, gow3_settings.cpp).
+// Performance overlay text and settings (wipeout_oc_perf_stats.h, wipeout_oc_settings.cpp).
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "gow3_perf_stats.h"
-#include "gow3_settings.h"
+#include "wipeout_oc_perf_stats.h"
+#include "wipeout_oc_settings.h"
 
 namespace P = Gow3PerfStats;
 

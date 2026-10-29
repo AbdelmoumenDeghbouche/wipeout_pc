@@ -24,7 +24,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 # nvsdk_ngx_s.lib is the static-CRT (/MT) variant: no Visual C++ runtime install needed.
 set(CMAKE_MSVC_RUNTIME_LIBRARY "MultiThreaded")
 
-add_library(gow3_dlss SHARED gow3_dlss_bridge.cpp gow3_dlss_bridge.h)
+add_library(gow3_dlss SHARED wipeout_oc_dlss_bridge.cpp wipeout_oc_dlss_bridge.h)
 target_include_directories(gow3_dlss PRIVATE "${DLSS_SDK_ROOT}/include" "${VULKAN_INCLUDE}")
 target_link_libraries(gow3_dlss PRIVATE "${DLSS_SDK_ROOT}/lib/Windows_x86_64/x64/nvsdk_ngx_s.lib")
 target_compile_definitions(gow3_dlss PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)

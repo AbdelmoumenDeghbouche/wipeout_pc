@@ -7,7 +7,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 
 #include "video_core/host_shaders/camera_motion_comp.h"
 #include "video_core/host_shaders/camera_motion_debug_comp.h"

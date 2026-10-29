@@ -244,8 +244,8 @@ class GraphicsOptionsTest(unittest.TestCase):
 
 class WindowSizeTest(unittest.TestCase):
     def test_the_game_knows_the_launcher_sizes(self):
-        """gpu/shim/gow3_graphics.h ResolutionSizes, which sizes the window, matches SIZES."""
-        header = (paths.ROOT / 'gpu' / 'shim' / 'gow3_graphics.h').read_text(encoding='utf-8')
+        """gpu/shim/wipeout_oc_graphics.h ResolutionSizes, which sizes the window, matches SIZES."""
+        header = (paths.ROOT / 'gpu' / 'shim' / 'wipeout_oc_graphics.h').read_text(encoding='utf-8')
         found = {name: (int(w), int(h)) for name, w, h in re.findall(r'\{"(\w+)", \{(\d+), (\d+)\}\}', header)}
         self.assertEqual(found, g.SIZES)
 

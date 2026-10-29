@@ -83,7 +83,7 @@ the whole frame, mostly in the kernel, uploading 50–400 MB of textures and buf
 Findings, in the order they were fixed:
 
 1. Guest-to-staging copies ran on one thread (the recording thread, textures on the GPU
-   thread). They now start at once on copy threads (`Gow3Copy::Async`, `gow3_copy.cpp`);
+   thread). They now start at once on copy threads (`Gow3Copy::Async`, `wipeout_oc_copy.cpp`);
    small copies are batched per thread (one wakeup per ~512 KiB — one per copy cost 25% FPS).
    Guest-visible fences and queue submission wait for them (`Scheduler::WaitHostCopies`),
    which keeps the fix for UI flicker (the guest reused buffers before deferred copies ran).
@@ -136,7 +136,7 @@ off below 12 hardware threads (Steam Deck: no workers). Now:
   nearest scanned buffer ahead of the GPU thread, reach its starting state by applying the
   deltas since their last buffer (or from the queue's tail state), and prepare its draws.
   More workers now mean more buffers prepared in parallel, not more duplicated replay.
-- All helpers are SCHED_IDLE (`gow3_threads.h`): they only take idle cores. If the scanner
+- All helpers are SCHED_IDLE (`wipeout_oc_threads.h`): they only take idle cores. If the scanner
   starves (busy CPU), the GPU thread rebases it from its own register state once the lag
   passes 64 buffers instead of queueing without bound (`scanner rebases` in the stats).
 - Copy threads use the same affinity count (critical path, normal priority).

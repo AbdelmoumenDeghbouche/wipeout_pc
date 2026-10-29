@@ -35,7 +35,7 @@ PowerShell at the repository root:
 
 ```powershell
 python -m pip install pillow iced-x86==1.21.0 cryptography
-python launcher/gow3_launcher_win.py
+python launcher/wipeout_oc_launcher_win.py
 ```
 
 Choose the game folder in the launcher. For platform-specific tests, see
@@ -70,8 +70,8 @@ See the [feature availability table](https://github.com/FelipePrado0/gow3_pc#fea
 for differences between published packages and current source builds, including Discord Rich Presence.
 
 The launcher texts are written in English with the Russian beside them; the other languages
-are in `launcher/gow3_lang.py` (one list per language in the order of `KEYS`; a missing or
-empty text falls back to English). The icon (`launcher/gow3.ico`/`.png`) is drawn by
+are in `launcher/wipeout_oc_lang.py` (one list per language in the order of `KEYS`; a missing or
+empty text falls back to English). The icon (`launcher/wipeout_oc.ico`/`.png`) is drawn by
 `packaging/windows/make_icon.py` and built into `WipEout.exe`, `gow3-probe.exe` (the game
 window) and `gow3-gpu-capabilities.exe`.
 

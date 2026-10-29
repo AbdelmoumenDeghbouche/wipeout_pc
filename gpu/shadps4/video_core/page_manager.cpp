@@ -3,7 +3,7 @@
 
 #include "../common/wipeout_oc_env.h"
 #include <boost/container/small_vector.hpp>
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/div_ceil.h"

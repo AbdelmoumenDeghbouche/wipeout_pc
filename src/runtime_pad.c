@@ -11,7 +11,7 @@
 #define _GNU_SOURCE
 #include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
-#include "gpu/gow3gpu.h"
+#include "gpu/wipeout_oc_gpu.h"
 #include "qte_hook.h"
 #include <stdio.h>
 #include <stdlib.h>

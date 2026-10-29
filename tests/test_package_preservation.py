@@ -19,7 +19,7 @@ class PackagePreservationTests(unittest.TestCase):
         shutil.copyfile(ROOT / 'packaging/windows/package.sh', self.root / 'packaging/windows/package.sh')
         (self.root / 'msys2-env.sh').write_text(':\n')
         for name in ('out/gow3-probe.exe', 'out/gow3-gpu-capabilities.exe', 'out/gow3-play.exe',
-                     'launcher/gow3.ico', 'launcher/gow3.png', 'launcher/RussoOne-Regular.ttf',
+                     'launcher/wipeout_oc.ico', 'launcher/wipeout_oc.png', 'launcher/RussoOne-Regular.ttf',
                      'launcher/OFL-RussoOne.txt', 'scripts/discord_presence.py', 'run.py', 'LICENSE',
                      'README.md', 'packaging/windows/README-Windows.txt'):
             (self.root / name).write_text('fixture\n')

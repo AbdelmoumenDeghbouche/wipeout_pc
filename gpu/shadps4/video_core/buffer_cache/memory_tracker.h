@@ -9,7 +9,7 @@
 #include <type_traits>
 #include <vector>
 
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "common/debug.h"
 #include "common/types.h"
 #include "core/emulator_settings.h"

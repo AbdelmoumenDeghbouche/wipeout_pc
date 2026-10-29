@@ -7,8 +7,8 @@
 #include <string>
 #include "common/types.h"
 
-u32 Gow3DisplayRefreshHz(); // gow3gpu.cpp: primary display refresh rate, 60 when unknown
-double Gow3DisplayRefreshRate(); // gow3gpu.cpp: the same, unrounded (59.94 stays 59.94)
+u32 Gow3DisplayRefreshHz(); // wipeout_oc_gpu.cpp: primary display refresh rate, 60 when unknown
+double Gow3DisplayRefreshRate(); // wipeout_oc_gpu.cpp: the same, unrounded (59.94 stays 59.94)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 

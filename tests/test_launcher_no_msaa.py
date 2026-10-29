@@ -1,6 +1,6 @@
 """Launcher setting for the game's multisampling (WIPEOUT_OC_NO_MSAA): environment, page and texts.
 Automatic leaves the decision to the game (off on AMD's and Intel's Windows drivers,
-gow3_msaa_default.h) and names the chosen card and that decision, read from
+wipeout_oc_msaa_default.h) and names the chosen card and that decision, read from
 `gow3-gpu-capabilities --list`."""
 import os
 import sys
@@ -9,8 +9,8 @@ from unittest import mock
 
 from paths import ROOT
 sys.path.insert(0, str(ROOT / 'launcher'))
-import gow3_lang  # noqa: E402
-import gow3_launcher_win as launcher  # noqa: E402
+import wipeout_oc_lang  # noqa: E402
+import wipeout_oc_launcher_win as launcher  # noqa: E402
 
 # `gow3-gpu-capabilities --list`: index, name, type, multisampling default, the game's pick.
 ARC_LAPTOP = [('0', 'Intel(R) Arc(TM) Graphics', 'integrated', 'off', '0'),
@@ -72,7 +72,7 @@ class ChosenGpuTest(unittest.TestCase):
                              ('Automático (NVIDIA GeForce RTX 4060 Laptop GPU: ligado)',))
 
     def test_portuguese_texts(self):
-        table = gow3_lang.table('pt')
+        table = wipeout_oc_lang.table('pt')
         texts = ('Game multisampling', 'Automatic ({}: off)', 'Automatic ({}: on)', launcher.NO_MSAA_HINT)
         for text in texts + tuple(text[0] for _value, text in launcher.NO_MSAA):
             with self.subTest(text=text[:40]):
@@ -141,7 +141,7 @@ class NoMsaaLauncherTest(unittest.TestCase):
         self.assertEqual(boxes[0]['values'][0], 'Automatic (Intel(R) Arc(TM) Graphics: off)')
 
         # The Portuguese page shows the translated title, label and hint.
-        table = gow3_lang.table('pt')
+        table = wipeout_oc_lang.table('pt')
         app = build('pt')
         texts = {widget.cget('text') for widget in widgets(app.pages['performance'])
                  if isinstance(widget, ttk.Label)}

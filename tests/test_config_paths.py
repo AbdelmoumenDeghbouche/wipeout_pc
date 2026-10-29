@@ -13,7 +13,7 @@ from unittest import mock
 
 sys.path.insert(0, str(ROOT / 'launcher'))
 sys.path.insert(0, str(ROOT))
-import gow3_launcher_win as launcher
+import wipeout_oc_launcher_win as launcher
 import graphics_options
 import run
 

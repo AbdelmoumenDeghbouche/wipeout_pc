@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-#include "gow3_perf_stats.h"
+#include "wipeout_oc_perf_stats.h"
 
 #include <chrono>
 #include <mutex>

@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "../shadps4/common/wipeout_oc_env.h"
-#include "gow3_write_log.h"
+#include "wipeout_oc_write_log.h"
 
 #include <array>
 #include <atomic>

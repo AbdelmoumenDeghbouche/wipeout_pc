@@ -15,7 +15,7 @@
 #include "actor_hook.h"
 #include "damage_hook.h"
 #include "menu_hook.h"
-#include "gpu/gow3gpu.h"
+#include "gpu/wipeout_oc_gpu.h"
 #ifdef _WIN32
 #include "redzone.h"
 #endif

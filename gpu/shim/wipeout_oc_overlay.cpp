@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "../shadps4/common/wipeout_oc_env.h"
-#include "gow3_overlay.h"
+#include "wipeout_oc_overlay.h"
 
 #include <algorithm>
 #include <atomic>
@@ -14,11 +14,11 @@
 #include <vector>
 
 #include <SDL3/SDL.h>
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 #include "gow3_orbs.h"
 #include "gow3_actors.h"
-#include "gow3_graphics.h"
-#include "gow3_perf_stats.h"
+#include "wipeout_oc_graphics.h"
+#include "wipeout_oc_perf_stats.h"
 #include "../../src/actor_hook.h"
 
 extern Gow3ActorSlot gow3_actor_slots[2];

@@ -5,7 +5,7 @@
 #include <filesystem>
 #include <fstream>
 #include <string>
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 
 namespace fs = std::filesystem;
 static void Env(const char* name, const std::string& value) {

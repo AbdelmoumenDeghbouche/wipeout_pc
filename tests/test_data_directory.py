@@ -10,7 +10,7 @@ import sys
 import tempfile
 import unittest
 
-spec = importlib.util.spec_from_file_location('vulkan_data_test', ROOT / 'launcher/gow3_vulkan.py')
+spec = importlib.util.spec_from_file_location('vulkan_data_test', ROOT / 'launcher/wipeout_oc_vulkan.py')
 vulkan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vulkan)
 

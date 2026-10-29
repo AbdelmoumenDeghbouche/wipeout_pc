@@ -5,7 +5,7 @@
 #include <cstdlib>
 #include <initializer_list>
 #include <unistd.h>
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 
 int main() {
     using namespace Gow3Settings;

@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "../shadps4/common/wipeout_oc_env.h"
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 #include "gow3_orbs.h"
-#include "gow3_graphics.h"
+#include "wipeout_oc_graphics.h"
 
 #include <algorithm>
 #include <cerrno>

@@ -13,8 +13,8 @@
 
 #include "../../common/wipeout_oc_env.h"
 #include <cstdlib>
-#include "gow3_threads.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_threads.h"
+#include "wipeout_oc_toggles.h"
 #ifdef _WIN32
 #include <windows.h>
 #endif

@@ -1,12 +1,12 @@
-// gow3.ini graphics keys (gow3_settings.cpp, gow3_graphics.h).
+// gow3.ini graphics keys (wipeout_oc_settings.cpp, wipeout_oc_graphics.h).
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "gow3_graphics.h"
-#include "gow3_settings.h"
+#include "wipeout_oc_graphics.h"
+#include "wipeout_oc_settings.h"
 
 namespace G = Gow3Graphics;
 

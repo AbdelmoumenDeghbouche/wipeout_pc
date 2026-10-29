@@ -18,7 +18,7 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
-#include "../../../dlss_bridge/gow3_dlss_bridge.h"
+#include "../../../dlss_bridge/wipeout_oc_dlss_bridge.h"
 #endif
 
 namespace Vulkan {

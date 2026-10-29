@@ -33,9 +33,9 @@ for module in argparse base64 collections hashlib json re shutil socket struct t
     hidden+=(--hidden-import "$module")
 done
 out/pyenv/Scripts/python.exe -m PyInstaller --noconfirm --clean --log-level WARN --windowed --copy-metadata pillow \
-    --name "WipEout" --icon "$(cygpath -w "$PWD/launcher/gow3.ico")" --distpath out/pyi-dist \
+    --name "WipEout" --icon "$(cygpath -w "$PWD/launcher/wipeout_oc.ico")" --distpath out/pyi-dist \
     --workpath out/pyi-work --specpath out/pyi-work --paths "$(cygpath -w "$PWD/scripts")" "${hidden[@]}" \
-    "$(cygpath -w "$PWD/launcher/gow3_launcher_win.py")"
+    "$(cygpath -w "$PWD/launcher/wipeout_oc_launcher_win.py")"
 
 # The package is assembled in a fresh staging folder and zipped from there; dist/wipeout-windows
 # (a playable copy that may hold saves and settings) is only refreshed afterwards.
@@ -44,7 +44,7 @@ rm -rf -- out/stage
 mkdir -p "$dest/bin" "$dest/launcher"
 cp -r "out/pyi-dist/WipEout/." "$dest/"
 llvm-strip -o "$dest/Play WipEout.exe" out/gow3-play.exe
-cp launcher/gow3.ico launcher/gow3.png launcher/RussoOne-Regular.ttf launcher/OFL-RussoOne.txt "$dest/launcher/"
+cp launcher/wipeout_oc.ico launcher/wipeout_oc.png launcher/RussoOne-Regular.ttf launcher/OFL-RussoOne.txt "$dest/launcher/"
 # The executables without debug information (out/ keeps the symbols for crash reports).
 for exe in gow3-probe.exe gow3-gpu-capabilities.exe; do
     llvm-strip --strip-debug -o "$dest/bin/$exe" "out/$exe"

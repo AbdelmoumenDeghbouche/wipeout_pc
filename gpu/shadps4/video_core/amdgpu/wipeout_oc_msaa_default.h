@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // gow3: the Vulkan drivers where the game's multisampled images are created single-sampled
-// unless GOW3_NO_MSAA says otherwise (gow3_msaa.h). Plain C: vk_instance.cpp decides with it
+// unless GOW3_NO_MSAA says otherwise (wipeout_oc_msaa.h). Plain C: vk_instance.cpp decides with it
 // and tools/gpu_capabilities.c prints it per GPU (`--list`) for the launcher to show.
 //
 // AMD's Windows driver: the RX 6600 family reads the 2-sample depth buffer wrong and the

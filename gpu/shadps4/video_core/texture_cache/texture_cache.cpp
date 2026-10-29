@@ -7,7 +7,7 @@
 #include <xxhash.h>
 #include "video_core/amdgpu/liverpool.h"
 
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/div_ceil.h"

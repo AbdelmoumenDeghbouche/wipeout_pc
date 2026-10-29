@@ -2,7 +2,7 @@
  * Structures, sizes and the resource estimate follow shadPS4's videodec (GPL-2.0-or-later);
  * pictures larger than the game's frame buffer are an error code instead of an overflow. */
 #include "runtime.h"
-#include "gpu/gow3gpu.h"
+#include "gpu/wipeout_oc_gpu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>

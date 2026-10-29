@@ -10,7 +10,7 @@
 #include <cstdio>
 #include <string>
 
-#include "gow3_dlss_bridge.h" // Vulkan first: the NGX headers expect its types
+#include "wipeout_oc_dlss_bridge.h" // Vulkan first: the NGX headers expect its types
 
 #include <nvsdk_ngx_helpers.h>
 #include <nvsdk_ngx_vk.h>

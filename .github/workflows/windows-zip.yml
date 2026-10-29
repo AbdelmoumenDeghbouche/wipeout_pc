@@ -50,7 +50,7 @@ jobs:
       - name: Build
         run: bash build.sh
       # gow3_dlss.dll, the bridge to NVIDIA's DLSS SDK, built with MSVC from the SDK release the
-      # launcher downloads NVIDIA's runtime from (DLSS_SDK_VERSION in launcher/gow3_launcher_win.py;
+      # launcher downloads NVIDIA's runtime from (DLSS_SDK_VERSION in launcher/wipeout_oc_launcher_win.py;
       # tests check they match). Only the headers, the static library and the license are fetched.
       - name: DLSS bridge
         run: |

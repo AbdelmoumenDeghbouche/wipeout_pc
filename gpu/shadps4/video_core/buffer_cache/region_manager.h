@@ -8,7 +8,7 @@
 #include <chrono>
 #include <cstdlib>
 
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include "common/div_ceil.h"
 #include "common/logging/log.h"
 #include "core/emulator_settings.h"

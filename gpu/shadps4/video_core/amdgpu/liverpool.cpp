@@ -8,8 +8,8 @@
 #include <sys/resource.h>
 #endif
 #include <time.h>
-#include "gow3_copy.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_copy.h"
+#include "wipeout_oc_toggles.h"
 #include <cstdio>
 #include <boost/preprocessor/stringize.hpp>
 
@@ -24,7 +24,7 @@
 #include "core/memory.h"
 #include "core/platform.h"
 #include "video_core/amdgpu/liverpool.h"
-#include "gow3_write_log.h"
+#include "wipeout_oc_write_log.h"
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/renderdoc.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"

@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: numbers for the performance overlay (gow3_overlay.cpp). A thread started once samples
+// gow3: numbers for the performance overlay (wipeout_oc_overlay.cpp). A thread started once samples
 // CPU, RAM, GPU use (Windows counters) and VRAM (VK_EXT_memory_budget) twice a second;
 // a value that cannot be measured stays negative and shows as "n/a".
 

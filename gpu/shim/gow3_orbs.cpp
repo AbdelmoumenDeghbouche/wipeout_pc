@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "gow3_orbs.h"
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 #include <cstring>
 #include <cstdint>
 #include "../../src/cheat_hook.h"

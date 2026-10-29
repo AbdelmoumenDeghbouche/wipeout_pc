@@ -9,7 +9,7 @@
 #include <vector>
 #include "../src/damage_hook.h"
 #include "../src/orb_hook.h"
-#include "gow3_settings.h"
+#include "wipeout_oc_settings.h"
 #ifdef _WIN32
 #include <windows.h>
 #else

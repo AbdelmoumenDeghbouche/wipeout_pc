@@ -20,9 +20,9 @@ cp -r scripts patches "$share/"
 mkdir -p "$share/launcher"
 # The icon of the AppImage, the launcher and the game window: packaging/linux/gow3.png when it
 # exists (a local choice), else the launcher's own.
-icon=launcher/gow3.png
+icon=launcher/wipeout_oc.png
 [[ -f packaging/linux/gow3.png ]] && icon=packaging/linux/gow3.png
-install -m644 "$icon" "$share/launcher/gow3.png"
+install -m644 "$icon" "$share/launcher/wipeout_oc.png"
 install -m644 launcher/RussoOne-Regular.ttf "$share/launcher/RussoOne-Regular.ttf"
 install -m644 launcher/OFL-RussoOne.txt "$share/launcher/OFL-RussoOne.txt"
 
@@ -37,11 +37,11 @@ done
 python3 -c 'import iced_x86' || { echo 'Need iced-x86: pip install iced-x86==1.21.0' >&2; exit 1; }
 python3 -m PyInstaller --noconfirm --clean --log-level WARN --windowed --name gow3-launcher \
     --distpath out/pyi-dist --workpath out/pyi-work --specpath out/pyi-work \
-    --paths "$PWD/scripts" "${hidden[@]}" "$PWD/launcher/gow3_launcher_win.py"
+    --paths "$PWD/scripts" "${hidden[@]}" "$PWD/launcher/wipeout_oc_launcher_win.py"
 cp -r out/pyi-dist/gow3-launcher/. "$share/"
 find "$share" -name __pycache__ -prune -exec rm -r {} +
 install -m755 packaging/linux/AppRun "$appdir/AppRun"
-install -m644 packaging/linux/gow3.desktop "$appdir/gow3.desktop"
+install -m644 packaging/linux/wipeout_oc.desktop "$appdir/gow3.desktop"
 install -m644 "$icon" "$appdir/gow3.png"
 
 # Host-provided libraries: bundling any of these breaks drivers or the display connection.

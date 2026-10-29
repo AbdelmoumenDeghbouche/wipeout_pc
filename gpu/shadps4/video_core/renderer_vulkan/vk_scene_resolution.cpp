@@ -10,7 +10,7 @@
 #include "video_core/host_shaders/depth_stencil_resample_frag.h"
 #include "video_core/host_shaders/depth_stencil_bits_frag.h"
 #include "video_core/host_shaders/fs_tri_vert.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_toggles.h"
 #include <cstdio>
 #include <cstdlib>
 

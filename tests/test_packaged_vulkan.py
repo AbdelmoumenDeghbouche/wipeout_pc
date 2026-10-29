@@ -7,13 +7,13 @@ import sys
 import tempfile
 import unittest
 
-spec = importlib.util.spec_from_file_location("gow3_vulkan", ROOT / "launcher/gow3_vulkan.py")
+spec = importlib.util.spec_from_file_location("wipeout_oc_vulkan", ROOT / "launcher/wipeout_oc_vulkan.py")
 vulkan = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(vulkan)
 
 
 @unittest.skipUnless(sys.platform.startswith("linux"),
-                     "gow3_vulkan is the Linux AppImage entry point")
+                     "wipeout_oc_vulkan is the Linux AppImage entry point")
 class PackagedVulkanTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()

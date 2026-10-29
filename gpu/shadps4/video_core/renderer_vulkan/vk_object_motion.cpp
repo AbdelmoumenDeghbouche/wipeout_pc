@@ -6,8 +6,8 @@
 #include <cstring>
 
 #include <vk_mem_alloc.h>
-#include "gow3_settings.h"
-#include "gow3_toggles.h"
+#include "wipeout_oc_settings.h"
+#include "wipeout_oc_toggles.h"
 #include "shader_recompiler/runtime_info.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"

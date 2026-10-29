@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // gow3: in-game settings menu (Dear ImGui), drawn by the presenter into the swapchain image
 // after the game frame, at display resolution. Insert (keyboard) or R3+L2 (gamepad) opens it;
-// while it is open the game gets no pad/keyboard input. Settings live in gow3_settings.h.
+// while it is open the game gets no pad/keyboard input. Settings live in wipeout_oc_settings.h.
 
 #pragma once
 
 #include <string>
 #include <vector>
 #include "common/types.h"
-#include "gow3_png.h"
+#include "wipeout_oc_png.h"
 #include "video_core/renderer_vulkan/vk_common.h"
 
 union SDL_Event;

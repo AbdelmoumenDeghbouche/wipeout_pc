@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// GOW3_NO_MSAA (video_core/amdgpu/gow3_msaa.h): guest multisampled images created and sampled
-// as single-sampled ones on AMD's and Intel's Windows drivers (gow3_msaa_default.h), while
+// GOW3_NO_MSAA (video_core/amdgpu/wipeout_oc_msaa.h): guest multisampled images created and sampled
+// as single-sampled ones on AMD's and Intel's Windows drivers (wipeout_oc_msaa_default.h), while
 // every size in guest memory keeps the real sample count. No game or Vulkan device required.
 #include <cassert>
 #include <cstdio>
@@ -9,8 +9,8 @@
 #include <string_view>
 
 #include "common/logging/log.h"
-#include "video_core/amdgpu/gow3_msaa.h"
-#include "video_core/amdgpu/gow3_msaa_default.h"
+#include "video_core/amdgpu/wipeout_oc_msaa.h"
+#include "video_core/amdgpu/wipeout_oc_msaa_default.h"
 #include "video_core/amdgpu/regs_color.h"
 #include "video_core/amdgpu/regs_depth.h"
 #include "video_core/amdgpu/regs_primitive.h"
