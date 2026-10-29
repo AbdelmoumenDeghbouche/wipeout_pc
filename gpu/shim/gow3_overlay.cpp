@@ -459,6 +459,12 @@ void ImageTab() {
                   dlss      ? "Smooths edges at the game's resolution. DLAA needs an NVIDIA RTX GPU."
                   : problem ? problem
                             : "DLAA: NVIDIA RTX GPU and the launcher's Download NVIDIA DLSS button.");
+        // #51: the scene at a lower resolution, scaled up by the method (live); the HUD stays sharp.
+        static const char* const scale_labels[] = {"Off", "Quality (1/1.5)", "Balanced (1/1.7)",
+                                                   "Performance (1/2)"};
+        ChoiceRow("Upscaling", s.preset, scale_labels, nullptr, 4,
+                  "Draws the race at a lower resolution and scales it up: more FPS, a softer picture. "
+                  "The HUD stays sharp.");
         ImGui::EndTable();
     }
     const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;

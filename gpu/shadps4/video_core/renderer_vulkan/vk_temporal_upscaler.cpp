@@ -1040,12 +1040,20 @@ void TemporalUpscaler::Run() {
         return;
     }
     VideoCore::Image* game_motion = nullptr;
+    vk::ImageView game_motion_proxy{};
     if (const auto id = camera_motion.GameMotion()) {
         game_motion = &texture_cache.GetImage(id);
-        // Native size only: a reduced scene would need the vectors read at the render size.
-        if (reduced || game_motion->info.pixel_format != vk::Format::eR16G16Sfloat ||
-            game_motion->info.size.width != ow || game_motion->info.size.height != oh) {
+        if (game_motion->info.pixel_format != vk::Format::eR16G16Sfloat ||
+            game_motion->info.size.width != ow || game_motion->info.size.height != oh ||
+            (reduced && !scene_targets.EligibleScene(*game_motion))) {
             return;
+        }
+        // A reduced scene (upscaling, #51) drew its vectors into the proxy at the render size;
+        // they are in screen units, so RecordGameMotion scales them by w x h.
+        if (reduced) {
+            VideoCore::ImageViewInfo mi;
+            mi.format = vk::Format::eR16G16Sfloat;
+            game_motion_proxy = scene_targets.Read(id, mi).view;
         }
     }
     if (!EnsureResources(w, h, ow, oh, true)) {
@@ -1057,9 +1065,9 @@ void TemporalUpscaler::Run() {
         CachedView(depth, depth_format, vk::ImageAspectFlagBits::eDepth);
     const auto color_view =
         CachedView(color, color.info.pixel_format, vk::ImageAspectFlagBits::eColor);
-    const auto game_motion_view = game_motion
-        ? CachedView(*game_motion, vk::Format::eR16G16Sfloat, vk::ImageAspectFlagBits::eColor)
-        : vk::ImageView{};
+    const auto game_motion_view = game_motion_proxy ? game_motion_proxy
+        : game_motion ? CachedView(*game_motion, vk::Format::eR16G16Sfloat, vk::ImageAspectFlagBits::eColor)
+                      : vk::ImageView{};
 
     scheduler.EndRendering();
     runtime.Transit(&depth, vk::ImageLayout::eGeneral, vk::PipelineStageFlagBits2::eComputeShader,

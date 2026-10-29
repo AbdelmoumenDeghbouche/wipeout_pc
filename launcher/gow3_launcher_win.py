@@ -412,7 +412,7 @@ def heading_font(size, fallback=None, every_language=False):
 INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
              'stale_readback', 'music', 'music_shuffle', 'music_continue'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '0', 'dlss_preset': '0',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
@@ -665,6 +665,10 @@ DLSS_PRESETS = [('0', ('Driver default (K)',)), ('11', ('K (transformer)',)),
                 ('10', ('J (less ghosting, more flicker)',))]
 PRESETS = [('0', ('Native AA (×1.0)',)), ('1', ('Quality (×1.5)',)), ('2', ('Balanced (×1.7)',)),
            ('3', ('Performance (×2)',)), ('4', ('Ultra Performance (×3)',))]
+# The upscaling choice of the Anti-aliasing section (#51): the scene at 1/x of the render
+# resolution per axis, scaled up by FSR 3.1 or DLSS; the HUD stays at full size.
+UPSCALE_PRESETS = [('0', ('Off (full resolution)',)), ('1', ('Quality (scene at 1/1.5)',)),
+                   ('2', ('Balanced (scene at 1/1.7)',)), ('3', ('Performance (scene at 1/2)',))]
 OUTPUTS = [('1280x720', ('1280 × 720 (Steam Deck)',)), ('1920x1080', ('1920 × 1080',)),
            ('2560x1440', ('2560 × 1440',)), ('3840x2160', ('3840 × 2160 (4K)',))]
 LIVE = [('auto', ('Auto (by graphics card)', 'Авто (по видеокарте)')), ('0', ('Off (faster)', 'Выключена (быстрее)')),
@@ -1891,6 +1895,10 @@ class Launcher:
                  restart=True)
         if WINDOWS:
             self.build_dlss_row(f)
+        self.row(f, _('Upscaling'), self.choice(f, 'preset', 'ini', UPSCALE_PRESETS),
+                 _('Draws the race at a lower resolution and scales it up with the method above: more FPS, a '
+                   'softer picture. The HUD and menus stay sharp. Off: smooth edges only, at full resolution. '
+                   'Also in the game: Insert > Image.'))
         # Only DLAA has presets; FSR 3.1 at native size has none (its quality modes choose
         # an upscaling ratio). The row (title, box, note) hides with another method.
         first = self.next_row(f)
