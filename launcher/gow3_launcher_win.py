@@ -420,7 +420,7 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
                 'anisotropy': '0', 'vibration': '100', 'stick_deadzone': '0', 'mouse_prompt_distance': '48', 'mouse_lock': '1',
                 'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100', 'music': '1', 'music_shuffle': '1', 'music_continue': '0',
-                'music_volume': '100'}
+                'music_volume': '100', 'game_music_volume': '100'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
 FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
@@ -2046,6 +2046,9 @@ class Launcher:
         self.row(f, _('Music volume'), self.slider(f, 'music_volume', 0, 200, '%'),
                  _("100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
                    "sound alike."))
+        self.row(f, _('Game music volume'), self.slider(f, 'game_music_volume', 0, 300, '%'),
+                 _("The game's own music, on top of its Audio Options. Above 100% it is louder than the game "
+                   "allows; very loud parts may clip."))
         head = ttk.Frame(f)
         head.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=self.px((24, 0)))
         ttk.Label(head, text=_('Songs').upper(), style='Section.TLabel').pack(side='left')

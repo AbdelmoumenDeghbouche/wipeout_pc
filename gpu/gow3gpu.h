@@ -61,6 +61,8 @@ int gow3gpu_music_shuffle(void);
 int gow3gpu_music_continue(void);
 /* gow3.ini "music_volume": their loudness in percent (100: about the game's own music). */
 int gow3gpu_music_volume(void);
+/* gow3.ini "game_music_volume": the game's own music in percent, 0 to 300 (#97). */
+int gow3gpu_game_music_volume(void);
 /* Mouse movement in px that counts as one step of a stick prompt, set in the menu. */
 int gow3gpu_mouse_prompt_distance(void);
 /* The pause key (touchpad right) was pressed: it lets go of the mouse lock, or takes it back. */

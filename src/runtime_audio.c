@@ -8,6 +8,7 @@
  * ports only follow the clock. */
 #define _GNU_SOURCE
 #include "runtime.h"
+#include "gpu/gow3gpu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -183,10 +184,12 @@ static int32_t output_port(int32_t handle, const void *data, int pace) {
     pthread_mutex_lock(&p->lock);
     size_t samples=(size_t)p->frames*(size_t)p->channels, bytes=samples*(size_t)p->sample_bytes;
     uint64_t period=(uint64_t)p->frames*1000000000u/48000u;
+    float boost=1.0f;
     if (data && p->type==1 && p->is_float) { /* BGM: the player's own music (runtime_music.c) */
         static float music[2048*8]; /* one BGM port, under its lock */
         memcpy(music,data,bytes);
         if (runtime_music_bgm(music,p->frames,p->channels)) data=music;
+        else boost=(float)gow3gpu_game_music_volume()/100.0f; /* the game's own music (#97) */
     }
     if (data) {
         /* Apply per-channel volume and map PS4 8ch (L R C LFE SL SR BL BR) to SDL 7.1 order. */
@@ -195,8 +198,12 @@ static int32_t output_port(int32_t handle, const void *data, int pace) {
         for (size_t f=0;f<(size_t)p->frames;++f) for (int c=0;c<p->channels;++c) {
             int target=p->channels==8 && !p->std_layout ? remap[c] : c;
             size_t from=f*(size_t)p->channels+(size_t)c, to=f*(size_t)p->channels+(size_t)target;
-            float gain=(float)p->volume[c]/VOLUME_0DB;
-            if (p->is_float) { float v; memcpy(&v,(const char *)data+from*4,4); v*=gain; memcpy(converted+to*4,&v,4); }
+            float gain=(float)p->volume[c]/VOLUME_0DB*boost;
+            if (p->is_float) {
+                float v; memcpy(&v,(const char *)data+from*4,4); v*=gain;
+                if (boost>1.0f) v=v>1.0f ? 1.0f : v<-1.0f ? -1.0f : v;
+                memcpy(converted+to*4,&v,4);
+            }
             else { int16_t v; memcpy(&v,(const char *)data+from*2,2); v=(int16_t)((float)v*gain); memcpy(converted+to*2,&v,2); }
         }
         if (p->downmix) bytes=downmix_stereo(converted,(size_t)p->frames,p->is_float);

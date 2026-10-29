@@ -440,6 +440,10 @@ extern "C" int gow3gpu_music_volume(void) {
     return Gow3Settings::Get().music_volume.load(std::memory_order_relaxed);
 }
 
+extern "C" int gow3gpu_game_music_volume(void) {
+    return Gow3Settings::Get().game_music_volume.load(std::memory_order_relaxed);
+}
+
 extern "C" int gow3gpu_mouse_prompt_distance(void) {
     return Gow3Settings::Get().mouse_prompt_distance.load(std::memory_order_relaxed);
 }

@@ -92,6 +92,8 @@ struct Values {
     std::atomic<bool> music_continue{false};
     /// Their loudness in percent, 0 to 200; 100 is about the game's own music. Live.
     std::atomic<int> music_volume{100};
+    /// The game's own music in percent, 0 to 300 (#97: above its 100% in the game's options). Live.
+    std::atomic<int> game_music_volume{100};
     // Startup: run.py turns them into patches and environment variables; "Apply and restart".
     std::atomic<int> render_resolution{0};
     std::atomic<int> engine_fps{120};

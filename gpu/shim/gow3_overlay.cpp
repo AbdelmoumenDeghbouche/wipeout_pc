@@ -621,6 +621,9 @@ void MusicTab() {
         SliderRow("Music volume", s.music_volume, 0, 200, "%d%%",
                   "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
                   "sound alike.");
+        SliderRow("Game music volume", s.game_music_volume, 0, 300, "%d%%",
+                  "The game's own music, on top of its Audio Options. Above 100% it is louder than the game "
+                  "allows; very loud parts may clip.");
         ImGui::EndTable();
     }
     const int songs = runtime_music_songs();
@@ -762,6 +765,27 @@ void Menu() {
     } else {
         ImGui::NewLine();
     }
+    // Quit asks once more; it closes the game like the window's close button (#94).
+    static bool confirm_quit = false, focus_quit = false;
+    if (!confirm_quit) {
+        confirm_quit = focus_quit = ImGui::Button("Quit game");
+    } else {
+        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "Quit? Unsaved progress is lost.");
+        ImGui::SameLine();
+        if (focus_quit) { // the pressed button is gone: keyboard and pad go on from here
+            ImGui::SetKeyboardFocusHere();
+            focus_quit = false;
+        }
+        if (ImGui::Button("Quit")) {
+            Gow3Settings::Save();
+            SDL_Event quit{};
+            quit.type = SDL_EVENT_QUIT;
+            SDL_PushEvent(&quit);
+        }
+        ImGui::SameLine();
+        confirm_quit = !ImGui::Button("Cancel");
+    }
+    ImGui::SameLine();
     const float close_width = ImGui::CalcTextSize("Close").x + ImGui::GetStyle().FramePadding.x * 2;
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - close_width);
     if (ImGui::Button("Close")) {

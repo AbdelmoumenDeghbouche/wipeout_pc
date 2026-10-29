@@ -960,6 +960,9 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'Game music volume': 'Volume da música do jogo',
+        "The game's own music, on top of its Audio Options. Above 100% it is louder than the game allows; very loud parts may clip.":
+            'A música do próprio jogo, além das Opções de Áudio dele. Acima de 100% fica mais alta do que o jogo permite; partes muito altas podem distorcer.',
         "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
             '100%: mais ou menos o volume da música do próprio jogo. Cada música é nivelada, então músicas baixas e altas soam parecidas.',
         'Off: the songs play in the order of the list below.': 'Desligado: as músicas tocam na ordem da lista abaixo.',
@@ -1320,6 +1323,9 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'Game music volume': 'Volumen de la música del juego',
+        "The game's own music, on top of its Audio Options. Above 100% it is louder than the game allows; very loud parts may clip.":
+            'La música del propio juego, además de sus Opciones de audio. Por encima de 100% suena más fuerte de lo que el juego permite; las partes muy fuertes pueden saturar.',
         "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
             '100%: más o menos el volumen de la música del propio juego. Cada canción se nivela, así que las canciones suaves y fuertes suenan parecido.',
         'Off: the songs play in the order of the list below.': 'Desactivado: las canciones suenan en el orden de la lista de abajo.',
