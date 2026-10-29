@@ -247,7 +247,9 @@ void TextureCache::ProcessDownloadImages() {
         std::scoped_lock readback_lock{readback_mutex};
         RetireReadbacks();
         const bool deep_queue = !Gow3Toggle::Disabled(Gow3Toggle::DeepReadbackQueue);
-        pending_readbacks.SetMaxEntries(deep_queue ? 512 : 64);
+        // Each pending copy watches its pages, and a page counts its watchers in 8 bits (#101):
+        // 192 stays under 255 with room for the images and buffers on the same page.
+        pending_readbacks.SetMaxEntries(deep_queue ? 192 : 64);
         std::unique_lock lock{download_images_mutex};
         for (const ImageId image_id : download_images) {
             const auto& image = slot_images[image_id];
