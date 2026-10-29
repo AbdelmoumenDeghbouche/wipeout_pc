@@ -441,7 +441,7 @@ class HalfResolutionTests(unittest.TestCase):
         for title in ('CUSA07671', 'CUSA05670'):
             env = game_profiles.PROFILES[title]['env']
             self.assertEqual((env['GOW3_GAME_MOTION'], env['GOW3_UPSCALE_BEFORE_PS']), ('1', '4f6cc41b'), title)
-            self.assertEqual(game_profiles.PROFILES[title]['reserve'], 4096 * 0x360, title)
+            self.assertEqual(game_profiles.PROFILES[title]['reserve'], 4097 * 0x360, title)
 
     def test_wipeout_startup_hang_fix_sets_the_flag_before_the_thread_starts(self):
         # mov [rbx],rax; mov byte [0xaef4c6],1; call 0x3d20e0; cmp byte [0xaef390],0 (#43), even when
@@ -477,12 +477,14 @@ class HalfResolutionTests(unittest.TestCase):
         skipped = {}
         self.assertEqual(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), skipped), [])
         self.assertEqual(skipped, {name: 'no memory reserved for the bigger table'})
-        writes = dict(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), {}, (reserve, 4096 * 0x360)))
+        writes = dict(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), {}, (reserve, 4097 * 0x360)))
         self.assertEqual(writes.pop(0x2e), (4096).to_bytes(4, 'little'))
         moved = {at: at + 4 + struct.unpack('<i', data)[0] for at, data in writes.items()}
         self.assertEqual(len(moved), 192)
+        # One zeroed entry before the copy: entry -1 (index -1, "no entry") is read, as the .bss was.
+        base = reserve + 0x360
         self.assertEqual((moved[8], moved[0x43], moved[0x4b], moved[0x53]),
-                         (reserve, reserve + 0x114, reserve + 4096 * 0x360, reserve))
+                         (base, base + 0x114, base + 4096 * 0x360, base))
 
     def test_wipeout_cheats_are_off_unless_chosen(self):
         # The Cheats page adds them; the points total returns 99998 (mov eax; ret) and the rank table holds 0.

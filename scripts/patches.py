@@ -131,16 +131,18 @@ def move_table(image, table, old, reserve):
     """Writes that point every rip-relative lea into a full game table (Target; Size bytes, its
     end included) at a bigger copy in the linked image's reserve (link_modules.py), Count
     entries of Entry bytes: the table's end becomes the copy's end. The game's own code
-    initializes the copy; the patch's Lines raise its limit. Refs: how many leas the build has."""
+    initializes the copy; the patch's Lines raise its limit. Refs: how many leas the build has.
+    The copy starts one entry into the reserve: code that reads entry -1 (an index of -1 for "no
+    entry") reads zeros there, as it read the .bss before the table."""
     size,entry,count=(int(table.get(k),0) for k in ('Size','Entry','Count'))
-    if not reserve or reserve[1]<count*entry:
+    if not reserve or reserve[1]<(count+1)*entry:
         raise LookupError('no memory reserved for the bigger table')
     writes=[]
     for m in LEA_RIP.finditer(image):
         at=m.start()+3
         target=at+4+struct.unpack_from('<i',image,at)[0]
         if old<=target<=old+size:
-            moved=reserve[0]+(target-old if target<old+size else count*entry)
+            moved=reserve[0]+entry+(target-old if target<old+size else count*entry)
             writes.append((at,struct.pack('<i',moved-at-4)))
     if len(writes)!=int(table.get('Refs')):
         raise LookupError(f'{len(writes)} table references, not {table.get("Refs")}')

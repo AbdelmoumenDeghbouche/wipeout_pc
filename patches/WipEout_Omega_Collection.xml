@@ -560,7 +560,8 @@
              (#96 Unity Square, #41 Empire Climb; a 2048 race takes ~650 slots, the menu ~20).
              The table moves to 4096 entries in the image's reserve (game_profiles.py): all 192
              rip-relative leas to it (base, in-use byte of entry 0, the end the init loop at
-             0x625e90 stops at) point there, and the scan's limit is 4096. -->
+             0x625e90 stops at) point there, and the scan's limit is 4096. The copy starts one
+             entry into the reserve: 0x491ffa reads entry -1 for a model without a slot. -->
         <Target Name="slots" Address="0x012df3e0" Pattern="89 c2 48 63 c2 48 8d 1d ?? ?? ?? ?? c5 f8 57 c0" At="8" Ref="1"/>
         <Table Target="slots" Size="0x126780" Entry="0x360" Count="4096" Refs="192"/>
         <PatchList>
