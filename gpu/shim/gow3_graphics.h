@@ -21,7 +21,7 @@ inline constexpr std::array<const char*, DisplayModeCount> DisplayModeNames = {
     "Windowed", "Borderless", "Fullscreen"};
 
 /// Present rate limits; 0 = unlimited.
-inline constexpr std::array<int, 7> FpsLimits = {30, 40, 60, 100, 120, 240, 0};
+inline constexpr std::array<int, 9> FpsLimits = {30, 40, 60, 100, 120, 144, 165, 240, 0};
 
 /// Game patch suffixes ("Resolution Patch - <name>"); "native" is no resolution patch.
 /// The ones after 900p are the Ultrawide mod's sizes (#202) and the 16:10 and 4:3 ones, built in as beta
