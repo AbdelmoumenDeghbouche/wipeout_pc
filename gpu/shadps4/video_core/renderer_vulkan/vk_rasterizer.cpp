@@ -248,14 +248,14 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
     }
 
     // gow3: WipEout draws the scene into a display buffer, then its HUD over it, laid out for
-    // 16:9. On a wider buffer the HUD draws keep 16:9 in the middle instead of stretching.
+    // 16:9. On a wider or taller buffer the HUD draws keep 16:9 in the middle instead of stretching.
     // ponytail: the first draw into a new display buffer is taken as the scene; flips must
     // rotate buffers (a buffer drawn twice in a row would center its second scene draw).
     static const bool hud_16x9 = [] {
         const char* value = std::getenv("GOW3_HUD_16X9");
         return value && value[0] == '1';
     }();
-    hud_x = {1.0f, 0.0f};
+    hud_x = hud_y = {1.0f, 0.0f};
     if (hud_16x9 && cb_descs[0].first &&
         FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
         const VAddr address = regs.color_buffers[0].Address();
@@ -265,8 +265,11 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         }
         const auto& size = texture_cache.GetImage(cb_descs[0].first).info.size;
         const float inner = float(size.height) * 16.0f / 9.0f;
+        const float inner_height = float(size.width) * 9.0f / 16.0f;
         if (hud_draws++ > 0 && inner + 1.0f < float(size.width)) {
             hud_x = {inner / float(size.width), (float(size.width) - inner) * 0.5f};
+        } else if (hud_draws > 1 && inner_height + 1.0f < float(size.height)) {
+            hud_y = {inner_height / float(size.height), (float(size.height) - inner_height) * 0.5f};
         }
     }
 
@@ -1087,8 +1090,8 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     // gow3: screen-space (clip disabled) draws into the upscaler's output-size images.
     push_data.xscale *= hud_x[0] * target_scale[0];
     push_data.xoffset = (push_data.xoffset * hud_x[0] + hud_x[1]) * target_scale[0];
-    push_data.yscale *= target_scale[1];
-    push_data.yoffset *= target_scale[1];
+    push_data.yscale *= hud_y[0] * target_scale[1];
+    push_data.yoffset = (push_data.yoffset * hud_y[0] + hud_y[1]) * target_scale[1];
     if (motion_draw && motion_geometry) {
         const auto& vs = pipeline->GetStage(Shader::SwStage::Vertex);
         const auto [base_vertex, first_instance] =
@@ -1308,8 +1311,8 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     // gow3: screen-space (clip disabled) draws into the upscaler's output-size images.
     push_data.xscale *= hud_x[0] * target_scale[0];
     push_data.xoffset = (push_data.xoffset * hud_x[0] + hud_x[1]) * target_scale[0];
-    push_data.yscale *= target_scale[1];
-    push_data.yoffset *= target_scale[1];
+    push_data.yscale *= hud_y[0] * target_scale[1];
+    push_data.yoffset = (push_data.yoffset * hud_y[0] + hud_y[1]) * target_scale[1];
     pipeline->BindResources(set_writes, push_data);
     draw_jitter = {};
     if (upscaler->Enabled() && db_desc.first && db_desc.first == camera_motion->Depth()) {
@@ -3435,9 +3438,9 @@ void Rasterizer::UpdateViewportScissorState() const {
             // gow3: sub-pixel jitter of scene geometry for the temporal upscaler; the same
             // shift as jittering the projection.
             viewport.x = ((xoffset - xscale) * hud_x[0] + hud_x[1]) * target_scale[0] + draw_jitter[0];
-            viewport.y = (yoffset - yscale) * target_scale[1] + draw_jitter[1];
+            viewport.y = ((yoffset - yscale) * hud_y[0] + hud_y[1]) * target_scale[1] + draw_jitter[1];
             viewport.width = xscale * 2.0f * hud_x[0] * target_scale[0];
-            viewport.height = yscale * 2.0f * target_scale[1];
+            viewport.height = yscale * 2.0f * hud_y[0] * target_scale[1];
         }
 
         viewports.push_back(viewport);
@@ -3458,6 +3461,12 @@ void Rasterizer::UpdateViewportScissorState() const {
             const s32 x0 = AmdGpu::Scissor::Clamp(vp_scsr.top_left_x);
             vp_scsr.bottom_right_x = shift(x0 + s32(vp_scsr.GetWidth()));
             vp_scsr.top_left_x = shift(x0);
+        }
+        if (hud_y[0] != 1.0f) {
+            const auto shift = [&](s32 v) { return s16(std::lround(float(v) * hud_y[0] + hud_y[1])); };
+            const s32 y0 = AmdGpu::Scissor::Clamp(vp_scsr.top_left_y);
+            vp_scsr.bottom_right_y = shift(y0 + s32(vp_scsr.GetHeight()));
+            vp_scsr.top_left_y = shift(y0);
         }
         if (target_scale[0] != 1.0f || target_scale[1] != 1.0f) {
             const auto scale = [](s32 v, float f) { return s32(std::lround(float(v) * f)); };

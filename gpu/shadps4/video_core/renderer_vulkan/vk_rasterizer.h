@@ -341,6 +341,8 @@ private:
     std::array<float, 2> target_scale{1.0f, 1.0f}; ///< pass drawn into the upscaler's output-size images
     /// GOW3_HUD_16X9: a HUD draw's window x becomes x * [0] + [1] (16:9 in the middle of a wider buffer)
     std::array<float, 2> hud_x{1.0f, 0.0f};
+    /// and its window y, y * [0] + [1], in a taller one (16:10, #95)
+    std::array<float, 2> hud_y{1.0f, 0.0f};
     VAddr hud_buffer = 0;  ///< display buffer the HUD draws are counted in
     u32 hud_draws = 0;     ///< draws into hud_buffer; the first one is the scene
     const bool host_markers_enabled;
