@@ -13,6 +13,9 @@ import os
 from pathlib import Path, PurePosixPath
 import sys
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+from environment import clear_derived, getenv, normalize
+
 MANIFEST_DIRS = (
     Path("/etc/vulkan/icd.d"), Path("/usr/share/vulkan/icd.d"),
     Path("/usr/local/share/vulkan/icd.d"), Path("/run/opengl-driver/share/vulkan/icd.d"),
@@ -61,10 +64,12 @@ def configure(env, manifest_dirs=MANIFEST_DIRS, library_dirs=LIBRARY_DIRS):
     # VK_ICD_FILENAMES. In particular don't replace an explicit Lavapipe setup.
     if env.get("VK_DRIVER_FILES") or env.get("VK_ICD_FILENAMES"):
         return "Vulkan: using explicit driver override"
-    bundled = env.get("GOW3_BUNDLED_VK_DRIVER_FILES", "")
+    clear_derived(env)
+    normalize(env)
+    bundled = env.get("WIPEOUT_OC_BUNDLED_VK_DRIVER_FILES", "")
     if env.get("VK_ADD_DRIVER_FILES"):
         bundled = env["VK_ADD_DRIVER_FILES"] + (":" + bundled if bundled else "")
-    extra = env.get("GOW3_NVIDIA_LIB_DIR")
+    extra = env.get("WIPEOUT_OC_NVIDIA_LIB_DIR")
     if extra:
         library_dirs = (Path(extra), *library_dirs)
     found = host_nvidia(manifest_dirs, library_dirs)
@@ -77,7 +82,7 @@ def configure(env, manifest_dirs=MANIFEST_DIRS, library_dirs=LIBRARY_DIRS):
     # The driver version/path and mtime give each installed driver its own small
     # cache. exec preserves process/signal behavior; the cache survives launch.
     key = hashlib.sha256(f"{driver}:{driver.stat().st_mtime_ns}".encode()).hexdigest()[:16]
-    data_dir = Path(env.get("GOW3_DATA_DIR") or
+    data_dir = Path(env.get("WIPEOUT_OC_DATA_DIR") or
                     str(Path(env.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "gow3"))
     cache = data_dir / "vulkan" / "nvidia" / key
     libraries = cache / "lib"
@@ -119,7 +124,7 @@ def main():
         print(f"gow3: cannot prepare NVIDIA driver: {error}", file=sys.stderr)
         return 1
     if "--vulkan-info" in sys.argv[1:]:
-        tool = os.environ.get("GOW3_VULKANINFO", "vulkaninfo")
+        tool = getenv("WIPEOUT_OC_VULKANINFO", "vulkaninfo")
         os.environ.setdefault("VK_LOADER_DEBUG", "error,warn,driver")
         for key in ("VK_DRIVER_FILES", "VK_ICD_FILENAMES", "LD_LIBRARY_PATH"):
             print(f"{key}={os.environ.get(key, '')}", file=sys.stderr, flush=True)

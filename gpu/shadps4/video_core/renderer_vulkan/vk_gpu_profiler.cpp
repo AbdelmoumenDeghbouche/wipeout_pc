@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <algorithm>
 #include <cstdlib>
 
@@ -10,7 +11,7 @@
 namespace Vulkan {
 
 void GpuProfiler::Init(const Instance& instance, Scheduler& scheduler) {
-    const char* env = std::getenv("GOW3_GPU_PROFILE");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_GPU_PROFILE");
     if (!env || env[0] != '1' || instance_ptr) {
         return;
     }

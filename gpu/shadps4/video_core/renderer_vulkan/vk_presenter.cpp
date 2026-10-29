@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include "common/debug.h"
 #include "common/elf_info.h"
 #include "common/io_file.h"
@@ -334,7 +335,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
     // gow3: by default the cached pipelines load while the game runs (a corner note shows the
     // progress). Otherwise rebuilding them takes up to minutes before the first game frame:
     // show what is happening instead of a black window.
-    const char* background_warmup = std::getenv("GOW3_BACKGROUND_WARMUP");
+    const char* background_warmup = wipeout_oc_getenv("WIPEOUT_OC_BACKGROUND_WARMUP");
     if ((!background_warmup || *background_warmup != '0') &&
         rasterizer->GetPipelineCache().StartBackgroundWarmUp()) {
         return;
@@ -533,7 +534,7 @@ static void DumpRaw(const Instance& instance, Scheduler& scheduler, vk::CommandB
     cmdbuf.copyImageToBuffer(image, layout, buffer,
                              vk::BufferImageCopy{.imageSubresource = {vk::ImageAspectFlagBits::eColor, 0, 0, 1},
                                                  .imageExtent = {w, h, 1}});
-    const char* dir = std::getenv("GOW3_DUMP_DIR");
+    const char* dir = wipeout_oc_getenv("WIPEOUT_OC_DUMP_DIR");
     char path[512];
     std::snprintf(path, sizeof(path), "%s/%s_%03d_%ux%u.raw", dir && *dir ? dir : "out/dump", name,
                   index, w, h);
@@ -553,7 +554,7 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // gow3: GOW3_FRAME_DUMP_TRIGGER=<file>: when the file exists it is removed and this frame's
     // guest display buffer and presented image are written to GOW3_DUMP_DIR (default out/dump)
     // as raw 32-bit pixels (menus and movies included; the upscaler dumps scene frames only).
-    static const char* frame_dump_trigger = std::getenv("GOW3_FRAME_DUMP_TRIGGER");
+    static const char* frame_dump_trigger = wipeout_oc_getenv("WIPEOUT_OC_FRAME_DUMP_TRIGGER");
     static int frame_dump_index = 0;
     const bool frame_dump = frame_dump_trigger && std::remove(frame_dump_trigger) == 0;
     // gow3: scaled upscaler presets: the output-size display buffer drawn by the port.

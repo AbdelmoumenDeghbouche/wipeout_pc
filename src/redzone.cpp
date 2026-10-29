@@ -15,6 +15,7 @@
 // Ported from shadPS4's src/core/cpu_patches.cpp ("Windows static guest red-zone protection",
 // shadps4-emu/shadPS4#4802, GPL-2.0-or-later) at commit dff1aad, without its CPU-instruction
 // patches (TCB accesses: bbport rewrites them in link_modules.py; SSE4a: unused by Bloodborne).
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "redzone.h"
 
 #include <algorithm>
@@ -1338,7 +1339,7 @@ int ProbeRedZoneClobbering() {
 extern "C" void bbport_red_zone_protect(const char* boot_file, unsigned char* image, uint64_t image_size,
                                         const BbRedZoneSegment* segments, uint64_t segment_count) {
     // GOW3_RED_ZONE: 0 off, 1 always, unset: when this Windows build overwrites red zones.
-    const char* setting = std::getenv("GOW3_RED_ZONE");
+    const char* setting = wipeout_oc_getenv("WIPEOUT_OC_RED_ZONE");
     if (setting && setting[0] == '0') {
         std::puts("Red zones: protection off (GOW3_RED_ZONE=0)");
         return;
@@ -1387,7 +1388,7 @@ extern "C" void bbport_red_zone_protect(const char* boot_file, unsigned char* im
         std::fprintf(stderr, "Red zones: no trampoline memory near the image: NOT protected\n");
         return;
     }
-    const char* audit = std::getenv("GOW3_RED_ZONE_AUDIT");
+    const char* audit = wipeout_oc_getenv("WIPEOUT_OC_RED_ZONE_AUDIT");
     if (audit && audit[0] == '1') {
         u64 functions = 0, accesses = 0;
         for (u64 s = 0; s < segment_count; ++s)

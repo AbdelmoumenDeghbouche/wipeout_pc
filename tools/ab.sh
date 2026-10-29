@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# A/B of a GOW3_TOGGLE_FILE bit in a running game (started with GOW3_FRAME_STATS=1 and
-# GOW3_TOGGLE_FILE=<toggles>). Alternates "on" (bit clear) and "off" (bit set) phases and prints
+# A/B of a WIPEOUT_OC_TOGGLE_FILE bit in a running game (started with WIPEOUT_OC_FRAME_STATS=1 and
+# WIPEOUT_OC_TOGGLE_FILE=<toggles>). Alternates "on" (bit clear) and "off" (bit set) phases and prints
 # the mean FPS and GPU thread us/draw of the "Frame stats" lines each phase produced, skipping
 # the first line after a switch.
 # usage: ab.sh <log> <toggles> <bit> [phases=8] [seconds=20] [base mask=0] [first=on|off]
 set -euo pipefail
+source "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/environment.sh"
 export LC_ALL=C
 log=$1 toggles=$2 bit=$3 phases=${4:-8} seconds=${5:-20} base=${6:-0} first=${7:-on}
 shift_phase=0; [[ $first == off ]] && shift_phase=1

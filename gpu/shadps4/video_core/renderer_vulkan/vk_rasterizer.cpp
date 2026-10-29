@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
 #include "gow3_toggles.h"
@@ -252,7 +253,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
     // ponytail: the first draw into a new display buffer is taken as the scene; flips must
     // rotate buffers (a buffer drawn twice in a row would center its second scene draw).
     static const bool hud_16x9 = [] {
-        const char* value = std::getenv("GOW3_HUD_16X9");
+        const char* value = wipeout_oc_getenv("WIPEOUT_OC_HUD_16X9");
         return value && value[0] == '1';
     }();
     hud_x = {1.0f, 0.0f};
@@ -297,7 +298,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
     // linear depth (color1) and the game's own motion vectors (color2, R16G16F), all full size,
     // with the scene depth. It gives the upscaler depth, color and motion; no camera is needed.
     static const bool game_motion = [] {
-        const char* env = std::getenv("GOW3_GAME_MOTION");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_GAME_MOTION");
         return env && env[0] == '1';
     }();
     if (game_motion && upscaler->Enabled() && std::popcount(key.mrt_mask) == 3 &&
@@ -416,7 +417,7 @@ constexpr u32 AlignPacket(u32 size) {
 }
 u32 VerifyInterval() {
     static const u32 interval = [] {
-        const char* env = std::getenv("GOW3_PIPE_VERIFY");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_PIPE_VERIFY");
         return env ? static_cast<u32>(std::strtoul(env, nullptr, 10)) : 0u;
     }();
     return interval;
@@ -424,7 +425,7 @@ u32 VerifyInterval() {
 } // namespace
 
 bool Rasterizer::DrawPipeWanted() {
-    const char* env = std::getenv("GOW3_DRAW_PIPE");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_DRAW_PIPE");
     if (env && env[0]) {
         return env[0] == '1';
     }
@@ -457,7 +458,7 @@ void Rasterizer::DrainDrawPipe(u32 reason, u32 line, const char* function) {
     if (!draw_pipe || !OnStageA()) {
         return;
     }
-    static const bool stats = std::getenv("GOW3_FRAME_STATS") != nullptr;
+    static const bool stats = wipeout_oc_getenv("WIPEOUT_OC_FRAME_STATS") != nullptr;
     if (!stats) {
         draw_pipe->Drain(reason);
         return;
@@ -864,7 +865,7 @@ void Rasterizer::RunDrawPacket(void* context, const u8* data, u32 size) {
 }
 
 void Rasterizer::PrintPipeStats() {
-    static const bool stats = std::getenv("GOW3_FRAME_STATS") != nullptr;
+    static const bool stats = wipeout_oc_getenv("WIPEOUT_OC_FRAME_STATS") != nullptr;
     if (!stats || (draw_pipe->packets & 1023) != 0) {
         return;
     }
@@ -981,7 +982,7 @@ void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* pre
 
 void Rasterizer::DiagPassBoundary(bool force) {
     static const bool enabled = [] {
-        const char* env = std::getenv("GOW3_DIAG_IMAGES");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_DIAG_IMAGES");
         return env && *env == '1';
     }();
     if (!enabled) {
@@ -1030,7 +1031,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         camera_motion->SetJitter(upscaler->Jitter());
         object_motion->OnFrameStart();
         NoteFrameStart();
-        static const char* scene_debug = std::getenv("GOW3_SCENE_DEBUG");
+        static const char* scene_debug = wipeout_oc_getenv("WIPEOUT_OC_SCENE_DEBUG");
         scene_debug_frame = scene_debug && std::remove(scene_debug) == 0;
         scene_targets->debug = scene_debug_frame;
     } else if (regs.color_buffers[0] &&
@@ -1101,7 +1102,7 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         // since last frame (model constants follow the camera, the palette does not). The
         // check comes first: most gated draws are static world pieces with long index lists.
         static const bool all_motion = [] {
-            const char* value = std::getenv("GOW3_OBJECT_MOTION_ALL");
+            const char* value = wipeout_oc_getenv("WIPEOUT_OC_OBJECT_MOTION_ALL");
             return value && value[0] == '1';
         }();
         bool gated = !all_motion;
@@ -1430,7 +1431,7 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
     // gow3 diagnostics: GOW3_DIAG_IMAGES=1 writes the images a dispatch read and wrote, after
     // it, while a frame capture records (GOW3_CAPTURE_TRIGGER).
     static const bool diag_images = [] {
-        const char* env = std::getenv("GOW3_DIAG_IMAGES");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_DIAG_IMAGES");
         return env && *env == '1';
     }();
     if (diag_images && FrameCapture::IsRecording()) {
@@ -1546,7 +1547,7 @@ const PreparedStage* Rasterizer::FindPreparedStage(const Shader::Info& stage) co
 
 bool Rasterizer::BindHelperWanted() {
     // A spinning helper pays off only with cores to spare (the recording thread spins too).
-    const char* env = std::getenv("GOW3_TEXTURE_HELPER");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_TEXTURE_HELPER");
     if (env && env[0]) {
         return env[0] == '1';
     }
@@ -1667,7 +1668,7 @@ bool Rasterizer::BindResources(const Pipeline* pipeline) {
 
     bool uses_dma = false;
 
-    static const bool stats = std::getenv("GOW3_FRAME_STATS") != nullptr;
+    static const bool stats = wipeout_oc_getenv("WIPEOUT_OC_FRAME_STATS") != nullptr;
     if (stats && ((helper_full + helper_partial + helper_serial) & 1023) == 0) {
         static auto window = std::chrono::steady_clock::now();
         const auto now = std::chrono::steady_clock::now();
@@ -2370,7 +2371,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
         const auto tsharp =
             prepared ? prepared->image_sharps[image_index] : image_desc.GetSharp(stage);
         // gow3: a hash lookup per texture per draw for a diagnostic only.
-        static const bool warn_meta = std::getenv("GOW3_WARN_META_TEXTURE") != nullptr;
+        static const bool warn_meta = wipeout_oc_getenv("WIPEOUT_OC_WARN_META_TEXTURE") != nullptr;
         if (warn_meta && texture_cache.IsMeta(tsharp.Address())) {
             LOG_WARNING(Render_Vulkan, "Unexpected metadata read by a shader (texture)");
         }
@@ -3503,7 +3504,7 @@ void Rasterizer::UpdateViewportScissorState() const {
 vk::Pipeline Rasterizer::SquarePass(const GraphicsPipeline& pipeline) const {
     const vk::Pipeline square = pipeline.SquarePassHandle();
     static const bool enabled = [] {
-        const char* env = std::getenv("GOW3_SQUARE_PASS");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_SQUARE_PASS");
         return !env || env[0] != '0';
     }();
     if (!square || !enabled) [[likely]] {
@@ -3766,7 +3767,7 @@ void Rasterizer::NoteFrameStart() {
     // GOW3_BUFFER_STATS=1: how many earlier frames the GPU has not finished when the GPU thread
     // starts a frame — the lag that decides whether guest memory can be read in place.
     static const bool stats = [] {
-        const char* value = std::getenv("GOW3_BUFFER_STATS");
+        const char* value = wipeout_oc_getenv("WIPEOUT_OC_BUFFER_STATS");
         return value && value[0] == '1';
     }();
     if (!stats) {

@@ -11,6 +11,7 @@
 
 #pragma once
 
+#include "../../common/wipeout_oc_env.h"
 #include <cstdlib>
 #include "gow3_threads.h"
 #include "gow3_toggles.h"
@@ -177,7 +178,7 @@ private:
                 // With few hardware threads (Steam Deck: 8) a long spin takes time from the
                 // game's own threads. GOW3_PIPE_SPIN_US overrides.
                 static const auto spin_time = std::chrono::microseconds([] {
-                    if (const char* env = std::getenv("GOW3_PIPE_SPIN_US")) {
+                    if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_PIPE_SPIN_US")) {
                         return std::max(0, std::atoi(env));
                     }
                     return Gow3Threads::Available() >= 12 ? 200 : 50;

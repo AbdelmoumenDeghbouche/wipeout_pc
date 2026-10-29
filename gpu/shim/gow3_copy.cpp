@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "../shadps4/common/wipeout_oc_env.h"
 #include "gow3_copy.h"
 #include "gow3_threads.h"
 
@@ -27,7 +28,7 @@ public:
         // Copies are on the critical path (fences wait for them): normal priority, a quarter
         // of the hardware threads available to the process (Steam Deck 2).
         unsigned count = std::clamp(Gow3Threads::Available() / 4, 1u, 4u);
-        if (const char* env = std::getenv("GOW3_COPY_THREADS")) {
+        if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_COPY_THREADS")) {
             count = static_cast<unsigned>(std::clamp(std::atoi(env), 0, 16));
         }
         epochs.emplace_back();

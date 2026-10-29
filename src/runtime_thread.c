@@ -6,6 +6,7 @@
  * instead, and the loader rewrites the load to `mov rax, gs:[0x1480+8*slot]` (TlsSlots),
  * the same 9-byte instruction with another displacement. */
 #define _GNU_SOURCE
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -138,7 +139,7 @@ static void set_guest_fpu(void) {
     static unsigned value=0x9fc0;
     static int once;
     if (!once) {
-        const char *env=getenv("GOW3_GUEST_MXCSR");
+        const char *env=wipeout_oc_getenv("WIPEOUT_OC_GUEST_MXCSR");
         if (env) value=(unsigned)strtoul(env,NULL,16);
         once=1;
     }

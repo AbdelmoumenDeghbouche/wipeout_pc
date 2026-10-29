@@ -4,6 +4,7 @@
  * Guest descriptors are small integers in our own table; stdio 0-2 pass through.
  * Paths containing ".." components are rejected rather than normalized. */
 #define _GNU_SOURCE
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -200,7 +201,7 @@ static File *get(int fd) {
     return &files[fd];
 }
 /* GOW3_AUDIO_TRACE=1: sound file opens and failed reads (missing game sounds). */
-static int audio_trace(void) { static int v=-1; if (v<0) { const char *e=getenv("GOW3_AUDIO_TRACE"); v=e && e[0]=='1'; } return v; }
+static int audio_trace(void) { static int v=-1; if (v<0) { const char *e=wipeout_oc_getenv("WIPEOUT_OC_AUDIO_TRACE"); v=e && e[0]=='1'; } return v; }
 /* Game mounts (including linked mod overlays) are read-only. Saves use other mounts. */
 static int game_path(const char *p) {
     if (!p || !*p) return 0;
@@ -256,7 +257,7 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     ++opens;
     pthread_mutex_unlock(&lock);
     if (audio_trace() && strstr(guest,"sound/")) printf("Audio trace: open(%s) -> fd %d, %lld bytes\n",guest,fd,(long long)s.st_size);
-    const char *mod_trace=getenv("GOW3_MOD_TRACE"), *mod_root=getenv("GOW3_MODS_DIR");
+    const char *mod_trace=wipeout_oc_getenv("WIPEOUT_OC_MOD_TRACE"), *mod_root=wipeout_oc_getenv("WIPEOUT_OC_MODS_DIR");
     if (mod_trace && mod_trace[0]=='1' && mod_root) {
         char actual[PATH_MAX],root[PATH_MAX];
         static unsigned traced;

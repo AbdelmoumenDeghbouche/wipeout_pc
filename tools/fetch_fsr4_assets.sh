@@ -3,8 +3,9 @@
 # weights) used by the FSR-Vulkan provider into fsr4_shaders/. The assets were built by
 # Q2RTX from AMD's MIT-licensed FidelityFX SDK FSR 4 source (see LICENSE-FSR4-v07.txt);
 # they are not part of this repository. Output 1920x1080 needs the 1080 tier, 1440p and 2160p
-# outputs (menu: output resolution) the 2160 tier; GOW3_FSR4_TIERS selects them.
+# outputs (menu: output resolution) the 2160 tier; WIPEOUT_OC_FSR4_TIERS selects them.
 set -euo pipefail
+source "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/environment.sh"
 cd -- "$(dirname -- "$0")/.."
 commit=ae8d628fae208813172446d1e49ed94150b04658
 base="https://raw.githubusercontent.com/FireBurn/Q2RTX/$commit/baseq2/fsr4_shaders"
@@ -15,7 +16,7 @@ for model in native quality balanced performance ultraperf drs; do
     files+=("fsr4_model_v07_i8_${model}_initializers.bin"
             "fsr4_model_v07_i8_${model}_pre_weights.bin"
             "fsr4_model_v07_i8_${model}_shader_manifest.json")
-    for tier in ${GOW3_FSR4_TIERS:-1080 2160}; do
+    for tier in ${WIPEOUT_OC_FSR4_TIERS:-1080 2160}; do
         files+=("fsr4_model_v07_i8_${model}_${tier}_pre.spv"
                 "fsr4_model_v07_i8_${model}_${tier}_post.spv")
         for pass in $(seq 1 12); do

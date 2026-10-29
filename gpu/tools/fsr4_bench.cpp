@@ -11,6 +11,7 @@
 // last frame, raw RGBA16F, for comparing shader variants.
 // Assets: GOW3_FSR4_DIR or fsr4_shaders in the working directory.
 
+#include "../shadps4/common/wipeout_oc_env.h"
 #include <array>
 #include <cstdio>
 #include <cstdlib>
@@ -292,12 +293,12 @@ int main(int argc, char** argv) {
         std::fprintf(stderr, "unsupported output size\n");
         return 1;
     }
-    const char* dir_env = std::getenv("GOW3_FSR4_DIR");
+    const char* dir_env = wipeout_oc_getenv("WIPEOUT_OC_FSR4_DIR");
     const std::string dir = std::string{dir_env && dir_env[0] ? dir_env : "fsr4_shaders"} + "/";
     std::array<std::vector<unsigned char>, FFX_FSR4_VK_PASS_COUNT> code;
     std::vector<unsigned char> initializer, weights;
     // As vk_fsr4.cpp: passes from opt/ (tools/fsr4_optimize.sh) unless GOW3_FSR4_OPT=0.
-    const char* opt_env = std::getenv("GOW3_FSR4_OPT");
+    const char* opt_env = wipeout_oc_getenv("WIPEOUT_OC_FSR4_OPT");
     const bool use_opt = !(opt_env && opt_env[0] == '0');
     int optimized = 0;
     const auto load = [&](const char* name, std::vector<unsigned char>& data) {
@@ -494,7 +495,7 @@ int main(int argc, char** argv) {
     double gpu_ms = 0.0;
     float period_ns = 1.0f;
     if (fsr411) {
-        const char* dir411 = std::getenv("GOW3_FSR411_DIR");
+        const char* dir411 = wipeout_oc_getenv("WIPEOUT_OC_FSR411_DIR");
         upscaler411 = std::make_unique<Fsr411::Upscaler>(gpu.physical, gpu.device,
                                                          dir411 && dir411[0] ? dir411 : "fsr4_411");
         VkQueryPoolCreateInfo qci{VK_STRUCTURE_TYPE_QUERY_POOL_CREATE_INFO};

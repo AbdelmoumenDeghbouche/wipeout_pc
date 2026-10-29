@@ -7,6 +7,7 @@
  * tab) turn them off or play the list in order; the Music tab picks a song or skips
  * (runtime_music_play, runtime_music_step). */
 #define _GNU_SOURCE
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include "gpu/gow3gpu.h"
 #include <stdio.h>
@@ -216,7 +217,7 @@ static void *decode(void *unused) {
     return NULL;
 }
 static void start(void) {
-    const char *custom=getenv("GOW3_MUSIC_DIR");
+    const char *custom=wipeout_oc_getenv("WIPEOUT_OC_MUSIC_DIR");
     if (custom && *custom) snprintf(dir,sizeof(dir),"%s",custom);
     else snprintf(dir,sizeof(dir),"%s/music",runtime_file_user_dir());
     pthread_t thread;

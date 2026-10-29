@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <filesystem>
 #include <map>
 #include <xxhash.h>
@@ -443,7 +444,7 @@ void TextureCache::DiagDumpImage(ImageId image_id, const char* tag) {
     scheduler.Finish();
     download.Invalidate();
     static int sequence = 0;
-    const char* dir = std::getenv("GOW3_DIAG_DIR");
+    const char* dir = wipeout_oc_getenv("WIPEOUT_OC_DIAG_DIR");
     const char* dir_path = dir && *dir ? dir : "out/diag";
     std::error_code ec;
     std::filesystem::create_directories(dir_path, ec);
@@ -795,7 +796,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
         };
         // Launcher: Performance, "Fast screen effects" (GOW3_PARTIAL_HEIGHT_VIEWS=0 turns it off).
         static const bool partial_views_enabled = [] {
-            const char* value = std::getenv("GOW3_PARTIAL_HEIGHT_VIEWS");
+            const char* value = wipeout_oc_getenv("WIPEOUT_OC_PARTIAL_HEIGHT_VIEWS");
             return !value || value[0] != '0';
         }();
         if (partial_views_enabled && !Gow3Toggle::Disabled(Gow3Toggle::PartialHeightViews) &&
@@ -1674,7 +1675,7 @@ void TextureCache::GarbageCollectImages() {
         // GPU-written ones back. Compare with the driver's current budget instead.
         // GOW3_GC_BUDGET_MB=N: this rule with a fixed budget on any GPU (tests on a desktop).
         static const u64 forced_budget = [] {
-            const char* env = std::getenv("GOW3_GC_BUDGET_MB");
+            const char* env = wipeout_oc_getenv("WIPEOUT_OC_GC_BUDGET_MB");
             return env ? std::strtoull(env, nullptr, 10) << 20 : 0;
         }();
         if (instance.IsIntegrated() || forced_budget) {
@@ -1721,7 +1722,7 @@ void TextureCache::GarbageCollectImages() {
                         (long long)Gow3Stats::staging_mib[2][0].load(), (long long)Gow3Stats::staging_mib[2][1].load());
         }
         // GOW3_IMAGE_CENSUS=1: every 10 s, the images by kind, format and size (4 GB cards, #16).
-        static const bool census = std::getenv("GOW3_IMAGE_CENSUS") != nullptr;
+        static const bool census = wipeout_oc_getenv("WIPEOUT_OC_IMAGE_CENSUS") != nullptr;
         static auto last_census = now;
         if (census && now - last_census >= std::chrono::seconds(10)) {
             last_census = now;

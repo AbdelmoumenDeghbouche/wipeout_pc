@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "../../common/wipeout_oc_env.h"
 #include "video_core/renderer_vulkan/vk_camera_motion.h"
 
 #include <cmath>
@@ -59,9 +60,9 @@ std::array<float, 12> Multiply(const std::array<float, 12>& a, const std::array<
 CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
                            VideoCore::TextureCache& texture_cache_, Runtime& runtime_)
     : instance{instance_}, scheduler{scheduler_}, texture_cache{texture_cache_}, runtime{runtime_} {
-    const char* env = std::getenv("GOW3_DEBUG_MOTION");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_DEBUG_MOTION");
     debug_overlay = env && env[0] == '1';
-    const char* upscaler = std::getenv("GOW3_UPSCALER");
+    const char* upscaler = wipeout_oc_getenv("WIPEOUT_OC_UPSCALER");
     // The upscaler can be switched on from the menu at any time: the camera is always tracked
     // unless GOW3_UPSCALER=none.
     for_upscaler = !(upscaler && std::strcmp(upscaler, "none") == 0);
@@ -115,7 +116,7 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
                 }));
         device.destroyShaderModule(game_module);
         // GOW3_GAME_MOTION_SIGN="x,y": the sign of each axis of the game's vectors (tests).
-        if (const char* sign = std::getenv("GOW3_GAME_MOTION_SIGN")) {
+        if (const char* sign = wipeout_oc_getenv("WIPEOUT_OC_GAME_MOTION_SIGN")) {
             float x = 0.0f, y = 0.0f;
             if (std::sscanf(sign, "%f,%f", &x, &y) == 2) {
                 game_motion_scale = {x, y};

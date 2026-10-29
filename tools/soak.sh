@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
+source "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/environment.sh"
 # tools/soak.sh <secs>: enters the level, rotates the camera now and then, reports survival.
 cd -- "$(dirname -- "$0")/.."
-unset GOW3_GPU_PROFILE GOW3_PRESET_FILE GOW3_SCENE_DEBUG
+unset WIPEOUT_OC_GPU_PROFILE WIPEOUT_OC_PRESET_FILE WIPEOUT_OC_SCENE_DEBUG
 bash "$(dirname "$0")/restart.sh" > /dev/null
 end=$((SECONDS + $1))
 while ((SECONDS < end)); do

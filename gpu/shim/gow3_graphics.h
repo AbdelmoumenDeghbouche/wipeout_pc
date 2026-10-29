@@ -4,6 +4,7 @@
 // apply through "Apply and restart". The launcher reads and writes the same keys.
 #pragma once
 
+#include "../shadps4/common/wipeout_oc_env.h"
 #include <algorithm>
 #include <array>
 #include <cstdlib>
@@ -47,7 +48,7 @@ inline std::vector<std::string> ResolutionNames() {
         return out;
     };
     std::vector<std::string> names;
-    const char* allowed = std::getenv("GOW3_ALLOWED_RESOLUTIONS");
+    const char* allowed = wipeout_oc_getenv("WIPEOUT_OC_ALLOWED_RESOLUTIONS");
     if (allowed && allowed[0]) {
         const std::vector<std::string_view> keep = split(allowed);
         for (const auto& r : Resolutions)
@@ -56,7 +57,7 @@ inline std::vector<std::string> ResolutionNames() {
     } else {
         names.assign(Resolutions.begin(), Resolutions.end());
     }
-    for (const auto& name : split(std::getenv("GOW3_EXTRA_RESOLUTIONS")))
+    for (const auto& name : split(wipeout_oc_getenv("WIPEOUT_OC_EXTRA_RESOLUTIONS")))
         if (std::find(names.begin(), names.end(), name) == names.end()) names.emplace_back(name);
     return names;
 }

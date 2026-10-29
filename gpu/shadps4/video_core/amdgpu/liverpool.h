@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "../../common/wipeout_oc_env.h"
 #include <cstdlib>
 
 #include <condition_variable>
@@ -116,7 +117,7 @@ public:
     /// work_retired). sceGnmSubmitDone does not block the guest when this is true.
     bool IsGpuIdle() const {
         static const bool use_retired = [] {
-            const char* env = std::getenv("GOW3_WORK_RETIRED");
+            const char* env = wipeout_oc_getenv("WIPEOUT_OC_WORK_RETIRED");
             return !(env && env[0] == '0');
         }();
         return num_submits == 0 && (work_retired || !use_retired);

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <algorithm>
 #include <atomic>
 #include <chrono>
@@ -513,7 +514,7 @@ struct PipelineCache::WarmupPool {
         return jobs.empty() && !running;
     }
     static u32 Threads() {
-        const char* env = std::getenv("GOW3_PARALLEL_WARMUP");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_PARALLEL_WARMUP");
         if (!env || !*env || *env == '0') {
             return 0;
         }

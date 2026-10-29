@@ -6,16 +6,17 @@
 #   1080p: the original races at the left edge (pass 11); the fixed passes must give the same
 #          output on every run, and after one frame differ from the original only at that edge.
 set -euo pipefail
+source "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/environment.sh"
 cd -- "$(dirname -- "$0")/.."
 frames=${1:-12}
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 fail=0
 bench() { # bench <opt> <render> <out> <preset> <frames> <dump>
-    GOW3_FSR4_OPT=$1 BENCH_NOISE=1 BENCH_DUMP=$6 out/gpu/fsr4-bench "$2" "$3" "$4" "$5" >/dev/null 2>&1
+    WIPEOUT_OC_FSR4_OPT=$1 BENCH_NOISE=1 BENCH_DUMP=$6 out/gpu/fsr4-bench "$2" "$3" "$4" "$5" >/dev/null 2>&1
 }
 post_ms() {
-    GOW3_FSR4_OPT=$1 out/gpu/fsr4-bench "$2" "$3" "$4" 300 2>&1 |
+    WIPEOUT_OC_FSR4_OPT=$1 out/gpu/fsr4-bench "$2" "$3" "$4" 300 2>&1 |
         grep -E '^ +[0-9.]+ ms/frame  post$' | tail -1 | awk '{print $1}'
 }
 for out in 1920x1080 2560x1440 3840x2160; do

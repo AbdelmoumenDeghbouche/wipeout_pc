@@ -9,6 +9,7 @@
  * GOW3_KEY_MAP also takes the mouse: Mouse Left, Mouse Right, Mouse Middle, Mouse Back,
  * Mouse Forward, Wheel Up and Wheel Down (see mouse_names). */
 #define _GNU_SOURCE
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include "gpu/gow3gpu.h"
 #include "qte_hook.h"
@@ -122,7 +123,7 @@ static void play_click(PadData *d) {
  * sticks); the first when fewer are connected. */
 static int preferred_gamepad(int count) {
     static int wanted;
-    if (!wanted) { const char *env=getenv("GOW3_GAMEPAD"); wanted=env && atoi(env)>0 ? atoi(env) : 1; }
+    if (!wanted) { const char *env=wipeout_oc_getenv("WIPEOUT_OC_GAMEPAD"); wanted=env && atoi(env)>0 ? atoi(env) : 1; }
     return wanted<=count ? wanted-1 : 0;
 }
 /* Opens player 1's gamepad (preferred_gamepad); called under lock. */
@@ -327,8 +328,8 @@ static void load_button_maps(void) {
     static bool loaded;
     if (loaded) return;
     loaded=true;
-    const int pad=apply_button_map(&pad_map,getenv("GOW3_PAD_MAP"),false);
-    const int keys=apply_button_map(&key_map,getenv("GOW3_KEY_MAP"),true);
+    const int pad=apply_button_map(&pad_map,wipeout_oc_getenv("WIPEOUT_OC_PAD_MAP"),false);
+    const int keys=apply_button_map(&key_map,wipeout_oc_getenv("WIPEOUT_OC_KEY_MAP"),true);
     if (pad || keys) printf("Runtime: pad map: %d gamepad and %d keyboard buttons remapped\n",pad,keys);
 }
 
@@ -381,11 +382,11 @@ static unsigned qte_parse_sequence(const char *text, int *keys) {
 static void qte_load(void) {
     if (qte.loaded) return;
     qte.loaded=1;
-    const char *mode=getenv("GOW3_STICK_PROMPTS");
+    const char *mode=wipeout_oc_getenv("WIPEOUT_OC_STICK_PROMPTS");
     qte.mode=!mode ? STICK_PROMPTS_OFF : !strcmp(mode,"keyboard") ? STICK_PROMPTS_KEYBOARD
              : !strcmp(mode,"mouse") ? STICK_PROMPTS_MOUSE : STICK_PROMPTS_OFF;
     for (unsigned i=0;i<QTE_ROTATIONS;++i) qte_sequences[i].length=qte_parse_sequence(qte_defaults[i],qte_sequences[i].keys);
-    const char *value=getenv("GOW3_QTE_SEQUENCES");
+    const char *value=wipeout_oc_getenv("WIPEOUT_OC_QTE_SEQUENCES");
     char entries[512];
     if (value && strlen(value)<sizeof(entries)) {
         strcpy(entries,value);
@@ -562,7 +563,7 @@ static int replay_armed;      /* 1 while a GOW3_PAD_REPLAY recording plays, 2 on
 static uint64_t replay_start; /* 0: (re)start at the next sample */
 static void read_inject(void) {
     static const char *path; static int checked; static uint64_t last_check; static struct timespec mtime;
-    if (!checked) { path=getenv("GOW3_PAD_FILE"); checked=1; }
+    if (!checked) { path=wipeout_oc_getenv("WIPEOUT_OC_PAD_FILE"); checked=1; }
     if (!path || !*path) return;
     uint64_t now=now_us();
     if (now-last_check<20000) return;
@@ -604,7 +605,7 @@ static uint64_t record_start;
 static PadSample record_last;
 static void record_sample(const PadData *d) {
     static const char *path; static int checked, f9_was_down;
-    if (!checked) { path=getenv("GOW3_PAD_RECORD"); checked=1; }
+    if (!checked) { path=wipeout_oc_getenv("WIPEOUT_OC_PAD_RECORD"); checked=1; }
     if (!path || !*path || !sdl_ready) return;
     const bool *k=SDL_GetKeyboardState(NULL);
     const int f9=k && k[SDL_SCANCODE_F9];
@@ -636,7 +637,7 @@ static void replay_sample(PadData *d) {
         static int loaded;
         if (!loaded) {
             loaded=1;
-            const char *path=getenv("GOW3_PAD_REPLAY");
+            const char *path=wipeout_oc_getenv("WIPEOUT_OC_PAD_REPLAY");
             FILE *f=path ? fopen(path,"r") : NULL;
             PadSample s; unsigned v[8]; size_t cap=0;
             while (f && fscanf(f,"%u %u %u %u %u %u %u %u",&v[0],&v[1],&v[2],&v[3],&v[4],&v[5],&v[6],&v[7])==8) {

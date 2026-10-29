@@ -168,7 +168,7 @@ def main():
         driver.parent.mkdir(parents=True, exist_ok=True)
         driver.write_text(shell + '\n', encoding='utf-8')
         driver_windows = windows_dir.replace('\\', '/') + '/out/windows-debug-build.sh'
-        command = ('$env:GOW3_BUILD_TYPE="Debug"; $env:GOW3_LTO="OFF"; '
+        command = ('$env:WIPEOUT_OC_BUILD_TYPE="Debug"; $env:WIPEOUT_OC_LTO="OFF"; '
                    f'& {ps_quote(bash)} --login {ps_quote(driver_windows)}; '
                    'if ($LASTEXITCODE) { exit $LASTEXITCODE }; '
                    f'Set-Location -LiteralPath {ps_quote(windows_dir)}; '
@@ -181,8 +181,8 @@ def main():
             parser.error('run requires --game pointing to a directory containing eboot.bin')
         user_dir = windows_dir + '\\user-debug'
         command = (f'Set-Location -LiteralPath {ps_quote(windows_dir)}; '
-                   f'$env:GOW3_GAME_DIR={ps_quote(winpath(args.game))}; '
-                   f'$env:GOW3_USER_DIR={ps_quote(user_dir)}; '
+                   f'$env:WIPEOUT_OC_GAME_DIR={ps_quote(winpath(args.game))}; '
+                   f'$env:WIPEOUT_OC_USER_DIR={ps_quote(user_dir)}; '
                    f'& {ps_quote(python)} -u run.py; exit $LASTEXITCODE')
         powershell(setup + command, logs / 'run.log')
     else:

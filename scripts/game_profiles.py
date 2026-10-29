@@ -13,33 +13,33 @@ PROFILES = {
     # at 240 Hz, and the frame rate limit (launcher, in-game menu) caps it.
     # Vblank stays at the console's 60 Hz: the menu waits one vblank per frame, so a higher
     # rate ran it that many times faster (240 Hz = 4x). The race engine steps by rdtsc, not
-    # vblank, so GOW3_ENGINE_FPS=240 + a Frame rate limit above 60 still gets high-FPS races:
+    # vblank, so WIPEOUT_OC_ENGINE_FPS=240 + a Frame rate limit above 60 still gets high-FPS races:
     # the frame limit turns on immediate flips, which flip above the vblank rate on demand.
-    # GOW3_ALLOWED_RESOLUTIONS: only these built-in sizes have a resolution patch in
+    # WIPEOUT_OC_ALLOWED_RESOLUTIONS: only these built-in sizes have a resolution patch in
     # patches/WipEout_Omega_Collection.xml; the other built-ins are hidden from the in-game menu.
-    # GOW3_HUD_16X9: on a render resolution wider than 16:9 the HUD stays 16:9 in the middle
+    # WIPEOUT_OC_HUD_16X9: on a render resolution wider than 16:9 the HUD stays 16:9 in the middle
     # (the HUD is laid out for 1920x1080; vk_rasterizer.cpp PrepareRenderState).
-    # GOW3_GAME_MOTION / GOW3_UPSCALE_BEFORE_PS (temporal upscalers, still behind the experimental
+    # WIPEOUT_OC_GAME_MOTION / WIPEOUT_OC_UPSCALE_BEFORE_PS (temporal upscalers, still behind the experimental
     # switch): the main scene pass writes the game's own motion vectors, and the upscale runs
     # before 4f6cc41b, the first pass that reads the finished scene color (a downsample, then the
     # exposure chain). The motion blur (f136b842) is too late: it reads a copy made in between
-    # (ps 1ba93f5d). Found on CUSA07671 01.07. GOW3_OBJECT_MOTION=0: God of War III's object
+    # (ps 1ba93f5d). Found on CUSA07671 01.07. WIPEOUT_OC_OBJECT_MOTION=0: God of War III's object
     # motion (instrumented vertex shaders, extra pipeline variants) is not read with the game's
     # own vectors; it only cost first-start compiles and GPU time.
     'CUSA07671': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
-                  'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1',
-                          'GOW3_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
-                          'GOW3_GAME_MOTION': '1', 'GOW3_UPSCALE_BEFORE_PS': '4f6cc41b',
-                          'GOW3_OBJECT_MOTION': '0'}},
+                  'env': {'WIPEOUT_OC_RED_ZONE': '1', 'WIPEOUT_OC_ENGINE_FPS': '240', 'WIPEOUT_OC_HUD_16X9': '1',
+                          'WIPEOUT_OC_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
+                          'WIPEOUT_OC_GAME_MOTION': '1', 'WIPEOUT_OC_UPSCALE_BEFORE_PS': '4f6cc41b',
+                          'WIPEOUT_OC_OBJECT_MOTION': '0'}},
     # The EU build (CUSA05670) has the same code and shaders: without these three, FSR 3.1 and
     # DLAA never ran there and Temporal anti-aliasing only turned the multisampling off (#85).
     'CUSA05670': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
-                  'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1',
-                          'GOW3_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
-                          'GOW3_GAME_MOTION': '1', 'GOW3_UPSCALE_BEFORE_PS': '4f6cc41b',
-                          'GOW3_OBJECT_MOTION': '0'}},
+                  'env': {'WIPEOUT_OC_RED_ZONE': '1', 'WIPEOUT_OC_ENGINE_FPS': '240', 'WIPEOUT_OC_HUD_16X9': '1',
+                          'WIPEOUT_OC_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
+                          'WIPEOUT_OC_GAME_MOTION': '1', 'WIPEOUT_OC_UPSCALE_BEFORE_PS': '4f6cc41b',
+                          'WIPEOUT_OC_OBJECT_MOTION': '0'}},
     'CUSA01623': {'name': 'God of War III', 'modules': ('libc.prx', 'libSceFios2.prx')},
 }
 DEFAULT = {'name': None, 'modules': ('libc.prx', 'libSceFios2.prx')}

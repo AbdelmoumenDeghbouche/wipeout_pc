@@ -115,8 +115,8 @@ class PresenceLifecycle(unittest.TestCase):
     def setUp(self):
         self.env = mock.patch.dict(os.environ, {}, clear=False)
         self.env.start()
-        os.environ.pop('GOW3_DISCORD', None)
-        os.environ.pop('GOW3_DISCORD_ID', None)
+        for name in ('GOW3_DISCORD', 'GOW3_DISCORD_ID', 'WIPEOUT_OC_DISCORD', 'WIPEOUT_OC_DISCORD_ID'):
+            os.environ.pop(name, None)
 
     def tearDown(self):
         self.env.stop()
@@ -318,7 +318,7 @@ class SocketIntegration(unittest.TestCase):
                 return transport
 
             with ThreadPoolExecutor(max_workers=1) as executor, \
-                    mock.patch.dict(os.environ, {'GOW3_DISCORD': '1'}), \
+                    mock.patch.dict(os.environ, {'WIPEOUT_OC_DISCORD': '1'}), \
                     mock.patch.object(dp, 'open_transport', side_effect=connect), \
                     mock.patch.object(dp, 'RETRY_SECONDS', 0.01):
                 server = executor.submit(serve)
@@ -370,7 +370,7 @@ class WindowsPipeTransport(unittest.TestCase):
         self.assertLess(time.monotonic() - started, 1)
 
     def test_close_stops_worker_waiting_for_a_native_pipe_handshake(self):
-        with mock.patch.dict(os.environ, {'GOW3_DISCORD': '1'}), \
+        with mock.patch.dict(os.environ, {'WIPEOUT_OC_DISCORD': '1'}), \
                 mock.patch.object(dp, 'open_transport', return_value=self.transport) as opened:
             presence = dp.Presence(client_id='123')
             try:
@@ -405,10 +405,10 @@ class LauncherSwitch(unittest.TestCase):
 
     def test_off_by_default(self):
         self.assertFalse(self.launcher.APP_DEFAULTS['discord_rpc'])
-        self.assertEqual(self.environment()['GOW3_DISCORD'], '0')
+        self.assertEqual(self.environment()['WIPEOUT_OC_DISCORD'], '0')
 
     def test_checked_enables_it(self):
-        self.assertEqual(self.environment(discord_rpc=True)['GOW3_DISCORD'], '1')
+        self.assertEqual(self.environment(discord_rpc=True)['WIPEOUT_OC_DISCORD'], '1')
 
     def test_label_is_translated(self):
         import gow3_lang

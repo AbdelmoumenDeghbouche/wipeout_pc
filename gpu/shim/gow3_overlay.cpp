@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "../shadps4/common/wipeout_oc_env.h"
 #include "gow3_overlay.h"
 
 #include <algorithm>
@@ -198,7 +199,7 @@ void Choice(const char* label, std::atomic<int>& target, const char* const* labe
 // Controller button names in the help text follow GOW3_GLYPHS (run.py sets xbox or nintendo when
 // the glyph feature is on); unset is PlayStation. Read once: the environment is fixed for a run.
 static const char* PadText(const char* playstation, const char* xbox, const char* nintendo) {
-    static const char* style = std::getenv("GOW3_GLYPHS");
+    static const char* style = wipeout_oc_getenv("WIPEOUT_OC_GLYPHS");
     if (!style) return playstation;
     return !std::strcmp(style, "xbox") ? xbox : !std::strcmp(style, "nintendo") ? nintendo : playstation;
 }
@@ -422,7 +423,7 @@ void GameTab() {
 // without one (GOW3_UPSCALER=none, as TemporalUpscaler decides it) switching would only change a label.
 bool SessionHasUpscaler() {
     static const bool has = [] {
-        const char* upscaler = std::getenv("GOW3_UPSCALER");
+        const char* upscaler = wipeout_oc_getenv("WIPEOUT_OC_UPSCALER");
         return !(upscaler && std::strcmp(upscaler, "none") == 0);
     }();
     return has;
@@ -750,7 +751,7 @@ void Menu() {
         ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "%d change%s need%s a restart (unsaved progress is lost).",
                            changes, changes == 1 ? "" : "s", changes == 1 ? "s" : "");
         ImGui::SameLine();
-        ImGui::BeginDisabled(!std::getenv("GOW3_RESTART_COMMAND"));
+        ImGui::BeginDisabled(!wipeout_oc_getenv("WIPEOUT_OC_RESTART_COMMAND"));
         if (ImGui::Button("Apply and restart")) {
             // The new launch confirms the options once the game shows; run.py restores the
             // previous ones if it never does (restart_unconfirmed).
@@ -1164,7 +1165,7 @@ bool HandleEvent(const SDL_Event& event) {
     case SDL_EVENT_KEY_UP: {
         const bool down = event.type == SDL_EVENT_KEY_DOWN;
         static const bool capture_key = [] {
-            const char* env = std::getenv("GOW3_FRAME_CAPTURE_KEY");
+            const char* env = wipeout_oc_getenv("WIPEOUT_OC_FRAME_CAPTURE_KEY");
             return env && *env == '1';
         }();
         if (event.key.key == SDLK_F12) {
@@ -1184,7 +1185,7 @@ bool HandleEvent(const SDL_Event& event) {
         // Off when the session has no upscaler at all (GOW3_UPSCALER=none, as TemporalUpscaler
         // decides it): switching would only change the overlay's label.
         static const bool upscaler_key = [] {
-            const char* env = std::getenv("GOW3_UPSCALER_KEY");
+            const char* env = wipeout_oc_getenv("WIPEOUT_OC_UPSCALER_KEY");
             return env && *env == '1' && SessionHasUpscaler();
         }();
         if (down && !event.key.repeat && upscaler_key && event.key.key == SDLK_F10) {

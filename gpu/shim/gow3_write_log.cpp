@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "../shadps4/common/wipeout_oc_env.h"
 #include "gow3_write_log.h"
 
 #include <array>
@@ -38,7 +39,7 @@ void Record(std::uint64_t address, const void* data, std::uint64_t size, Source 
 
 int Mode() {
     static const int mode = [] {
-        const char* env = std::getenv("GOW3_WRITE_LOG");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_WRITE_LOG");
         return env ? std::atoi(env) : 0;
     }();
     return mode;

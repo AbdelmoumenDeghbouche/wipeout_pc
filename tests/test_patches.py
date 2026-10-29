@@ -13,7 +13,7 @@ from patches import (compile_patches, external_patches, external_selection, comp
 GOW3 = ROOT / 'patches/God_of_War_III_Remastered.xml'
 WIPEOUT = ROOT / 'patches/WipEout_Omega_Collection.xml'
 ULTRAWIDE = ROOT / 'extras/mods/Ultrawide/patches/Ultrawide.xml'
-GOW3_IDS = {'CUSA01623'}
+WIPEOUT_OC_IDS = {'CUSA01623'}
 SEGMENTS = [(0, 0x6000000)]
 
 
@@ -42,7 +42,7 @@ class ExternalPatchTests(unittest.TestCase):
             (folder / 'extra.xml').write_text(EXTERNAL)
             (folder / 'other.xml').write_text(EXTERNAL.replace('CUSA01623', 'CUSA99999'))
             (folder / 'broken.xml').write_text('<Patch>')
-            found = external_patches(folder, '01.02', GOW3, GOW3_IDS)
+            found = external_patches(folder, '01.02', GOW3, WIPEOUT_OC_IDS)
             self.assertEqual([key for key, _, _ in found],
                              ['extra.xml/On', 'extra.xml/Off', 'extra.xml/Mask'])
             # The file's isEnabled; the mask patch is skipped as a whole.
@@ -54,7 +54,7 @@ class ExternalPatchTests(unittest.TestCase):
             self.assertEqual(writes, [(0x2000, (0x12345678).to_bytes(4, 'little'))])
 
     def test_built_in_file_is_not_external(self):
-        self.assertEqual(external_patches(GOW3.parent, '01.02', GOW3, GOW3_IDS), [])
+        self.assertEqual(external_patches(GOW3.parent, '01.02', GOW3, WIPEOUT_OC_IDS), [])
 
 
 class GameProfileTests(unittest.TestCase):
@@ -436,7 +436,7 @@ class HalfResolutionTests(unittest.TestCase):
         import game_profiles
         for title in ('CUSA07671', 'CUSA05670'):
             env = game_profiles.PROFILES[title]['env']
-            self.assertEqual((env['GOW3_GAME_MOTION'], env['GOW3_UPSCALE_BEFORE_PS']), ('1', '4f6cc41b'), title)
+            self.assertEqual((env['WIPEOUT_OC_GAME_MOTION'], env['WIPEOUT_OC_UPSCALE_BEFORE_PS']), ('1', '4f6cc41b'), title)
 
     def test_wipeout_startup_hang_fix_sets_the_flag_before_the_thread_starts(self):
         # mov [rbx],rax; mov byte [0xaef4c6],1; call 0x3d20e0; cmp byte [0xaef390],0 (#43), even when

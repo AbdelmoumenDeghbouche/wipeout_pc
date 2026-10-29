@@ -7,6 +7,7 @@
  * Every entry is an explicit contract; unknown functions still stop. */
 #define _GNU_SOURCE
 #define _CRT_RAND_S /* rand_s */
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -161,7 +162,7 @@ static ABI int32_t ef_cancel(EventFlag *handle, uint64_t bits, int32_t *waiters)
 /* Base PS4, or PS4 Pro with GOW3_NEO=1 (games then pick their Pro render path and resolution). */
 static ABI int32_t is_neo_mode(void) {
     static int neo=-1;
-    if (neo<0) { const char *v=getenv("GOW3_NEO"); neo=v && *v=='1'; if (neo) puts("Runtime: reporting a PS4 Pro (Neo mode)"); }
+    if (neo<0) { const char *v=wipeout_oc_getenv("WIPEOUT_OC_NEO"); neo=v && *v=='1'; if (neo) puts("Runtime: reporting a PS4 Pro (Neo mode)"); }
     return neo;
 }
 static ABI int32_t get_cpumode(void) { return 0; }        /* SCE_KERNEL_CPUMODE_6CPU */
@@ -714,7 +715,7 @@ void runtime_ue4_setres_poll(void) {
     if (automatic_done) return;
     if (++reads<600) return; /* the main menu, with the game viewport up */
     automatic_done=1;
-    const char *want=getenv("GOW3_UE4_SETRES");
+    const char *want=wipeout_oc_getenv("WIPEOUT_OC_UE4_SETRES");
     if (want && *want) ue4_setres(want);
 }
 

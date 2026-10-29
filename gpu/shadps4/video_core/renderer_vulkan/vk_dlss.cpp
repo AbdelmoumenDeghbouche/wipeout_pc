@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2026 IFreemz, gow3 contributors
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <algorithm>
 #include <cstdio>
 #include <cstdlib>
@@ -91,7 +92,7 @@ struct Dlss::Impl {
 
 Dlss* Dlss::Get() {
     static Dlss* const dlss = []() -> Dlss* {
-        const char* setting = std::getenv("GOW3_DLSS");
+        const char* setting = wipeout_oc_getenv("WIPEOUT_OC_DLSS");
         if (setting && setting[0] == '0') {
             return nullptr;
         }
@@ -125,7 +126,7 @@ Dlss::Dlss() : impl{std::make_unique<Impl>()} {
     }
     // NGX writes its logs and model updates here: beside the saves and shader caches.
     std::filesystem::path data = directory / "dlss";
-    if (const char* user = std::getenv("GOW3_GPU_USER_DIR"); user && user[0]) {
+    if (const char* user = wipeout_oc_getenv("WIPEOUT_OC_GPU_USER_DIR"); user && user[0]) {
         data = std::filesystem::path{user} / "dlss";
     }
     std::error_code error;

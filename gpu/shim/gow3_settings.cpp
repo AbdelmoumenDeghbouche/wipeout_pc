@@ -1,4 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
+#include "../shadps4/common/wipeout_oc_env.h"
 #include "gow3_settings.h"
 #include "gow3_orbs.h"
 #include "gow3_graphics.h"
@@ -16,7 +17,7 @@ namespace Gow3Settings {
 namespace {
 
 const char* Path() {
-    const char* env = std::getenv("GOW3_CONFIG");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_CONFIG");
     return env && env[0] ? env : "gow3.ini";
 }
 
@@ -197,27 +198,27 @@ void Load() {
         std::printf("Settings: %s\n", Path());
     }
     // Environment overrides (scripts, A/B tests).
-    if (const char* env = std::getenv("GOW3_UPSCALER")) {
+    if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_UPSCALER")) {
         v.upscaler = UpscalerOff;
         for (int u = 0; u < UpscalerCount; ++u) {
             if (std::strcmp(env, UpscalerName(u)) == 0) v.upscaler = u;
         }
     }
     const std::pair<const char*, const char*> env_keys[] = {
-        {"GOW3_FSR_SHARPNESS", "sharpness"},        {"GOW3_JITTER", "jitter"},
-        {"GOW3_REACTIVE", "reactive"},              {"GOW3_REACTIVE_SCALE", "reactive_scale"},
-        {"GOW3_REACTIVE_THRESHOLD", "reactive_threshold"}, {"GOW3_REACTIVE_MAX", "reactive_max"},
-        {"GOW3_UPSCALE_PRESET", "preset"},            {"GOW3_OBJECT_MOTION", "object_motion"},
-        {"GOW3_DLSS_PRESET", "dlss_preset"},
-        {"GOW3_ASYNC_SHADERS", "async_shaders"},      {"GOW3_DEFERRED_READBACK", "deferred_readback"},
-        {"GOW3_STALE_READBACK", "stale_readback"},     {"GOW3_FSR1", "fsr1"},
-        {"GOW3_RCAS", "rcas"},                        {"GOW3_FRAMES_AHEAD", "frames_queued"},
-        {"GOW3_ANISOTROPY", "anisotropy"},            {"GOW3_VIBRATION", "vibration"}, {"GOW3_STICK_DEADZONE", "stick_deadzone"},
-        {"GOW3_MOUSE_PROMPT_DISTANCE", "mouse_prompt_distance"}, {"GOW3_MOUSE_LOCK", "mouse_lock"},
-        {"GOW3_MOUSE_AIM_STYLE", "mouse_aim_style"}, {"GOW3_MOUSE_AIM_SENSITIVITY", "mouse_aim_sensitivity"},
+        {"WIPEOUT_OC_FSR_SHARPNESS", "sharpness"},        {"WIPEOUT_OC_JITTER", "jitter"},
+        {"WIPEOUT_OC_REACTIVE", "reactive"},              {"WIPEOUT_OC_REACTIVE_SCALE", "reactive_scale"},
+        {"WIPEOUT_OC_REACTIVE_THRESHOLD", "reactive_threshold"}, {"WIPEOUT_OC_REACTIVE_MAX", "reactive_max"},
+        {"WIPEOUT_OC_UPSCALE_PRESET", "preset"},            {"WIPEOUT_OC_OBJECT_MOTION", "object_motion"},
+        {"WIPEOUT_OC_DLSS_PRESET", "dlss_preset"},
+        {"WIPEOUT_OC_ASYNC_SHADERS", "async_shaders"},      {"WIPEOUT_OC_DEFERRED_READBACK", "deferred_readback"},
+        {"WIPEOUT_OC_STALE_READBACK", "stale_readback"},     {"WIPEOUT_OC_FSR1", "fsr1"},
+        {"WIPEOUT_OC_RCAS", "rcas"},                        {"WIPEOUT_OC_FRAMES_AHEAD", "frames_queued"},
+        {"WIPEOUT_OC_ANISOTROPY", "anisotropy"},            {"WIPEOUT_OC_VIBRATION", "vibration"}, {"WIPEOUT_OC_STICK_DEADZONE", "stick_deadzone"},
+        {"WIPEOUT_OC_MOUSE_PROMPT_DISTANCE", "mouse_prompt_distance"}, {"WIPEOUT_OC_MOUSE_LOCK", "mouse_lock"},
+        {"WIPEOUT_OC_MOUSE_AIM_STYLE", "mouse_aim_style"}, {"WIPEOUT_OC_MOUSE_AIM_SENSITIVITY", "mouse_aim_sensitivity"},
     };
     for (const auto& [env, key] : env_keys) {
-        if (const char* value = std::getenv(env); value && value[0]) {
+        if (const char* value = wipeout_oc_getenv(env); value && value[0]) {
             Set(v, key, value);
         }
     }
@@ -228,7 +229,7 @@ void Load() {
     v.startup_live_resolution = v.live_resolution;
     v.startup_render_resolution = v.render_resolution;
     v.startup_engine_fps = v.engine_fps;
-    const char* applied = std::getenv("GOW3_ENGINE_FPS");
+    const char* applied = wipeout_oc_getenv("WIPEOUT_OC_ENGINE_FPS");
     v.applied_engine_fps = applied && applied[0] ? Gow3Graphics::ParseEngineFps(std::atoi(applied))
                                                  : v.engine_fps.load();
     v.startup_deferred_readback = v.deferred_readback;
@@ -273,7 +274,7 @@ void ConfigureDlssSupport(bool available, const char* problem) {
 }
 
 bool FixedRenderSession() {
-    const char* size = std::getenv("GOW3_RENDER_RES");
+    const char* size = wipeout_oc_getenv("WIPEOUT_OC_RENDER_RES");
     return size && size[0];
 }
 

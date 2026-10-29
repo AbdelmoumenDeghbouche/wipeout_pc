@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../common/wipeout_oc_env.h"
 #include <boost/container/small_vector.hpp>
 #include "gow3_toggles.h"
 #include "common/assert.h"
@@ -392,7 +393,7 @@ struct SignalImpl : public PageManager::Impl {
 
 PageManager::PageManager(Vulkan::Rasterizer* rasterizer_) {
 #ifdef __linux__
-    if (std::getenv("GOW3_UFFD") && std::getenv("GOW3_UFFD")[0] == '1') {
+    if (wipeout_oc_getenv("WIPEOUT_OC_UFFD") && wipeout_oc_getenv("WIPEOUT_OC_UFFD")[0] == '1') {
         try {
             impl = std::make_unique<UffdImpl>(rasterizer_);
             LOG_INFO(Config, "Memory tracking method: userfaultfd");

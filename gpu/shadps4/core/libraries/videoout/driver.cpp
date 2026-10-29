@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2025-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../../common/wipeout_oc_env.h"
 #include <algorithm>
 #include <cmath>
 #include <vector>
@@ -74,7 +75,7 @@ VideoOutDriver::VideoOutDriver(u32 width, u32 height) {
     main_port.resolution.full_height = height;
     main_port.resolution.pane_width = width;
     main_port.resolution.pane_height = height;
-    const char* separate = std::getenv("GOW3_PRESENT_THREAD");
+    const char* separate = wipeout_oc_getenv("WIPEOUT_OC_PRESENT_THREAD");
     separate_swap = !(separate && separate[0] == '0');
     if (separate_swap) {
         swap_thread = std::jthread([&](std::stop_token token) { SwapThread(token); });
@@ -337,7 +338,7 @@ void VideoOutDriver::Flip(const Request& req) {
                   twf = Gow3Stats::t_write_faults.load();
         // gow3: every frame over 40 ms (GOW3_STALL_MS) after the first, at most 10 per 5 s window.
         static const double stall_ms = [] {
-            const char* value = std::getenv("GOW3_STALL_MS");
+            const char* value = wipeout_oc_getenv("WIPEOUT_OC_STALL_MS");
             return value ? std::atof(value) : 40.0;
         }();
         static bool primed = false;
@@ -675,7 +676,7 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     // until its slot; slots advance by one period (no drift) but never lag behind by more.
     // gow3: the in-game menu changes the limit live (Gow3Settings::fps_limit); GOW3_FPS_LIMIT
     // and the uncapped presets keep their fixed limit.
-    const bool fixed_limit = std::getenv("GOW3_FPS_LIMIT") || EmulatorSettings.GetVblankFrequency() == 480;
+    const bool fixed_limit = wipeout_oc_getenv("WIPEOUT_OC_FPS_LIMIT") || EmulatorSettings.GetVblankFrequency() == 480;
     const auto current_limit = [&] {
         const auto& s = Gow3Settings::Get();
         return fixed_limit ? EmulatorSettings.GetFrameLimit()

@@ -1,3 +1,4 @@
+#include "../shadps4/common/wipeout_oc_env.h"
 #include "gow3_write_log.h"
 // gow3: glue between the C loader and the vendored shadPS4 video core.
 #include "gow3_overlay.h"
@@ -173,7 +174,7 @@ u64 PS4_SYSV_ABI sceKernelGetProcessTimeCounter() { return runtime_process_time_
 u64 PS4_SYSV_ABI sceKernelGetProcessTimeCounterFrequency() { return 1'000'000'000; }
 s32 PS4_SYSV_ABI sceKernelIsNeoMode() {
     static const bool neo = [] {
-        const char* value = std::getenv("GOW3_NEO");
+        const char* value = wipeout_oc_getenv("WIPEOUT_OC_NEO");
         return value && *value == '1';
     }();
     return neo;
@@ -246,9 +247,9 @@ extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
 #endif
     g_sdk_version = config->sdk_version;
 #ifdef _WIN32
-    if (config->user_dir && !std::getenv("GOW3_GPU_USER_DIR")) _putenv_s("GOW3_GPU_USER_DIR", config->user_dir);
+    if (config->user_dir && !wipeout_oc_getenv("WIPEOUT_OC_GPU_USER_DIR")) _putenv_s("WIPEOUT_OC_GPU_USER_DIR", config->user_dir);
 #else
-    if (config->user_dir) setenv("GOW3_GPU_USER_DIR", config->user_dir, 0);
+    if (config->user_dir && !wipeout_oc_getenv("WIPEOUT_OC_GPU_USER_DIR")) setenv("WIPEOUT_OC_GPU_USER_DIR", config->user_dir, 0);
 #endif
     Core::Emulator::FillElfInfo(*config);
     const std::string title = config->title ? config->title : "God of War III";
@@ -387,7 +388,7 @@ u32 ConsumeGameOnlyScreenshotRequests() {
     // Development: GOW3_SCREENSHOT_EVERY=N also saves a game-only screenshot every N seconds
     // (the window need not have focus, unlike F12). Called once per presented frame.
     static const std::chrono::seconds every{[] {
-        const char* env = std::getenv("GOW3_SCREENSHOT_EVERY");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_SCREENSHOT_EVERY");
         return env ? std::atoi(env) : 0;
     }()};
     static auto next = std::chrono::steady_clock::now() + every;

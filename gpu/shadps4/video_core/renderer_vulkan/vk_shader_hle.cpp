@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include "shader_recompiler/info.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
@@ -179,7 +180,7 @@ static bool ExecuteCopyShaderHLE(const Shader::Info& info, const AmdGpu::Compute
     // shader 1.5 -> 0.6 ms/frame, GPU busy 85% -> 77%, frame rate no lower.
     // GOW3_COPY_MERGE_KB overrides it.
     static const vk::DeviceSize MaxDistanceForMerge = [] {
-        const char* env = std::getenv("GOW3_COPY_MERGE_KB");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_COPY_MERGE_KB");
         return env ? vk::DeviceSize(std::strtoull(env, nullptr, 10)) * 1024 : vk::DeviceSize(64_KB);
     }();
     u32 batch_start = 0;

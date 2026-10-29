@@ -13,14 +13,15 @@
 # spirv-dis/spirv-as, umu-run), network for the two git repositories, and a Proton build
 # (PROTONPATH, default: newest GE-Proton in Steam's compatibilitytools.d).
 set -euo pipefail
+source "$(dirname -- "${BASH_SOURCE[0]}")/../../scripts/environment.sh"
 cd -- "$(dirname -- "$0")/../.."
 upscaler=$(realpath "${1:?upscaler DLL}")
 loader=$(realpath "${2:?loader DLL}")
 work=$PWD/out/fsr4cap
 mkdir -p "$work"
 
-if [[ -z ${GOW3_FSR4CAP_SHELL:-} ]] && command -v nix-shell >/dev/null; then
-    exec env GOW3_FSR4CAP_SHELL=1 nix-shell -p pkgsCross.mingwW64.buildPackages.gcc cmake ninja gcc \
+if [[ -z ${WIPEOUT_OC_FSR4CAP_SHELL:-} ]] && command -v nix-shell >/dev/null; then
+    exec env WIPEOUT_OC_FSR4CAP_SHELL=1 nix-shell -p pkgsCross.mingwW64.buildPackages.gcc cmake ninja gcc \
         python3 spirv-tools umu-launcher git --run "bash $(printf %q "$0") $(printf %q "$upscaler") $(printf %q "$loader")"
 fi
 

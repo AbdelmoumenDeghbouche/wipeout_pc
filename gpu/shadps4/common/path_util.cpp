@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "wipeout_oc_env.h"
 #include <fstream>
 #include <unordered_map>
 #include "common/logging/log.h"
@@ -86,7 +87,7 @@ static std::optional<std::filesystem::path> GetBundleParentDirectory() {
 
 static auto UserPaths = [] {
     // gow3: the port keeps GPU caches where GOW3_GPU_USER_DIR points.
-    const char* port_dir = std::getenv("GOW3_GPU_USER_DIR");
+    const char* port_dir = wipeout_oc_getenv("WIPEOUT_OC_GPU_USER_DIR");
     auto user_dir = port_dir ? std::filesystem::path(port_dir) : std::filesystem::current_path() / PORTABLE_DIR;
     if (!std::filesystem::exists(user_dir)) {
         // If it doesn't exist, use the standard path for the platform instead.

@@ -206,6 +206,6 @@ def applied_engine_fps(names):
 
 
 def environment(options):
-    return {'GOW3_DEFERRED_READBACK': options['deferred_readback'],
-            'GOW3_STALE_READBACK': options['stale_readback'],
-            'GOW3_ASYNC_SHADERS': options['async_shaders']}
+    return {'WIPEOUT_OC_DEFERRED_READBACK': options['deferred_readback'],
+            'WIPEOUT_OC_STALE_READBACK': options['stale_readback'],
+            'WIPEOUT_OC_ASYNC_SHADERS': options['async_shaders']}

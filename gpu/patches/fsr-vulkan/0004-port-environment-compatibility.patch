@@ -1,0 +1,47 @@
+diff --git a/src/ffx_vk_fsr4_v07.c b/src/ffx_vk_fsr4_v07.c
+--- a/src/ffx_vk_fsr4_v07.c
++++ b/src/ffx_vk_fsr4_v07.c
+@@ -26,6 +26,7 @@
+ #include <string.h>
+ #include <stdio.h>
+ #include <stdlib.h>
++#include "../../../shadps4/common/wipeout_oc_env.h"
+
+ // ── tuneable limits ──────────────────────────────────────────────────────────
+ #define MAX_RESOURCES       192
+@@ -184,7 +185,7 @@
+     VkBool32  dotProductSupported;
+     VkBool32  computeDerivativesSupported;
+
+-    /* gow3: GOW3_FSR4_PROFILE=1 — GPU time per pass (timestamps around each
++    /* gow3: WIPEOUT_OC_FSR4_PROFILE=1 — GPU time per pass (timestamps around each
+      * dispatch, read back when the frame retires, printed every 300 frames). */
+     VkQueryPool profPool;
+     float       profPeriodNs;
+@@ -636,7 +637,7 @@
+
+ // ── pipeline creation ─────────────────────────────────────────────────────────
+
+-/* gow3: GOW3_FSR4_STATS=1 (the device must enable pipelineExecutableInfo) prints the
++/* gow3: WIPEOUT_OC_FSR4_STATS=1 (the device must enable pipelineExecutableInfo) prints the
+  * driver's statistics of each pass: registers, spills, instruction counts. */
+ static void printPipelineStats(FfxFsr4VkContext* c, uint32_t passIdx, VkPipeline pipeline)
+ {
+@@ -750,7 +751,7 @@
+     cpci.stage.pName=blob->entryPoint ? blob->entryPoint : "main";
+     cpci.layout=out->layout;
+
+-    const char* statsEnv = getenv("GOW3_FSR4_STATS");
++    const char* statsEnv = wipeout_oc_getenv("WIPEOUT_OC_FSR4_STATS");
+     const int stats = statsEnv && statsEnv[0] == '1';
+     if (stats) cpci.flags |= VK_PIPELINE_CREATE_CAPTURE_STATISTICS_BIT_KHR;
+     r = vkCreateComputePipelines(c->dev, VK_NULL_HANDLE, 1, &cpci, c->alloc, &out->pipeline);
+@@ -1784,7 +1785,7 @@
+     sci.maxLod=VK_LOD_CLAMP_NONE;
+     r=vkCreateSampler(c->dev,&sci,c->alloc,&c->linearSampler);
+     {
+-        const char* prof = getenv("GOW3_FSR4_PROFILE");
++        const char* prof = wipeout_oc_getenv("WIPEOUT_OC_FSR4_PROFILE");
+         if (r == VK_SUCCESS && prof && prof[0] == '1') {
+             VkPhysicalDeviceProperties props;
+             vkGetPhysicalDeviceProperties(c->phys, &props);

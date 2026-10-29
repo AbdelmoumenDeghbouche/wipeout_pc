@@ -1,4 +1,4 @@
-"""Launcher setting for the game's multisampling (GOW3_NO_MSAA): environment, page and texts.
+"""Launcher setting for the game's multisampling (WIPEOUT_OC_NO_MSAA): environment, page and texts.
 Automatic leaves the decision to the game (off on AMD's and Intel's Windows drivers,
 gow3_msaa_default.h) and names the chosen card and that decision, read from
 `gow3-gpu-capabilities --list`."""
@@ -23,24 +23,24 @@ def added(env):
 
 
 class NoMsaaEnvironmentTest(unittest.TestCase):
-    def test_auto_leaves_the_game_default_and_keeps_an_inherited_value(self):
+    def test_auto_clears_inherited_values_to_use_the_game_default(self):
         self.assertEqual(launcher.APP_DEFAULTS['no_msaa'], '')
-        self.assertNotIn('GOW3_NO_MSAA', added(launcher.game_environment(dict(launcher.APP_DEFAULTS))))
-        # A GOW3_NO_MSAA set by a .bat before the launcher still reaches the game on Auto.
+        self.assertNotIn('WIPEOUT_OC_NO_MSAA', added(launcher.game_environment(dict(launcher.APP_DEFAULTS))))
+        # Returning to Auto clears an inherited override instead of reviving it.
         with mock.patch.dict(os.environ, {'GOW3_NO_MSAA': '1'}):
-            self.assertEqual(launcher.game_environment(dict(launcher.APP_DEFAULTS))['GOW3_NO_MSAA'], '1')
+            self.assertNotIn('WIPEOUT_OC_NO_MSAA', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
 
     def test_off_and_on_set_the_variable(self):
         for value in ('1', '0'):
             with self.subTest(value=value):
                 env = launcher.game_environment({**launcher.APP_DEFAULTS, 'no_msaa': value})
-                self.assertEqual(env['GOW3_NO_MSAA'], value)
+                self.assertEqual(env['WIPEOUT_OC_NO_MSAA'], value)
 
     def test_choices_and_legacy_settings(self):
         self.assertEqual([value for value, _text in launcher.NO_MSAA], ['', '1', '0'])
         legacy = dict(launcher.APP_DEFAULTS)
         legacy.pop('no_msaa')
-        self.assertNotIn('GOW3_NO_MSAA', added(launcher.game_environment(legacy)))
+        self.assertNotIn('WIPEOUT_OC_NO_MSAA', added(launcher.game_environment(legacy)))
 
 
 class ChosenGpuTest(unittest.TestCase):

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <chrono>
 #include <array>
 #include <map>
@@ -136,7 +137,7 @@ void BufferCache::SmallGuestCopy(const Gow3Copy::Item& item) {
 
 void BufferCache::ExtendWriteFault(VAddr device_addr) {
     static const u64 window = [] {
-        const char* env = std::getenv("GOW3_FAULT_WINDOW");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_FAULT_WINDOW");
         const u64 kib = env ? std::strtoull(env, nullptr, 10) : 256;
         return std::bit_ceil(std::clamp<u64>(kib, 4, 1024)) * 1024;
     }();
@@ -250,7 +251,7 @@ u64 RegionKey(VAddr address) {
 }
 bool BufferStatsEnabled() {
     static const bool enabled = [] {
-        const char* value = std::getenv("GOW3_BUFFER_STATS");
+        const char* value = wipeout_oc_getenv("WIPEOUT_OC_BUFFER_STATS");
         return value && value[0] == '1';
     }();
     return enabled;

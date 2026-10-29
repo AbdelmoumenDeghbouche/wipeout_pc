@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #pragma once
+#include "../../common/wipeout_oc_env.h"
 #include <algorithm>
 #include <array>
 #include <cstdint>
@@ -41,7 +42,7 @@ public:
     }
     static bool Enabled() {
         static const bool enabled = [] {
-            const char* value = std::getenv("GOW3_PERF_DIAG");
+            const char* value = wipeout_oc_getenv("WIPEOUT_OC_PERF_DIAG");
             return value && value[0] == '1';
         }();
         return enabled;

@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include "gow3_toggles.h"
 #include <algorithm>
 #include <bit>
@@ -44,7 +45,7 @@ u64 RoundAllocationSize(u64 size) {
 
 StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& scheduler_)
     : instance{instance_}, scheduler{scheduler_} {
-    const char* env = std::getenv("GOW3_STAGING_KEEP_MB");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_STAGING_KEEP_MB");
     keep_blocks = (env ? std::strtoull(env, nullptr, 10) : 512) * 1_MB / BLOCK_SIZE;
     Ring& ring = rings[u32(MemoryType::HostUncached)];
     for (u64 i = 0; i < PREWARM_BLOCKS; ++i) {

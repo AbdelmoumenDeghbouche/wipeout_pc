@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <cstdlib>
 #include <numeric>
 #include <string_view>
@@ -42,7 +43,7 @@ std::string_view BufferTypeName(MemoryType type) {
 enum class StreamPlacement { Device, Host, Cached };
 static StreamPlacement StreamMemory() {
     static const StreamPlacement placement = [] {
-        const char* env = std::getenv("GOW3_STREAM_MEMORY");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_STREAM_MEMORY");
         const std::string_view value = env ? env : "cached";
         if (value == "device") {
             return StreamPlacement::Device;

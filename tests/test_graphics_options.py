@@ -235,9 +235,9 @@ class GraphicsOptionsTest(unittest.TestCase):
         self.assertEqual(
             env,
             {
-                'GOW3_DEFERRED_READBACK': '1',
-                'GOW3_STALE_READBACK': '0',
-                'GOW3_ASYNC_SHADERS': '1',
+                'WIPEOUT_OC_DEFERRED_READBACK': '1',
+                'WIPEOUT_OC_STALE_READBACK': '0',
+                'WIPEOUT_OC_ASYNC_SHADERS': '1',
             },
         )
 

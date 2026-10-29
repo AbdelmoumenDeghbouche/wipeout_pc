@@ -45,12 +45,13 @@ if WINDOWS:
 FROZEN = getattr(sys, 'frozen', False)
 PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
+from environment import clear_derived, getenv, normalize  # noqa: E402
 import graphics_options  # noqa: E402  (scripts/)
 import save_backup  # noqa: E402  (scripts/)
 import steam_shortcut  # noqa: E402  (scripts/)
 from patches import game_profile, game_sfo  # noqa: E402  (scripts/)
 from prepare import load_sfo  # noqa: E402  (scripts/)
-DATA_DIR = Path(os.environ.get('GOW3_DATA_DIR', PORT_DIR))
+DATA_DIR = Path(getenv('WIPEOUT_OC_DATA_DIR', PORT_DIR))
 CONFIG_DIR = (Path(os.environ.get('APPDATA', Path.home())) if WINDOWS else
               Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')) / 'wipeout-launcher'
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
@@ -179,7 +180,7 @@ def find_tool(name):
 def parse_gpu_list(text):
     """One tuple per line of `gow3-gpu-capabilities --list`: index, name, type and, from the tools
     that print them, the game's multisampling default on that driver ('off' or 'on') and '1' on
-    the GPU the game picks without GOW3_GPU_ID. Other lines are skipped."""
+    the GPU the game picks without WIPEOUT_OC_GPU_ID. Other lines are skipped."""
     rows = [line.split('\t') for line in text.splitlines()]
     return [tuple(row) for row in rows if len(row) >= 3 and row[0].isdigit()]
 
@@ -433,7 +434,7 @@ MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac',
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
 GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('3', ('Third connected',)),
                    ('4', ('Fourth connected',))]
-APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
+APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': getenv('WIPEOUT_OC_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
@@ -506,7 +507,7 @@ def connected_gamepad():
 
 # Keyboard capture on the Controls page: the Tk keysym of a pressed key and the SDL scancode
 # name the game reads (key_source in runtime_pad.c). Letters, digits and F1-F24 map to themselves.
-# Comma and = are saved as Comma and Equals: their own names separate GOW3_KEY_MAP entries. The
+# Comma and = are saved as Comma and Equals: their own names separate WIPEOUT_OC_KEY_MAP entries. The
 # numpad with Num Lock off reports its other names; SDL sees the same keypad keys.
 TK_TO_SDL_KEYS = {
     'space': 'Space', 'Return': 'Return', 'Tab': 'Tab', 'BackSpace': 'Backspace', 'Delete': 'Delete',
@@ -591,7 +592,7 @@ def default_input(row, kind):
 
 
 def keyboard_map(controls):
-    """GOW3_KEY_MAP of the keyboard & mouse table: each button on its chosen input, written where
+    """WIPEOUT_OC_KEY_MAP of the keyboard & mouse table: each button on its chosen input, written where
     that differs from the game's own key."""
     chosen = control_values(controls, 'key')
     entries = []
@@ -626,7 +627,7 @@ def control_values(controls, kind):
 
 
 def control_map(controls, kind):
-    """GOW3_PAD_MAP value: 'cross=a,circle=b' for the changed buttons."""
+    """WIPEOUT_OC_PAD_MAP value: 'cross=a,circle=b' for the changed buttons."""
     chosen = control_values(controls, kind)
     return ','.join(f'{button}={chosen[button].strip()}' for button, _key, _pad in CONTROLS
                     if button in chosen and not set(chosen[button]) & set(',='))
@@ -702,10 +703,10 @@ def game_languages(folder):
     return [(value, text) for text, value in pairs.items()]
 DRAW_PIPE = [('', ('Auto (8+ threads)', 'Авто (8+ потоков)')), ('1', ('On', 'Включён')),
              ('0', ('Off (more stable)', 'Выключен (стабильнее)'))]
-# GOW3_READBACKS=2 (Precise) is not offered: the copy and recording threads deadlock on its read
+# WIPEOUT_OC_READBACKS=2 (Precise) is not offered: the copy and recording threads deadlock on its read
 # faults at boot (#37), and with them off the race draws black.
 READBACKS = [('', ('Relaxed (default)', 'Relaxed (по умолчанию)')), ('0', ('Off', 'Выключены'))]
-# GOW3_NO_MSAA: '' leaves the game's own default, off on AMD's and Intel's Windows drivers
+# WIPEOUT_OC_NO_MSAA: '' leaves the game's own default, off on AMD's and Intel's Windows drivers
 # (video_core/amdgpu/gow3_msaa_default.h); no_msaa_options names the chosen card in Automatic.
 NO_MSAA = [('', ('Automatic',)), ('1', ('Off (fixes black lines)',)), ('0', ('On',))]
 NO_MSAA_HINT = ("The game's 2-sample depth buffer, read as a texture by its lighting. AMD's and Intel's Windows "
@@ -750,7 +751,7 @@ def load_json(path, default):
 
 
 def ini_path():
-    return Path(os.environ.get('GOW3_CONFIG', DATA_DIR / 'gow3.ini'))
+    return Path(getenv('WIPEOUT_OC_CONFIG', DATA_DIR / 'gow3.ini'))
 
 
 def load_ini():
@@ -1177,72 +1178,77 @@ def download_dlss_runtime(directory, progress=None, url=DLSS_RUNTIME_URL, sha256
 
 def game_environment(s):
     env = dict(os.environ)
-    env['GOW3_GAME_DIR'] = s['game_dir']
-    env.pop('GOW3_PATCH_DIR', None)
+    clear_derived(env)
+    normalize(env)
+    for suffix in ("HDR", "FRAME_STATS", "GPU_PROFILE", "VK_VALIDATION", "FRAME_CAPTURE_KEY",
+                   "UPSCALER_KEY", "KEY_MAP", "PAD_MAP", "NO_MSAA", "DRAW_PIPE", "READBACKS", "USER_DIR"):
+        env.pop("WIPEOUT_OC_" + suffix, None)
+    env['WIPEOUT_OC_GAME_DIR'] = s['game_dir']
+    env.pop('WIPEOUT_OC_PATCH_DIR', None)
     # The Graphics page's anti-aliasing switch (build_graphics); off, run.py keeps the upscaler out.
-    env['GOW3_EXPERIMENTAL_UPSCALER'] = '1' if s.get('experimental_upscaler') else '0'
-    env['GOW3_NEO'] = '1' if s.get('ps4_pro') else '0'  # the game asks sceKernelIsNeoMode
+    env['WIPEOUT_OC_EXPERIMENTAL_UPSCALER'] = '1' if s.get('experimental_upscaler') else '0'
+    env['WIPEOUT_OC_NEO'] = '1' if s.get('ps4_pro') else '0'  # the game asks sceKernelIsNeoMode
     if s.get('update_dir'):
-        env['GOW3_PATCH_DIR'] = s['update_dir']
+        env['WIPEOUT_OC_PATCH_DIR'] = s['update_dir']
     if not WINDOWS:
         backend = s.get('video_backend', 'auto')
         if backend in ('wayland', 'x11'):
             env['SDL_VIDEO_DRIVER'] = env['SDL_VIDEODRIVER'] = backend
-        env['GOW3_GAMEMODE'] = '1' if s.get('gamemode') else '0'
-        env['GOW3_MANGOHUD'] = '1' if s.get('mangohud') else '0'
+        env['WIPEOUT_OC_GAMEMODE'] = '1' if s.get('gamemode') else '0'
+        env['WIPEOUT_OC_MANGOHUD'] = '1' if s.get('mangohud') else '0'
     # The launcher's patch selection is the whole list (run.py, patches.py).
     title_id, profile = game_profile_of(meta_folder(s['game_dir'], s.get('update_dir')))
     chosen = s.get('game_patches', {}).get(title_id) if title_id else None
     if profile and chosen is not None:
-        env['GOW3_PATCHES'] = ';'.join(chosen)
-        env['GOW3_PATCHES_ONLY'] = '1'
+        env['WIPEOUT_OC_PATCHES'] = ';'.join(chosen)
+        env['WIPEOUT_OC_PATCHES_ONLY'] = '1'
     # The Cheats page: its patches join the selection (patches/WipEout_Omega_Collection.xml).
     if cheats := [patch for key, patch, _t, _h in CHEATS if s.get(key)]:
-        env['GOW3_PATCHES'] = ';'.join([n for n in env.get('GOW3_PATCHES', '').split(';') if n] + cheats)
+        env['WIPEOUT_OC_PATCHES'] = ';'.join([n for n in env.get('WIPEOUT_OC_PATCHES', '').split(';') if n] + cheats)
     if s['user_dir']:
-        env['GOW3_USER_DIR'] = s['user_dir']
-    env['GOW3_GAMEPAD'] = str(s.get('gamepad_number') or '1')
-    env.pop('GOW3_MUSIC_DIR', None)
+        env['WIPEOUT_OC_USER_DIR'] = s['user_dir']
+    env['WIPEOUT_OC_GAMEPAD'] = str(s.get('gamepad_number') or '1')
+    env.pop('WIPEOUT_OC_MUSIC_DIR', None)
     if s.get('music_dir'):
-        env['GOW3_MUSIC_DIR'] = s['music_dir']
+        env['WIPEOUT_OC_MUSIC_DIR'] = s['music_dir']
     if not WINDOWS:
-        env['GOW3_FSR4_DIR'] = str(fsr4_folder())
-    env['GOW3_MODS_DIR'] = s['mods_dir'] or str(DATA_DIR / 'mods')
-    env['GOW3_MODS_CONFIG'] = str(DATA_DIR / 'mods.json')
-    env['GOW3_MODS_ENABLED'] = '1' if s['mods_enabled'] else '0'
-    env['GOW3_PATCHES_DIR'] = s['patches_dir'] or str(DATA_DIR / 'patches')
-    env['GOW3_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
-    env['GOW3_LANGUAGE'] = s['language']
-    env['GOW3_DISCORD'] = '1' if s.get('discord_rpc') else '0'
+        env['WIPEOUT_OC_FSR4_DIR'] = str(fsr4_folder())
+    env['WIPEOUT_OC_MODS_DIR'] = s['mods_dir'] or str(DATA_DIR / 'mods')
+    env['WIPEOUT_OC_MODS_CONFIG'] = str(DATA_DIR / 'mods.json')
+    env['WIPEOUT_OC_MODS_ENABLED'] = '1' if s['mods_enabled'] else '0'
+    env['WIPEOUT_OC_PATCHES_DIR'] = s['patches_dir'] or str(DATA_DIR / 'patches')
+    env['WIPEOUT_OC_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
+    env['WIPEOUT_OC_LANGUAGE'] = s['language']
+    env['WIPEOUT_OC_DISCORD'] = '1' if s.get('discord_rpc') else '0'
     if s['hdr']:
-        env['GOW3_HDR'] = '1'
-    for key, name, options in (('draw_pipe', 'GOW3_DRAW_PIPE', DRAW_PIPE), ('readbacks', 'GOW3_READBACKS', READBACKS),
-                               ('no_msaa', 'GOW3_NO_MSAA', NO_MSAA)):
+        env['WIPEOUT_OC_HDR'] = '1'
+    for key, name, options in (('draw_pipe', 'WIPEOUT_OC_DRAW_PIPE', DRAW_PIPE), ('readbacks', 'WIPEOUT_OC_READBACKS', READBACKS),
+                               ('no_msaa', 'WIPEOUT_OC_NO_MSAA', NO_MSAA)):
         if s.get(key) and s[key] in dict(options):
             env[name] = s[key]
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
-    env['GOW3_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
+    env['WIPEOUT_OC_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
     gpu_id = str(s.get('gpu_id', ''))
-    env.pop('GOW3_GPU_ID', None)
+    env.pop('WIPEOUT_OC_GPU_ID', None)
     if gpu_id.isdigit():
-        env['GOW3_GPU_ID'] = gpu_id
-    env['GOW3_BACKGROUND_WARMUP'] = '1' if s.get('background_warmup', True) else '0'
-    env['GOW3_PARALLEL_WARMUP'] = '1' if s.get('parallel_warmup', True) else '0'
-    env['GOW3_PIPELINE_BINARIES'] = '1' if s.get('pipeline_binary_cache', True) else '0'
-    env['GOW3_PERF_DIAG'] = '1' if s.get('perf_diag', False) else '0'
-    env['GOW3_PARTIAL_HEIGHT_VIEWS'] = '1' if s.get('partial_height_views', True) else '0'
-    for key, name in (('frame_stats', 'GOW3_FRAME_STATS'), ('gpu_profile', 'GOW3_GPU_PROFILE'),
-                      ('vk_validation', 'GOW3_VK_VALIDATION'), ('frame_capture_key', 'GOW3_FRAME_CAPTURE_KEY'),
-                      ('upscaler_key', 'GOW3_UPSCALER_KEY')):
+        env['WIPEOUT_OC_GPU_ID'] = gpu_id
+    env['WIPEOUT_OC_BACKGROUND_WARMUP'] = '1' if s.get('background_warmup', True) else '0'
+    env['WIPEOUT_OC_PARALLEL_WARMUP'] = '1' if s.get('parallel_warmup', True) else '0'
+    env['WIPEOUT_OC_PIPELINE_BINARIES'] = '1' if s.get('pipeline_binary_cache', True) else '0'
+    env['WIPEOUT_OC_PERF_DIAG'] = '1' if s.get('perf_diag', False) else '0'
+    env['WIPEOUT_OC_PARTIAL_HEIGHT_VIEWS'] = '1' if s.get('partial_height_views', True) else '0'
+    for key, name in (('frame_stats', 'WIPEOUT_OC_FRAME_STATS'), ('gpu_profile', 'WIPEOUT_OC_GPU_PROFILE'),
+                      ('vk_validation', 'WIPEOUT_OC_VK_VALIDATION'), ('frame_capture_key', 'WIPEOUT_OC_FRAME_CAPTURE_KEY'),
+                      ('upscaler_key', 'WIPEOUT_OC_UPSCALER_KEY')):
         if s[key]:
             env[name] = '1'
     controls = s.get('controls', {})
     if value := keyboard_map(controls):
-        env['GOW3_KEY_MAP'] = value
+        env['WIPEOUT_OC_KEY_MAP'] = value
     if value := control_map(controls, 'pad'):
-        env['GOW3_PAD_MAP'] = value
-    env.pop('GOW3_GLYPH_STYLE', None)  # God of War III's button icons (R_UI.WAD): WipEout has none
+        env['WIPEOUT_OC_PAD_MAP'] = value
+    env.pop('WIPEOUT_OC_GLYPH_STYLE', None)  # God of War III's button icons (R_UI.WAD): WipEout has none
     env['PYTHONUNBUFFERED'] = '1'
     env['PYTHONIOENCODING'] = 'utf-8'
     return env
@@ -1576,12 +1582,12 @@ class Launcher:
 
     def game_resolution_options(self):
         """The render resolutions with a patch for the chosen game (its profile's
-        GOW3_ALLOWED_RESOLUTIONS), else all built-in ones."""
+        WIPEOUT_OC_ALLOWED_RESOLUTIONS), else all built-in ones."""
         import game_profiles
         from patches import game_title_id
         folder = self.var('game_dir', 'app').get()
         title_id = game_title_id(folder) if folder else None
-        allowed = game_profiles.PROFILES.get(title_id, {}).get('env', {}).get('GOW3_ALLOWED_RESOLUTIONS')
+        allowed = game_profiles.PROFILES.get(title_id, {}).get('env', {}).get('WIPEOUT_OC_ALLOWED_RESOLUTIONS')
         if not allowed:
             return RESOLUTION_CHOICES
         names = allowed.split(';')
@@ -2217,7 +2223,7 @@ class Launcher:
 
     def build_controls(self):
         """The Controls page: the keyboard & mouse table, button icons and the gamepad remapping of
-        the PS4 buttons (run.py passes GOW3_KEY_MAP and GOW3_PAD_MAP to the game)."""
+        the PS4 buttons (run.py passes WIPEOUT_OC_KEY_MAP and WIPEOUT_OC_PAD_MAP to the game)."""
         tk, ttk = self.tk, self.ttk
         f = self.scrolled_page('controls', _('Controls', 'Управление'),
                                _('Keyboard and mouse, button icons and gamepad mapping.'))

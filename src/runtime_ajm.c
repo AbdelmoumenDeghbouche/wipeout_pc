@@ -5,6 +5,7 @@
  * LibAtrac9 (MIT, third_party/LibAtrac9), MP3 by FFmpeg (runtime_mp3.c). AAC instances
  * stop explicitly. */
 #define _GNU_SOURCE
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -80,7 +81,7 @@ static size_t jobs_run, frames_decoded, batches_run;
 /* GOW3_AUDIO_TRACE=1: instance configurations and jobs that return a non-zero result. */
 static int trace_left=-1;
 static int ajm_trace(void) {
-    if (trace_left<0) { const char *e=getenv("GOW3_AUDIO_TRACE"); trace_left=e && e[0]=='1' ? 400 : 0; }
+    if (trace_left<0) { const char *e=wipeout_oc_getenv("WIPEOUT_OC_AUDIO_TRACE"); trace_left=e && e[0]=='1' ? 400 : 0; }
     return trace_left>0 && trace_left--;
 }
 static uint32_t ident(uint32_t word) { return word & 0x3f; }

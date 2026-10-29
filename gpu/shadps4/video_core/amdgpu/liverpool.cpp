@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <chrono>
 #include <pthread.h>
 #ifndef _WIN32
@@ -266,7 +267,7 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
     // slower (79 vs 83 FPS): the guest waits on these fences, and later fences stall it more
     // than the wait costs.
     static const bool async_fences = [] {
-        const char* env = std::getenv("GOW3_ASYNC_FENCES");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_ASYNC_FENCES");
         return env && env[0] == '1';
     }();
     if (async_fences && !Gow3Toggle::Disabled(Gow3Toggle::AsyncFences)) {

@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Prepares the game image and starts gow3-probe (Windows and Linux; run.sh wraps it on Linux).
 
-Environment variables (GOW3_GAME_DIR, GOW3_DATA_DIR, GOW3_PATCHES, GOW3_MODS_*,
-GOW3_USER_DIR, ...). Extra arguments go to gow3-probe.
-The in-game "Apply and restart" runs this script again through GOW3_RESTART_COMMAND;
+Environment variables (WIPEOUT_OC_GAME_DIR, WIPEOUT_OC_DATA_DIR, WIPEOUT_OC_PATCHES, WIPEOUT_OC_MODS_*,
+WIPEOUT_OC_USER_DIR, ...). Extra arguments go to gow3-probe.
+The in-game "Apply and restart" runs this script again through WIPEOUT_OC_RESTART_COMMAND;
 `--after PID` waits for the previous game process to end first (its GPU device and memory).
 """
 import os
@@ -21,6 +21,8 @@ if WINDOWS:
     import ctypes
 
 PORT = Path(__file__).resolve().parent
+sys.path.insert(0, str(PORT / "scripts"))
+from environment import clear_derived, getenv, normalize
 
 
 def fail(message):
@@ -64,8 +66,8 @@ def parse_cpu_features(output):
 
 
 def isa_rewrite_wanted(missing, env):
-    """GOW3_ISA_REWRITE=1 forces the ISA rewrite table, 0 disables it; otherwise the CPU decides."""
-    policy = env.get('GOW3_ISA_REWRITE')
+    """WIPEOUT_OC_ISA_REWRITE=1 forces the ISA rewrite table, 0 disables it; otherwise the CPU decides."""
+    policy = getenv('WIPEOUT_OC_ISA_REWRITE', env=env)
     if policy in ('0', '1'):
         return policy == '1'
     return bool(missing)
@@ -76,6 +78,8 @@ def run_script(name, *args, capture=False, check=True):
     script = ['--script'] if getattr(sys, 'frozen', False) else []
     command = [sys.executable, *script, str(PORT / 'scripts' / name), *map(str, args)]
     env = {**os.environ, 'PYTHONIOENCODING': 'utf-8'}
+    clear_derived(env)
+    normalize(env)
     if capture:
         result = subprocess.run(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, text=True,
                                 encoding='utf-8', env=env, creationflags=no_console())
@@ -97,9 +101,10 @@ def launch_prefix(env):
     variable), GameMode a command that starts the game."""
     if WINDOWS:
         return []
-    if env.get('GOW3_MANGOHUD') == '1':
+    env = normalize(env)
+    if env.get('WIPEOUT_OC_MANGOHUD') == '1':
         env.setdefault('MANGOHUD', '1')
-    if env.get('GOW3_GAMEMODE') == '1':
+    if env.get('WIPEOUT_OC_GAMEMODE') == '1':
         if gamemode := shutil.which('gamemoderun'):
             return [gamemode]
         print('GameMode: gamemoderun not found, starting without it', flush=True)
@@ -116,11 +121,12 @@ def find_executable(name):
 
 def glyph_mounts(env, probe, game, out):
     """(probe arguments, style) of the controller glyphs: patched copies of the WADs that hold the
-    game's button icons, mounted over them (scripts/glyphs.py). Opt-in: unless GOW3_GLYPH_STYLE is
+    game's button icons, mounted over them (scripts/glyphs.py). Opt-in: unless WIPEOUT_OC_GLYPH_STYLE is
     auto, xbox, nintendo or keyboard nothing is asked, drawn or mounted, and old copies are removed.
-    The keyboard keys follow GOW3_KEY_MAP; auto shows them when no gamepad is connected. The game
+    The keyboard keys follow WIPEOUT_OC_KEY_MAP; auto shows them when no gamepad is connected. The game
     folder is never written."""
-    choice = env.get('GOW3_GLYPH_STYLE', 'off')
+    env = normalize(env)
+    choice = env.get('WIPEOUT_OC_GLYPH_STYLE', 'off')
     if choice not in ('auto', 'xbox', 'nintendo', 'keyboard'):
         shutil.rmtree(Path(out) / 'glyphs', ignore_errors=True)
         return [], None
@@ -131,7 +137,7 @@ def glyph_mounts(env, probe, game, out):
             pad = subprocess.run([str(probe), '--gamepad'], stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                  text=True, timeout=15, creationflags=no_console()).stdout
         style, faces, name = glyphs.resolve(choice, pad)
-        mounts = glyphs.build(game, out, style, faces, env.get('GOW3_PAD_MAP', ''), env.get('GOW3_KEY_MAP', ''))
+        mounts = glyphs.build(game, out, style, faces, env.get('WIPEOUT_OC_PAD_MAP', ''), env.get('WIPEOUT_OC_KEY_MAP', ''))
     except Exception as error:  # noqa: BLE001  (icons only: whatever fails, the game still starts)
         print(f'Glyphs: {error}; the game keeps its own button icons', flush=True)
         return [], None
@@ -164,17 +170,17 @@ def main():
     if len(args) >= 2 and args[0] == '--after':
         wait_for(int(args[1]))
         args = args[2:]
-    # As run.sh: relative paths (GOW3_GAME_DIR, GOW3_DATA_DIR, fsr4_shaders/) are from the port.
+    # As run.sh: relative paths (WIPEOUT_OC_GAME_DIR, WIPEOUT_OC_DATA_DIR, fsr4_shaders/) are from the port.
     os.chdir(PORT)
     env = os.environ
-    data = Path(env.get('GOW3_DATA_DIR', PORT))
+    clear_derived(env)
+    normalize(env)
+    data = Path(env.get('WIPEOUT_OC_DATA_DIR', PORT))
     out = data / 'out'
     out.mkdir(parents=True, exist_ok=True)
-    env.setdefault('GOW3_CONFIG', str(data / 'gow3.ini'))
+    env.setdefault('WIPEOUT_OC_CONFIG', str(data / 'gow3.ini'))
     # Values this script derived on the previous start ("Apply and restart" inherits them) are
     # derived again from the new options.
-    for key in env.pop('GOW3_DERIVED', '').split(','):
-        env.pop(key, None)
     derived = []
     sys.path.insert(0, str(PORT / 'scripts'))
     import graphics_options
@@ -185,22 +191,22 @@ def main():
     import mods
     import patches
     # The enabled mods' patch files: their "Resolution Patch - <size>" entries are render resolutions too
-    # (the launcher and the in-game menu list them; GOW3_EXTRA_RESOLUTIONS tells the game).
-    mod_patch_files = mods.enabled_patch_files(env.get('GOW3_MODS_DIR', data / 'mods'),
-                                               env.get('GOW3_MODS_CONFIG', data / 'mods.json'),
-                                               env.get('GOW3_MODS_ENABLED', '1') != '0',
-                                               env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623'))
+    # (the launcher and the in-game menu list them; WIPEOUT_OC_EXTRA_RESOLUTIONS tells the game).
+    mod_patch_files = mods.enabled_patch_files(env.get('WIPEOUT_OC_MODS_DIR', data / 'mods'),
+                                               env.get('WIPEOUT_OC_MODS_CONFIG', data / 'mods.json'),
+                                               env.get('WIPEOUT_OC_MODS_ENABLED', '1') != '0',
+                                               env.get('WIPEOUT_OC_GAME_DIR', PORT.parent / 'CUSA01623'))
     extra_resolutions = [s for s in patches.resolution_names(mod_patch_files) if s not in graphics_options.RESOLUTIONS]
-    env['GOW3_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
-    derived.append('GOW3_EXTRA_RESOLUTIONS')
-    graphics, reverted = graphics_options.prepare(env['GOW3_CONFIG'], out / 'graphics_state.json', extra_resolutions)
+    env['WIPEOUT_OC_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
+    derived.append('WIPEOUT_OC_EXTRA_RESOLUTIONS')
+    graphics, reverted = graphics_options.prepare(env['WIPEOUT_OC_CONFIG'], out / 'graphics_state.json', extra_resolutions)
     if reverted:
         print('Graphics: the last restart never reached the game; previous options restored', flush=True)
     env.update(graphics_options.environment(graphics))
-    if not env.get('GOW3_FSR411_DIR') and not (PORT / 'fsr4_411').is_dir() and (data / 'fsr4_411').is_dir():
-        env['GOW3_FSR411_DIR'] = str(data / 'fsr4_411')
+    if not env.get('WIPEOUT_OC_FSR411_DIR') and not (PORT / 'fsr4_411').is_dir() and (data / 'fsr4_411').is_dir():
+        env['WIPEOUT_OC_FSR411_DIR'] = str(data / 'fsr4_411')
 
-    probe = Path(env['GOW3_PROBE']) if env.get('GOW3_PROBE') else find_executable('gow3-probe' + EXE_SUFFIX)
+    probe = Path(env['WIPEOUT_OC_PROBE']) if env.get('WIPEOUT_OC_PROBE') else find_executable('gow3-probe' + EXE_SUFFIX)
     if not probe or not probe.is_file():
         fail(f'gow3-probe{EXE_SUFFIX} not found: build it with build.sh or use a packaged build.')
     # Development builds run from the MSYS2 tree: its CLANG64 DLLs (SDL3, FFmpeg, ...).
@@ -217,23 +223,23 @@ def main():
         sys.exit(20)
     missing = parse_cpu_features(features.stdout)
 
-    game = Path(env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623'))
+    game = Path(env.get('WIPEOUT_OC_GAME_DIR', PORT.parent / 'CUSA01623'))
     if not (game / 'eboot.bin').is_file():
-        fail(f'No eboot.bin in {game} (set GOW3_GAME_DIR).')
+        fail(f'No eboot.bin in {game} (set WIPEOUT_OC_GAME_DIR).')
     update_view = None
-    if env.get('GOW3_PATCH_DIR'):
+    if env.get('WIPEOUT_OC_PATCH_DIR'):
         import game_update
         try:
-            update_view = game_update.create_view(game, env['GOW3_PATCH_DIR'], out)
+            update_view = game_update.create_view(game, env['WIPEOUT_OC_PATCH_DIR'], out)
         except (ValueError, OSError) as error:
             fail(str(error))
         game = update_view
-        print(f'Game and update combined from {env["GOW3_PATCH_DIR"]}', flush=True)
+        print(f'Game and update combined from {env["WIPEOUT_OC_PATCH_DIR"]}', flush=True)
     original_game = game.resolve()
     game = Path(run_script('mods.py', game, '--out', out,
-                           '--mods-dir', env.get('GOW3_MODS_DIR', data / 'mods'),
-                           '--config', env.get('GOW3_MODS_CONFIG', data / 'mods.json'),
-                           '--enabled', env.get('GOW3_MODS_ENABLED', '1'), capture=True).strip())
+                           '--mods-dir', env.get('WIPEOUT_OC_MODS_DIR', data / 'mods'),
+                           '--config', env.get('WIPEOUT_OC_MODS_CONFIG', data / 'mods.json'),
+                           '--enabled', env.get('WIPEOUT_OC_MODS_ENABLED', '1'), capture=True).strip())
     mod_view = game if game.resolve() != original_game else None
     try:
         run_script('prepare.py', game, '--out', out)
@@ -255,7 +261,7 @@ def main():
             print(output, end='', flush=True)
             if code == 0:
                 isa_args = ['--isa-rewrite', str(out / 'isa-rewrite.bin')]
-        run_script('content_profile.py', game, '--out', out, '--sku', env.get('GOW3_CONTENT_SKU', 'full'))
+        run_script('content_profile.py', game, '--out', out, '--sku', env.get('WIPEOUT_OC_CONTENT_SKU', 'full'))
 
         from patches import game_profile_for, patch_requirements, patch_status, selected_patches
         profile = game_profile_for(game)
@@ -272,36 +278,36 @@ def main():
             from PIL import Image
             with Image.open(icon_file) as icon:
                 icon.convert('RGBA').resize((64, 64), Image.LANCZOS).save(out / 'window_icon.bmp')
-            env.setdefault('GOW3_WINDOW_ICON', str(out / 'window_icon.bmp'))
+            env.setdefault('WIPEOUT_OC_WINDOW_ICON', str(out / 'window_icon.bmp'))
         except (ImportError, OSError):
             pass
         # The temporal upscalers and motion vectors are not calibrated for this game yet: they stay
         # off unless the launcher's experimental switch is on (then gow3.ini decides); linear
         # image readbacks fix its corrupted textures.
-        if env.get('GOW3_EXPERIMENTAL_UPSCALER') != '1':
-            env.setdefault('GOW3_UPSCALER', 'none')
+        if env.get('WIPEOUT_OC_EXPERIMENTAL_UPSCALER') != '1':
+            env.setdefault('WIPEOUT_OC_UPSCALER', 'none')
         else:
             # FSR 3.1 / DLAA smooth the edges instead of the game's multisampling; with both on, a
             # race showed another image in the upper-left quarter (NVIDIA, where it is on by default).
-            env['GOW3_NO_MSAA'] = '1'
-        env.setdefault('GOW3_READBACK_LINEAR', '1')
+            env['WIPEOUT_OC_NO_MSAA'] = '1'
+        env.setdefault('WIPEOUT_OC_READBACK_LINEAR', '1')
         patch_xml = profile[1] if profile else None
         if profile and mod_patch_files:
             # The built-in patches plus the enabled mods' (the same file for the selection and the notes).
             patch_xml = patches.merge_patch_files(profile[1], mod_patch_files, out / 'patches-merged.xml')
         if profile:
-            names = selected_patches(patch_xml, profile[2], env.get('GOW3_PATCHES', ''), env.get('GOW3_PATCHES_ONLY') == '1')
+            names = selected_patches(patch_xml, profile[2], env.get('WIPEOUT_OC_PATCHES', ''), env.get('WIPEOUT_OC_PATCHES_ONLY') == '1')
             # A mod's patches that are on by default (isEnabled) stay on when the launcher chose the list.
             names += [n for n in patches.default_enabled(mod_patch_files, profile[2]) if n not in names]
             # gow3.ini decides the resolution and frame rate patches (in-game menu, launcher).
             names = graphics_options.patch_names(names, graphics)
             names = graphics_options.restrict_to_available(names, patches.available_patches(patch_xml, profile[2]))
-            env['GOW3_PATCHES'] = ';'.join(names)
-            env['GOW3_PATCHES_ONLY'] = '1'
+            env['WIPEOUT_OC_PATCHES'] = ';'.join(names)
+            env['WIPEOUT_OC_PATCHES_ONLY'] = '1'
         (out / 'patch_status.json').unlink(missing_ok=True)
-        run_script('patches.py', '--out', out, '--extra', env.get('GOW3_PATCHES', ''), '--game-dir', game,
-                   '--patches-dir', env.get('GOW3_PATCHES_DIR', data / 'patches'),
-                   '--patches-config', env.get('GOW3_PATCHES_CONFIG', data / 'patches.json'),
+        run_script('patches.py', '--out', out, '--extra', env.get('WIPEOUT_OC_PATCHES', ''), '--game-dir', game,
+                   '--patches-dir', env.get('WIPEOUT_OC_PATCHES_DIR', data / 'patches'),
+                   '--patches-config', env.get('WIPEOUT_OC_PATCHES_CONFIG', data / 'patches.json'),
                    *[arg for f in mod_patch_files for arg in ('--mod-patches', f)])
         if profile:
             # Only the patches found in this eboot.bin count: a frame rate patch that was skipped
@@ -309,43 +315,43 @@ def main():
             applied = (patch_status(out) or {}).get('applied', [])
             engine_fps = graphics_options.applied_engine_fps(applied)
             dmem, vblank = patch_requirements(patch_xml, applied, profile[2])
-            for key, value in (('GOW3_DMEM_MB', dmem), ('GOW3_VBLANK_HZ', vblank)):
+            for key, value in (('WIPEOUT_OC_DMEM_MB', dmem), ('WIPEOUT_OC_VBLANK_HZ', vblank)):
                 if value and key not in env:
                     env[key] = str(value)
                     derived.append(key)
-        if 'GOW3_VBLANK_HZ' not in env:
-            env['GOW3_VBLANK_HZ'] = '60'
-            derived.append('GOW3_VBLANK_HZ')
+        if 'WIPEOUT_OC_VBLANK_HZ' not in env:
+            env['WIPEOUT_OC_VBLANK_HZ'] = '60'
+            derived.append('WIPEOUT_OC_VBLANK_HZ')
         # Without the frame rate patch the engine steps 1/60 s per frame: the present thread must
         # not flip faster (gow3_graphics.h PresentLimit), or the game speeds up. A game whose
         # engine steps by the real time (its profile sets the rate) keeps the profile's.
-        if 'GOW3_ENGINE_FPS' not in env:
-            env['GOW3_ENGINE_FPS'] = str(engine_fps)
-            derived.append('GOW3_ENGINE_FPS')
-        engine_fps = int(env['GOW3_ENGINE_FPS'])
+        if 'WIPEOUT_OC_ENGINE_FPS' not in env:
+            env['WIPEOUT_OC_ENGINE_FPS'] = str(engine_fps)
+            derived.append('WIPEOUT_OC_ENGINE_FPS')
+        engine_fps = int(env['WIPEOUT_OC_ENGINE_FPS'])
         print(f'Engine frame rate: {engine_fps} FPS'
               + ('' if engine_fps > 60 or graphics['engine_fps'] == '60' else
                  ' (the frame rate patch was not found in this eboot.bin)'), flush=True)
         glyph_args, glyph_style = glyph_mounts(env, probe, game, out)
         if glyph_style:  # the in-game menu names the buttons the same way
-            env['GOW3_GLYPHS'] = glyph_style
-            derived.append('GOW3_GLYPHS')
+            env['WIPEOUT_OC_GLYPHS'] = glyph_style
+            derived.append('WIPEOUT_OC_GLYPHS')
         mount_args = glyph_args + pause_menu_args(game, out, glyph_args)
-        env['GOW3_DERIVED'] = ','.join(derived)
+        env['WIPEOUT_OC_DERIVED'] = ','.join(derived)
         # The guest memory pool is committed in full at start: a resolution patch above 1080p
         # can need more than 16 GB of RAM, and the game then closes when the page file cannot grow.
         import guest_memory
-        if warning := guest_memory.memory_warning(env.get('GOW3_DMEM_MB'), guest_memory.physical_memory_mb(),
-                                                  env.get('GOW3_STREAM_MEMORY', 'cached'),
-                                                  neo=env.get('GOW3_NEO', '').startswith('1')):
+        if warning := guest_memory.memory_warning(env.get('WIPEOUT_OC_DMEM_MB'), guest_memory.physical_memory_mb(),
+                                                  env.get('WIPEOUT_OC_STREAM_MEMORY', 'cached'),
+                                                  neo=env.get('WIPEOUT_OC_NEO', '').startswith('1')):
             print(warning, flush=True)
 
         # The in-game restart starts this script again once this process is gone.
         # GPU caches (shaders, pipelines) beside the saves; read before main(), so set here.
-        user_dir = Path(env.get('GOW3_USER_DIR', data / 'user')).resolve()
+        user_dir = Path(env.get('WIPEOUT_OC_USER_DIR', data / 'user')).resolve()
         user_dir.mkdir(parents=True, exist_ok=True)
         (user_dir / 'music').mkdir(exist_ok=True)  # custom soundtrack (src/runtime_music.c)
-        env.setdefault('GOW3_GPU_USER_DIR', str(user_dir))
+        env.setdefault('WIPEOUT_OC_GPU_USER_DIR', str(user_dir))
         from save_backup import backup
         try:
             if made := backup(user_dir):
@@ -357,11 +363,11 @@ def main():
         # the probe replaces itself with the new launch while this process still waits for it.
         after = ['--after', str(os.getpid())] if WINDOWS else []
         restart = [sys.executable, *this, *after, *args]
-        env['GOW3_RESTART_COMMAND'] = subprocess.list2cmdline(restart) if WINDOWS else shlex.join(restart)
+        env['WIPEOUT_OC_RESTART_COMMAND'] = subprocess.list2cmdline(restart) if WINDOWS else shlex.join(restart)
         command = [*launch_prefix(env), str(probe), str(out / 'boot-linked.bin'), '--content-profile', str(out / 'content.bin'),
                    '--patches', str(out / 'patches.bin'), '--app0', str(game),
                    '--user', str(user_dir),
-                   '--timeout', env.get('GOW3_TIMEOUT', '0'), *isa_args, *mount_args, *args]
+                   '--timeout', env.get('WIPEOUT_OC_TIMEOUT', '0'), *isa_args, *mount_args, *args]
         # No stdin: an inherited pipe (shells such as Git Bash) cost the game its console output.
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, creationflags=no_console())
         presence = None

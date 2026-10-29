@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include "../../common/wipeout_oc_env.h"
 #include <cstdio>
 #include <cstdlib>
 #include <boost/container/static_vector.hpp>
@@ -224,7 +225,7 @@ std::string Instance::GetDriverVersionName() {
 
 namespace {
 bool PipelineBinaryCacheRequested() {
-    const char* setting = std::getenv("GOW3_PIPELINE_BINARIES");
+    const char* setting = wipeout_oc_getenv("WIPEOUT_OC_PIPELINE_BINARIES");
     return !setting || *setting != '0';
 }
 }
@@ -458,7 +459,7 @@ bool Instance::CreateDevice() {
     // at (vk_wave_stats.h). Off by default: the feature may change how the driver caches
     // pipelines.
     pipeline_executable_properties = [&] {
-        const char* env = std::getenv("GOW3_WAVE_STATS");
+        const char* env = wipeout_oc_getenv("WIPEOUT_OC_WAVE_STATS");
         return env && env[0] == '1' &&
                add_extension(VK_KHR_PIPELINE_EXECUTABLE_PROPERTIES_EXTENSION_NAME);
     }();
@@ -836,7 +837,7 @@ void Instance::CollectDeviceParameters() {
     vendor_name = driver.driverName.data();
 
     // gow3: see video_core/amdgpu/gow3_msaa.h; the default per driver is gow3_msaa_default.h.
-    const char* no_msaa_env = std::getenv("GOW3_NO_MSAA");
+    const char* no_msaa_env = wipeout_oc_getenv("WIPEOUT_OC_NO_MSAA");
     const bool no_msaa = no_msaa_env && *no_msaa_env
                              ? *no_msaa_env == '1'
                              : gow3_no_msaa_default(static_cast<VkDriverId>(driver_id)) != 0;

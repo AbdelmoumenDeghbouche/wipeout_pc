@@ -7,8 +7,9 @@ here=$(dirname -- "$(readlink -f -- "$0")")
 share=$here/usr/share/gow3
 
 export LD_LIBRARY_PATH="$here/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
-export GOW3_DATA_DIR=${GOW3_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/gow3}
-mkdir -p "$GOW3_DATA_DIR"
+source "$share/scripts/environment.sh"
+export WIPEOUT_OC_DATA_DIR=${WIPEOUT_OC_DATA_DIR:-${XDG_DATA_HOME:-$HOME/.local/share}/gow3}
+mkdir -p "$WIPEOUT_OC_DATA_DIR"
 
 cd -- "$share"
 exec "$share/gow3-launcher" "$@"

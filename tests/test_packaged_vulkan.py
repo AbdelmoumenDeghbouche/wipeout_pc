@@ -44,7 +44,7 @@ class PackagedVulkanTests(unittest.TestCase):
 
     def test_amd_intel_keep_bundled_drivers(self):
         self.configure()
-        self.assertEqual(self.env["VK_DRIVER_FILES"], self.env["GOW3_BUNDLED_VK_DRIVER_FILES"])
+        self.assertEqual(self.env["VK_DRIVER_FILES"], self.env["WIPEOUT_OC_BUNDLED_VK_DRIVER_FILES"])
         self.assertEqual(self.env["LD_LIBRARY_PATH"], "/bundled/lib")
         self.assertFalse((self.root / "data").exists())
 
@@ -64,7 +64,7 @@ class PackagedVulkanTests(unittest.TestCase):
         self.library("libc.so.6")
         self.manifest()
         self.assertIn("host NVIDIA", self.configure())
-        bundled = self.env["GOW3_BUNDLED_VK_DRIVER_FILES"]
+        bundled = self.env["WIPEOUT_OC_BUNDLED_VK_DRIVER_FILES"]
         driver_json = Path(self.env["VK_DRIVER_FILES"].removesuffix(":" + bundled))  # a drive letter holds a colon too
         data = json.loads(driver_json.read_text())
         self.assertEqual(data["ICD"]["api_version"], "1.3.0")
@@ -93,7 +93,7 @@ class PackagedVulkanTests(unittest.TestCase):
         self.manifest()
         (self.icds / "broken_nvidia.json").write_text("not JSON")
         self.configure()
-        self.assertEqual(self.env["VK_DRIVER_FILES"], self.env["GOW3_BUNDLED_VK_DRIVER_FILES"])
+        self.assertEqual(self.env["VK_DRIVER_FILES"], self.env["WIPEOUT_OC_BUNDLED_VK_DRIVER_FILES"])
 
     def test_additional_user_icds_are_not_lost(self):
         self.env["VK_ADD_DRIVER_FILES"] = "/user/extra.json"

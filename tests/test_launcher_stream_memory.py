@@ -17,18 +17,18 @@ class StreamMemoryEnvironmentTest(unittest.TestCase):
         legacy = dict(launcher.APP_DEFAULTS)
         legacy.pop('stream_memory')
         with mock.patch.dict(os.environ, {'GOW3_STREAM_MEMORY': 'device'}):
-            self.assertEqual(launcher.game_environment(legacy)['GOW3_STREAM_MEMORY'], 'cached')
+            self.assertEqual(launcher.game_environment(legacy)['WIPEOUT_OC_STREAM_MEMORY'], 'cached')
             for value in ('', 'invalid', None, [], 1):
                 with self.subTest(value=value):
                     env = launcher.game_environment({**legacy, 'stream_memory': value})
-                    self.assertEqual(env['GOW3_STREAM_MEMORY'], 'cached')
+                    self.assertEqual(env['WIPEOUT_OC_STREAM_MEMORY'], 'cached')
 
     def test_every_selection_overrides_inherited_environment_without_changing_it(self):
         with mock.patch.dict(os.environ, {'GOW3_STREAM_MEMORY': 'host'}):
             for value in ('cached', 'host', 'device'):
                 with self.subTest(value=value):
                     env = launcher.game_environment({**launcher.APP_DEFAULTS, 'stream_memory': value})
-                    self.assertEqual(env['GOW3_STREAM_MEMORY'], value)
+                    self.assertEqual(env['WIPEOUT_OC_STREAM_MEMORY'], value)
                     self.assertEqual(os.environ['GOW3_STREAM_MEMORY'], 'host')
 
     def test_play_without_window_uses_saved_selection(self):
@@ -45,7 +45,7 @@ class StreamMemoryEnvironmentTest(unittest.TestCase):
                     with mock.patch.object(launcher, 'attach_stdio'), \
                             mock.patch.object(launcher.subprocess, 'Popen', return_value=process) as start:
                         self.assertEqual(launcher.play_without_window(settings), 0)
-                    self.assertEqual(start.call_args.kwargs['env']['GOW3_STREAM_MEMORY'], value)
+                    self.assertEqual(start.call_args.kwargs['env']['WIPEOUT_OC_STREAM_MEMORY'], value)
 
 
 class StreamMemoryLauncherTest(unittest.TestCase):
@@ -117,7 +117,7 @@ class StreamMemoryLauncherTest(unittest.TestCase):
                             mock.patch.object(launcher, 'open_play_log', return_value=launcher._NullLog()), \
                             mock.patch.object(app, 'set_log', create=True):
                         app.play()
-                    self.assertEqual(start.call_args.kwargs['env']['GOW3_STREAM_MEMORY'], value)
+                    self.assertEqual(start.call_args.kwargs['env']['WIPEOUT_OC_STREAM_MEMORY'], value)
             # Selecting cached again after device restores the optimization on the next launch.
             box.current(0)
             box.event_generate('<<ComboboxSelected>>')

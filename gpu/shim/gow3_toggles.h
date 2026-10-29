@@ -1,6 +1,7 @@
 // gow3: optimizations that can be switched off while the game runs (GOW3_TOGGLE_FILE,
 // see runtime_memory.c), to find which one changes rendering without restarting.
 #pragma once
+#include "../shadps4/common/wipeout_oc_env.h"
 #include <atomic>
 #include <csetjmp>
 #include <chrono>
@@ -122,7 +123,7 @@ inline std::atomic<std::uint64_t> t_resident{0}, t_protect{0}, t_image_create{0}
     t_write_faults{0}, t_copy_cpu{0}, copy_sys_us{0}, copy_minflt{0}, t_gc{0}, t_readback_wait{0};
 /// Diagnostics are collected only with GOW3_FRAME_STATS=1.
 inline const bool enabled = [] {
-    const char* env = std::getenv("GOW3_FRAME_STATS");
+    const char* env = wipeout_oc_getenv("WIPEOUT_OC_FRAME_STATS");
     return env && env[0] == '1';
 }();
 struct Timer {

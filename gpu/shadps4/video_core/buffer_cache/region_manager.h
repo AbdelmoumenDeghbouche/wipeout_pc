@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "../../common/wipeout_oc_env.h"
 #include <array>
 #include <chrono>
 #include <cstdlib>
@@ -226,7 +227,7 @@ private:
     // a GPU ring timeout.
     static bool HotPagesEnabled() {
         static const bool enabled = [] {
-            const char* env = std::getenv("GOW3_HOT_PAGES");
+            const char* env = wipeout_oc_getenv("WIPEOUT_OC_HOT_PAGES");
             return env && env[0] == '1';
         }();
         return enabled && !Gow3Toggle::Disabled(Gow3Toggle::HotPages);

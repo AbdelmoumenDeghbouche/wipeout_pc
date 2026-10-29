@@ -7,6 +7,7 @@
  * Guest addresses are placed below 1 TiB (PS4 user range): GPU descriptors
  * encode 40-bit addresses, so host-default 0x7f... addresses would not fit. */
 #define _GNU_SOURCE
+#include "../gpu/shadps4/common/wipeout_oc_env.h"
 #include "runtime.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,9 +30,9 @@
 static uint64_t pool_size_bytes(void) {
     static uint64_t size;
     if (!size) {
-        const char *neo = getenv("GOW3_NEO");
+        const char *neo = wipeout_oc_getenv("WIPEOUT_OC_NEO");
         uint64_t minimum = neo && *neo=='1' ? 5568 : 5056;
-        const char *env = getenv("GOW3_DMEM_MB");
+        const char *env = wipeout_oc_getenv("WIPEOUT_OC_DMEM_MB");
         uint64_t mb = env ? strtoull(env, NULL, 10) : 0;
         if (mb < minimum || mb > 16384) mb = minimum;
         size = mb * 1024 * 1024;
@@ -765,7 +766,7 @@ static void *toggle_watcher(void *path) {
     return NULL;
 }
 void runtime_memory_set_gpu_hooks(GpuRange map, GpuRange unmap, GpuRange invalidate) {
-    const char *toggles=getenv("GOW3_TOGGLE_FILE");
+    const char *toggles=wipeout_oc_getenv("WIPEOUT_OC_TOGGLE_FILE");
     static pthread_t watcher;
     if (toggles && !watcher) pthread_create(&watcher,NULL,toggle_watcher,(void *)toggles);
     write_lock();

@@ -57,7 +57,7 @@ Thanks to everyone who has played, tested and reported so far!
 | Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |
 | Windows package (zip) | Done (`packaging/windows/package.sh`, Actions > Windows zip) |
 | Linux | Builds from source; no package yet |
-| PS4 Pro mode | Experimental (`GOW3_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
+| PS4 Pro mode | Experimental (`WIPEOUT_OC_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
 | PSVR mode | Not planned for now (#7) |
 | Every game and event type (HD, HD Fury, 2048) | Not all tested yet |
 
@@ -82,7 +82,7 @@ sound effects stay.
    previous or next one, switch shuffle or your music off, and set the **Music volume**.
 
 Each song is leveled, so loud and quiet songs sound alike; Music volume 100% is about as loud as
-the game's own music. Without the launcher, `GOW3_MUSIC_DIR` points to another folder.
+the game's own music. Without the launcher, `WIPEOUT_OC_MUSIC_DIR` points to another folder.
 
 ## Supported game versions
 
@@ -123,6 +123,11 @@ game's). One `eboot.bin` runs all three games: WipEout 2048, WipEout HD and WipE
    git submodule foreach --recursive 'git rm -rq --cached . && git reset -q --hard'
    ```
 
+For the historical Nix AppImage builder, `WIPEOUT_OC_PACKAGE_FSR411=1 bash packaging/appimage.sh`
+accepts the legacy environment alias too. Direct `nix-build packaging` uses the explicit boolean
+`--arg packageFsr411 true`; it does not read either environment name. Keep these private FSR models
+out of public packages.
+
 ## Preparing your game
 
 From fake PKGs of your own dump (base game and update):
@@ -137,7 +142,7 @@ complete for that exact package whose size and modification time have not change
 extractions without this record are extracted again once, even when file sizes match.
 
 Then move the update's files over the base game folder, or pass the update folder with
-`GOW3_PATCH_DIR`. A folder dumped with GoldHEN works the same way.
+`WIPEOUT_OC_PATCH_DIR`. A folder dumped with GoldHEN works the same way.
 
 ## Running
 
@@ -153,15 +158,15 @@ limit, VSync, anisotropic filtering, HDR, controls, mods and the game language.
 Without the launcher, `run.py` starts the game:
 
 ```powershell
-$env:GOW3_GAME_DIR = 'D:\games\CUSA07671'
+$env:WIPEOUT_OC_GAME_DIR = 'D:\games\CUSA07671'
 python run.py
 ```
 
 List the PS4 functions the runtime does not have yet:
 
 ```powershell
-$env:GOW3_GAME_DIR = 'D:\games\CUSA07671'
-$env:GOW3_MODS_ENABLED = '0'
+$env:WIPEOUT_OC_GAME_DIR = 'D:\games\CUSA07671'
+$env:WIPEOUT_OC_MODS_ENABLED = '0'
 python run.py --check-imports
 ```
 
@@ -184,8 +189,9 @@ function the runtime does not implement and prints its name.
 | Launcher | `launcher/` | Settings window and game start |
 | GPU | `gpu/shadps4/` | shadPS4 video core (Vulkan) |
 
-Many names (`gow3-probe.exe`, `GOW3_*` variables, the launcher) still come from the God of
-War III port this project is based on. They will be renamed.
+Environment options use `WIPEOUT_OC_*`. Older `GOW3_*` names remain accepted as inputs; the new
+name wins whenever present, including an empty value or `0`. Launchers and wrappers export the
+new names. File names such as `gow3-probe.exe` still come from the original God of War III port.
 
 ## Credits
 

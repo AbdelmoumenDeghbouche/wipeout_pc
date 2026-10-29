@@ -75,9 +75,9 @@ class ControlMapTest(unittest.TestCase):
     def test_pipeline_binary_cache_switch(self):
         settings = {**launcher.APP_DEFAULTS}
         self.assertTrue(settings['pipeline_binary_cache'])
-        self.assertEqual(launcher.game_environment(settings)['GOW3_PIPELINE_BINARIES'], '1')
+        self.assertEqual(launcher.game_environment(settings)['WIPEOUT_OC_PIPELINE_BINARIES'], '1')
         settings['pipeline_binary_cache'] = False
-        self.assertEqual(launcher.game_environment(settings)['GOW3_PIPELINE_BINARIES'], '0')
+        self.assertEqual(launcher.game_environment(settings)['WIPEOUT_OC_PIPELINE_BINARIES'], '0')
 
     def test_changed_buttons_in_table_order(self):
         controls = {'key': {'circle': ' Left Shift ', 'cross': 'Q', 'square': ''}, 'pad': {'cross': 'b'}}
@@ -183,8 +183,8 @@ class ControlMapTest(unittest.TestCase):
         saved = {'key': {'rage': 'Mouse Middle', 'grab': 'C', 'dodge': 'V'}}
         self.assertEqual(launcher.control_values(saved, 'key'), {})
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'controls': saved, 'rage_one_input': True})
-        self.assertNotIn('rage', env['GOW3_KEY_MAP'])
-        self.assertNotIn('l3=None', env['GOW3_KEY_MAP'])
+        self.assertNotIn('rage', env['WIPEOUT_OC_KEY_MAP'])
+        self.assertNotIn('l3=None', env['WIPEOUT_OC_KEY_MAP'])
         self.assertNotIn('rage_one_input', launcher.APP_DEFAULTS)
         self.assertNotIn('native_input', launcher.APP_DEFAULTS)
 
@@ -232,53 +232,53 @@ class ControlMapTest(unittest.TestCase):
     def test_environment(self):
         settings = {**launcher.APP_DEFAULTS, 'controls': {'key': {'cross': 'Q'}}}
         env = launcher.game_environment(settings)
-        self.assertTrue(env['GOW3_KEY_MAP'].startswith('cross=Q,square=Mouse Left,'))
-        self.assertNotIn('GOW3_PAD_MAP', env)
-        self.assertEqual(env['GOW3_PARALLEL_WARMUP'], '1')
-        self.assertEqual(env['GOW3_BACKGROUND_WARMUP'], '1')
-        self.assertEqual(env['GOW3_PERF_DIAG'], '0')
-        self.assertEqual(env['GOW3_PARTIAL_HEIGHT_VIEWS'], '1')
-        self.assertEqual(launcher.game_environment({**settings, 'partial_height_views': False})['GOW3_PARTIAL_HEIGHT_VIEWS'], '0')
-        self.assertNotIn('GOW3_FRAME_CAPTURE_KEY', {k for k in env if k not in __import__('os').environ})
-        self.assertEqual(launcher.game_environment({**settings, 'frame_capture_key': True})['GOW3_FRAME_CAPTURE_KEY'], '1')
+        self.assertTrue(env['WIPEOUT_OC_KEY_MAP'].startswith('cross=Q,square=Mouse Left,'))
+        self.assertNotIn('WIPEOUT_OC_PAD_MAP', env)
+        self.assertEqual(env['WIPEOUT_OC_PARALLEL_WARMUP'], '1')
+        self.assertEqual(env['WIPEOUT_OC_BACKGROUND_WARMUP'], '1')
+        self.assertEqual(env['WIPEOUT_OC_PERF_DIAG'], '0')
+        self.assertEqual(env['WIPEOUT_OC_PARTIAL_HEIGHT_VIEWS'], '1')
+        self.assertEqual(launcher.game_environment({**settings, 'partial_height_views': False})['WIPEOUT_OC_PARTIAL_HEIGHT_VIEWS'], '0')
+        self.assertNotIn('WIPEOUT_OC_FRAME_CAPTURE_KEY', {k for k in env if k not in __import__('os').environ})
+        self.assertEqual(launcher.game_environment({**settings, 'frame_capture_key': True})['WIPEOUT_OC_FRAME_CAPTURE_KEY'], '1')
         # Graphics options live in gow3.ini (run.py and the in-game menu), not in the environment.
-        for name in ('GOW3_FULLSCREEN', 'GOW3_PRESENT_MODE', 'GOW3_FPS_LIMIT', 'GOW3_ASYNC_SHADERS',
-                     'GOW3_DEFERRED_READBACK', 'GOW3_STALE_READBACK', 'GOW3_FSR1', 'GOW3_RCAS'):
+        for name in ('WIPEOUT_OC_FULLSCREEN', 'WIPEOUT_OC_PRESENT_MODE', 'WIPEOUT_OC_FPS_LIMIT', 'WIPEOUT_OC_ASYNC_SHADERS',
+                     'WIPEOUT_OC_DEFERRED_READBACK', 'WIPEOUT_OC_STALE_READBACK', 'WIPEOUT_OC_FSR1', 'WIPEOUT_OC_RCAS'):
             self.assertNotIn(name, {k for k in env if k not in __import__('os').environ})
         old = launcher.game_environment({**settings, 'extra_env': 'GOW3_DRAW_PIPE=0'})
-        self.assertNotIn('GOW3_DRAW_PIPE', old)  # the old free-text field is ignored
-        self.assertEqual(launcher.game_environment({**settings, 'parallel_warmup': False})['GOW3_PARALLEL_WARMUP'], '0')
-        self.assertEqual(launcher.game_environment({**settings, 'background_warmup': False})['GOW3_BACKGROUND_WARMUP'], '0')
+        self.assertNotIn('WIPEOUT_OC_DRAW_PIPE', old)  # the old free-text field is ignored
+        self.assertEqual(launcher.game_environment({**settings, 'parallel_warmup': False})['WIPEOUT_OC_PARALLEL_WARMUP'], '0')
+        self.assertEqual(launcher.game_environment({**settings, 'background_warmup': False})['WIPEOUT_OC_BACKGROUND_WARMUP'], '0')
 
     def test_cheats_join_the_patch_selection(self):
         # Off by default; on, each cheat's patch joins the launcher's selection (or is the only extra name).
         self.assertFalse(any(launcher.APP_DEFAULTS[key] for key, *_rest in launcher.CHEATS))
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'cheat_events': True, 'cheat_rank': True,
                                          'cheat_ships': True, 'cheat_van_uber': True, 'cheat_vr_ships': True})
-        self.assertEqual(env['GOW3_PATCHES'].split(';')[-5:],
+        self.assertEqual(env['WIPEOUT_OC_PATCHES'].split(';')[-5:],
                          ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048',
                           'Cheat - Unlock all ships', 'Cheat - Van Uber team (owned DLC)',
                           'Cheat - VR ships outside VR'])
         env = launcher.game_environment(dict(launcher.APP_DEFAULTS))
-        self.assertNotIn('Cheat - ', env.get('GOW3_PATCHES', ''))
+        self.assertNotIn('Cheat - ', env.get('WIPEOUT_OC_PATCHES', ''))
 
     def test_ps4_pro_switch_reaches_the_game(self):
-        # Off by default; the launcher's choice wins over a GOW3_NEO left in the user's environment.
+        # Off by default; the launcher's choice wins over a WIPEOUT_OC_NEO left in the user's environment.
         self.assertFalse(launcher.APP_DEFAULTS['ps4_pro'])
         for saved, value in ((True, '1'), (False, '0'), (None, '0')):
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'ps4_pro': saved})
-            self.assertEqual(env['GOW3_NEO'], value)
+            self.assertEqual(env['WIPEOUT_OC_NEO'], value)
 
     def test_anti_aliasing_switch_reaches_the_game(self):
         # Graphics > Temporal anti-aliasing (off by default); run.py keeps the upscaler out unless it is on.
         self.assertFalse(launcher.APP_DEFAULTS['experimental_upscaler'])
         for saved, value in ((True, '1'), (False, '0'), (None, '0')):
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'experimental_upscaler': saved})
-            self.assertEqual(env['GOW3_EXPERIMENTAL_UPSCALER'], value)
+            self.assertEqual(env['WIPEOUT_OC_EXPERIMENTAL_UPSCALER'], value)
 
     def test_glyph_style_is_off_by_default(self):
         self.assertEqual(launcher.APP_DEFAULTS['glyph_style'], 'off')
-        self.assertNotIn('GOW3_GLYPH_STYLE', launcher.game_environment({**launcher.APP_DEFAULTS}))
+        self.assertNotIn('WIPEOUT_OC_GLYPH_STYLE', launcher.game_environment({**launcher.APP_DEFAULTS}))
 
     def test_no_god_of_war_button_icons(self):
         # They are drawn into God of War III's R_UI.WAD, which WipEout has not: a saved or inherited
@@ -288,7 +288,7 @@ class ControlMapTest(unittest.TestCase):
         with mock.patch.dict(launcher.os.environ, {'GOW3_GLYPH_STYLE': 'xbox'}):
             for style in ('auto', 'xbox', 'nintendo', 'keyboard', 'off'):
                 env = launcher.game_environment({**launcher.APP_DEFAULTS, 'glyph_style': style})
-                self.assertNotIn('GOW3_GLYPH_STYLE', env)
+                self.assertNotIn('WIPEOUT_OC_GLYPH_STYLE', env)
 
     def test_settings_keys_kept(self):
         for key in ('game_dir', 'user_dir', 'mods_dir', 'patches_dir', 'language', 'hdr',
@@ -297,7 +297,7 @@ class ControlMapTest(unittest.TestCase):
         # The player name option is gone: an old settings.json value is ignored.
         self.assertNotIn('player_name', launcher.APP_DEFAULTS)
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Kratos '})
-        self.assertNotIn('GOW3_USER_NAME', env)
+        self.assertNotIn('WIPEOUT_OC_USER_NAME', env)
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
@@ -307,7 +307,7 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual([v for v, _t in launcher.FPS_LIMITS], ['30', '40', '60', '100', '120', '240', '0'])
         self.assertEqual(d['frames_queued'], '1')
         self.assertEqual([v for v, _t in launcher.FRAMES_QUEUED], ['1', '2', '0'])
-        self.assertNotIn('GOW3_FRAMES_AHEAD', launcher.game_environment({**launcher.APP_DEFAULTS, 'frames_ahead': '2'}))
+        self.assertNotIn('WIPEOUT_OC_FRAMES_AHEAD', launcher.game_environment({**launcher.APP_DEFAULTS, 'frames_ahead': '2'}))
 
 
 class GameFilesTest(unittest.TestCase):
@@ -705,11 +705,11 @@ class GpuChoiceTest(unittest.TestCase):
         from unittest import mock
         with mock.patch.dict(launcher.os.environ, {'GOW3_GPU_ID': '7'}):
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'game_dir': 'x'})
-            self.assertIsNone(env.get('GOW3_GPU_ID'))  # Automatic wins over an inherited value
+            self.assertIsNone(env.get('WIPEOUT_OC_GPU_ID'))  # Automatic wins over an inherited value
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'game_dir': 'x', 'gpu_id': '1'})
-            self.assertEqual(env['GOW3_GPU_ID'], '1')
+            self.assertEqual(env['WIPEOUT_OC_GPU_ID'], '1')
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'game_dir': 'x', 'gpu_id': 'bad'})
-            self.assertIsNone(env.get('GOW3_GPU_ID'))
+            self.assertIsNone(env.get('WIPEOUT_OC_GPU_ID'))
         self.assertEqual(launcher.APP_DEFAULTS['gpu_id'], '')
 
 
@@ -725,9 +725,9 @@ class GameLanguageTest(unittest.TestCase):
         self.assertEqual(len(all_names), len(set(all_names)))
 
     def test_precise_readbacks_are_not_passed_on(self):
-        # GOW3_READBACKS=2 deadlocks at boot (#37): a value saved by 0.2.6 is dropped.
+        # WIPEOUT_OC_READBACKS=2 deadlocks at boot (#37): a value saved by 0.2.6 is dropped.
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'readbacks': '2'})
-        self.assertNotEqual(env.get('GOW3_READBACKS'), '2')
+        self.assertNotEqual(env.get('WIPEOUT_OC_READBACKS'), '2')
 
 
 class MusicTest(unittest.TestCase):
@@ -742,9 +742,9 @@ class MusicTest(unittest.TestCase):
         self.assertEqual(launcher.music_songs(Path(tmp) / 'gone'), [])
 
     def test_the_music_folder_goes_to_the_game(self):
-        self.assertNotIn('GOW3_MUSIC_DIR', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
+        self.assertNotIn('WIPEOUT_OC_MUSIC_DIR', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'music_dir': 'D:/Music'})
-        self.assertEqual(env['GOW3_MUSIC_DIR'], 'D:/Music')
+        self.assertEqual(env['WIPEOUT_OC_MUSIC_DIR'], 'D:/Music')
 
 
 class DlssDownloadTest(unittest.TestCase):
