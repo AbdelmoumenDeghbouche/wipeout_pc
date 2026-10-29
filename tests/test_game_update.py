@@ -122,6 +122,27 @@ class GameUpdateTests(unittest.TestCase):
         self.assertEqual((view / 'EXEC/WAD/A.WAD').read_text(), 'wad')
         self.assertEqual((view / 'eboot.bin').read_text(), 'update eboot')
 
+    def test_a_drive_without_links_keeps_large_files_out_of_the_view(self):
+        # #63: exFAT has no symlinks, junctions or hard links: the large files (the archives) are
+        # not copied but listed for the game to read in place; small ones are still copied.
+        write(self.base / 'data00.psarc', 'base archive, large')
+        write(self.update / 'data09.psarc', 'update archive, large')
+        unlinked = {}
+        with contextlib.ExitStack() as stack:
+            for patcher in no_links_but_hard_links():
+                stack.enter_context(patcher)
+            stack.enter_context(mock.patch('mods.os.link', side_effect=OSError(1, 'Incorrect function')))
+            stack.enter_context(mock.patch('mods.LARGE_FILE', len('base archive, large')))
+            with mock.patch('patches.game_title_id', side_effect=['CUSA01623'] * 2):
+                view = game_update.create_view(self.base, self.update, self.out, unlinked)
+        self.assertEqual(unlinked, {str(view / 'data00.psarc'): self.base / 'data00.psarc',
+                                    str(view / 'data09.psarc'): self.update / 'data09.psarc'})
+        self.assertFalse((view / 'data00.psarc').exists())
+        self.assertEqual((view / 'eboot.bin').read_text(), 'update eboot')
+        self.assertEqual((view / 'EXEC/WAD/A.WAD').read_text(), 'wad')
+        import mods
+        self.assertIsNone(mods.UNLINKED)
+
     def test_different_titles_and_nested_folders_are_refused(self):
         with self.assertRaises(ValueError):
             self.view(('CUSA01623', 'CUSA01715'))

@@ -324,6 +324,10 @@ def apply_preset(preset, available):
 # (#39: data/xml/mjolnirdata.xml "not found" through the game + update view), so there folders are
 # always mirrored and files hard-linked.
 LINKED = {}
+# A dict: files of LARGE_FILE bytes or more that could not be linked are recorded here (path in
+# the view -> file) and left out instead of copied (game_update.create_view; run.py mounts them).
+UNLINKED = None
+LARGE_FILE = 64 << 20
 UNTRUSTED_MOUNT_POINT = 448
 
 
@@ -401,6 +405,11 @@ def make_link(link, target):
         try:
             os.link(target, link)
         except OSError:
+            # A drive without hard links (exFAT, FAT32) copied the whole game at every start
+            # (#63). With UNLINKED set, large files are left out for the caller to mount.
+            if UNLINKED is not None and target.stat().st_size >= LARGE_FILE:
+                UNLINKED[str(link)] = target
+                return
             shutil.copy2(target, link)
     LINKED[str(link)] = target
 

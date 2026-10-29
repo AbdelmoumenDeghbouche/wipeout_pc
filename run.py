@@ -221,14 +221,18 @@ def main():
     if not (game / 'eboot.bin').is_file():
         fail(f'No eboot.bin in {game} (set GOW3_GAME_DIR).')
     update_view = None
+    unlinked = {}  # large files a drive without links kept out of the view: the game reads them in place
     if env.get('GOW3_PATCH_DIR'):
         import game_update
         try:
-            update_view = game_update.create_view(game, env['GOW3_PATCH_DIR'], out)
+            update_view = game_update.create_view(game, env['GOW3_PATCH_DIR'], out, unlinked)
         except (ValueError, OSError) as error:
             fail(str(error))
         game = update_view
         print(f'Game and update combined from {env["GOW3_PATCH_DIR"]}', flush=True)
+        if unlinked:
+            print(f'Game and update: this drive cannot link files; {len(unlinked)} large files are read '
+                  'from their folders', flush=True)
     original_game = game.resolve()
     game = Path(run_script('mods.py', game, '--out', out,
                            '--mods-dir', env.get('GOW3_MODS_DIR', data / 'mods'),
@@ -332,6 +336,8 @@ def main():
             env['GOW3_GLYPHS'] = glyph_style
             derived.append('GOW3_GLYPHS')
         mount_args = glyph_args + pause_menu_args(game, out, glyph_args)
+        for link, target in unlinked.items():
+            mount_args += ['--mount', f'/app0/{Path(link).relative_to(update_view).as_posix()}={target}']
         env['GOW3_DERIVED'] = ','.join(derived)
         # The guest memory pool is committed in full at start: a resolution patch above 1080p
         # can need more than 16 GB of RAM, and the game then closes when the page file cannot grow.

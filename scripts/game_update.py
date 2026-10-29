@@ -9,6 +9,7 @@ from pathlib import Path
 import shutil
 import tempfile
 
+import mods
 from mods import is_link, make_link, remove_link
 
 
@@ -47,8 +48,10 @@ def remove(path):
         path.unlink()
 
 
-def create_view(base, update, out):
-    """The folder holding base with update over it, made in out; the caller removes it."""
+def create_view(base, update, out, unlinked=None):
+    """The folder holding base with update over it, made in out; the caller removes it.
+    unlinked (a dict): on a drive without links the large files are left out of the view and
+    recorded there (path in the view -> file) for the game to read in place, not copied."""
     from patches import game_title_id
     base, update = Path(base).resolve(), Path(update).resolve()
     base_id, update_id = game_title_id(base), game_title_id(update)
@@ -60,6 +63,7 @@ def create_view(base, update, out):
         raise ValueError('The update folder needs eboot.bin and sce_sys/param.sfo')
     Path(out).mkdir(parents=True, exist_ok=True)
     target = Path(tempfile.mkdtemp(prefix='game-update-', dir=out))
+    mods.UNLINKED = unlinked
     try:
         for entry in base.iterdir():
             make_link(target / entry.name, entry)
@@ -67,6 +71,8 @@ def create_view(base, update, out):
     except BaseException:
         remove_view(target)
         raise
+    finally:
+        mods.UNLINKED = None
     return target
 
 
