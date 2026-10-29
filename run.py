@@ -261,6 +261,8 @@ def main():
             if code == 0:
                 isa_args = ['--isa-rewrite', str(out / 'isa-rewrite.bin')]
         run_script('content_profile.py', game, '--out', out, '--sku', env.get('GOW3_CONTENT_SKU', 'full'))
+        run_script('menu_patches.py', game, '--out', out)  # Eliminator target up to 2000 (#89)
+        env['GOW3_FILE_PATCHES'] = str(out / 'file_patches.txt')
 
         from patches import game_profile_for, patch_requirements, patch_status, selected_patches
         profile = game_profile_for(game)
