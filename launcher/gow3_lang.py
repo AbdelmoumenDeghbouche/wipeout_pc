@@ -960,6 +960,12 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'Texture quality': 'Qualidade das texturas',
+        'Full (default)': 'Completa (padrão)',
+        'Medium (largest textures at 4096)': 'Média (texturas maiores em 4096)',
+        'Low (for 4 GB graphics cards)': 'Baixa (para placas de vídeo de 4 GB)',
+        'Low loads the largest textures at half size or less: about 1 GB less video memory in a race. For graphics cards with 4 GB that crash or freeze in races.':
+            'Baixa carrega as maiores texturas com metade do tamanho ou menos: cerca de 1 GB a menos de memória de vídeo numa corrida. Para placas de 4 GB que travam ou fecham nas corridas.',
         'Save data folder (optional)': 'Pasta dos saves (opcional)',
         'Choose the save data folder': 'Escolha a pasta dos saves',
         'Only the saves, in a folder of their own: for example a network share two PCs play from (not both at once). Empty: savedata in the saves folder.':
@@ -1327,6 +1333,12 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'Texture quality': 'Calidad de texturas',
+        'Full (default)': 'Completa (predeterminada)',
+        'Medium (largest textures at 4096)': 'Media (texturas más grandes a 4096)',
+        'Low (for 4 GB graphics cards)': 'Baja (para tarjetas gráficas de 4 GB)',
+        'Low loads the largest textures at half size or less: about 1 GB less video memory in a race. For graphics cards with 4 GB that crash or freeze in races.':
+            'Baja carga las texturas más grandes a la mitad de tamaño o menos: cerca de 1 GB menos de memoria de vídeo en una carrera. Para tarjetas gráficas de 4 GB que se cierran o se congelan en carreras.',
         'Save data folder (optional)': 'Carpeta de partidas guardadas (opcional)',
         'Choose the save data folder': 'Elige la carpeta de partidas guardadas',
         'Only the saves, in a folder of their own: for example a network share two PCs play from (not both at once). Empty: savedata in the saves folder.':

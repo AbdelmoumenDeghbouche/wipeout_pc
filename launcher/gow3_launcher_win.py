@@ -436,7 +436,7 @@ GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '', 'savedata_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
-                'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
+                'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached', 'texture_limit': '',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
@@ -716,6 +716,9 @@ STREAM_MEMORY = [('cached', ('System RAM (cached, default)',)),
                  ('host', ('System RAM (uncached)',)),
                  ('device', ('GPU memory (previous behavior)',))]
 FRAMES_QUEUED = [('1', ('1 (lowest latency)',)), ('2', ('2',)), ('0', ('Unlimited',))]
+# GOW3_TEXTURE_LIMIT (texture_cache.h LimitTextureSize): the largest textures load at most this big.
+TEXTURE_LIMITS = [('', ('Full (default)',)), ('4096', ('Medium (largest textures at 4096)',)),
+                  ('2048', ('Low (for 4 GB graphics cards)',))]
 # The Cheats page: (setting, patch in the game's patch file, title, hint).
 CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all HD and HD Fury events',
            ('Every event of the HD and HD Fury campaigns is open; the campaign screen shows 99998 points. '
@@ -1226,6 +1229,9 @@ def game_environment(s):
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
     env['GOW3_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
+    env.pop('GOW3_TEXTURE_LIMIT', None)
+    if s.get('texture_limit') in ('4096', '2048'):
+        env['GOW3_TEXTURE_LIMIT'] = s['texture_limit']
     gpu_id = str(s.get('gpu_id', ''))
     env.pop('GOW3_GPU_ID', None)
     if gpu_id.isdigit():
@@ -1862,6 +1868,9 @@ class Launcher:
         self.row(f, _('Render resolution'), self.choice(f, 'render_resolution', 'ini', self.game_resolution_options()),
                  _('Sizes with a resolution patch for this game. Wider than 16:9 keeps the HUD at 16:9.'),
                  restart=True)
+        self.row(f, _('Texture quality'), self.choice(f, 'texture_limit', 'app', TEXTURE_LIMITS),
+                 _('Low loads the largest textures at half size or less: about 1 GB less video memory in a race. '
+                   'For graphics cards with 4 GB that crash or freeze in races.'), restart=True)
         self.check(f, 'ps4_pro', 'app', _('PS4 Pro mode (experimental)'),
                    _('The game runs as on a PS4 Pro, with its Pro graphics. Menus and a race start work; other events '
                      'are not tested yet. Turn it off if something looks wrong.'), restart=True)

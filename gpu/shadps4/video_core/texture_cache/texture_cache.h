@@ -45,6 +45,12 @@ namespace VideoCore {
 class BufferCache;
 class PageManager;
 
+/// gow3: GOW3_TEXTURE_LIMIT=N (launcher Texture quality): a sampled block-compressed 2D texture
+/// larger than N pixels is bound from its first level of at most N pixels, an image of its own
+/// over that level's guest memory (#72, #16: 4 GB cards). Left whole when the levels would lie
+/// elsewhere in a standalone layout.
+void LimitTextureSize(ImageInfo& info, ImageViewInfo& view);
+
 class TextureCache {
     // Default values for garbage collection
     static constexpr s64 DEFAULT_PRESSURE_GC_MEMORY = 1_GB + 512_MB;
@@ -82,7 +88,11 @@ public:
         ImageDesc(const AmdGpu::Image& image, const Shader::ImageResource& desc)
             : info{image, desc}, view_info{image, desc},
               type{desc.is_written ? BindingType::Storage : BindingType::Texture},
-              needs_native{desc.needs_native} {}
+              needs_native{desc.needs_native} {
+            if (type == BindingType::Texture && !needs_native) {
+                LimitTextureSize(info, view_info);
+            }
+        }
         ImageDesc(const AmdGpu::ColorBuffer& buffer, AmdGpu::CbDbExtent hint)
             : info{buffer, hint}, view_info{buffer}, type{BindingType::RenderTarget} {}
         ImageDesc(const AmdGpu::DepthBuffer& buffer, AmdGpu::DepthView view,

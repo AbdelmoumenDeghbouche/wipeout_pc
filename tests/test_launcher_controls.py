@@ -812,6 +812,16 @@ class QuietStreamTest(unittest.TestCase):
         self.assertEqual(stream.fileno(), 7)
 
 
+class TextureQualityTest(unittest.TestCase):
+    def test_texture_limit_reaches_the_game_only_when_lowered(self):
+        # #72, #16: Low and Medium cap the largest textures; Full (default) sets nothing.
+        self.assertEqual([v for v, _t in launcher.TEXTURE_LIMITS], ['', '4096', '2048'])
+        with mock.patch.dict(os.environ, {'GOW3_TEXTURE_LIMIT': '1024'}):
+            self.assertNotIn('GOW3_TEXTURE_LIMIT', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
+            low = launcher.game_environment({**launcher.APP_DEFAULTS, 'texture_limit': '2048'})
+        self.assertEqual(low['GOW3_TEXTURE_LIMIT'], '2048')
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
         self.assertEqual(launcher.VERSION, '0.2.44')
