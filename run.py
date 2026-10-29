@@ -355,7 +355,7 @@ def main():
         env.setdefault('GOW3_GPU_USER_DIR', str(user_dir))
         from save_backup import backup
         try:
-            if made := backup(user_dir):
+            if made := backup(user_dir, savedata=env.get('GOW3_SAVEDATA_DIR')):
                 print(f'Saves backed up to {made}', flush=True)
         except OSError as error:
             print(f'Save backup failed, starting anyway: {error}', flush=True)

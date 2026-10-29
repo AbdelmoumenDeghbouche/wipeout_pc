@@ -960,6 +960,10 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'Save data folder (optional)': 'Pasta dos saves (opcional)',
+        'Choose the save data folder': 'Escolha a pasta dos saves',
+        'Only the saves, in a folder of their own: for example a network share two PCs play from (not both at once). Empty: savedata in the saves folder.':
+            'Só os saves, numa pasta própria: por exemplo uma pasta de rede usada por dois PCs (não ao mesmo tempo). Vazio: savedata na pasta de saves.',
         'Game music volume': 'Volume da música do jogo',
         "The game's own music, on top of its Audio Options. Above 100% it is louder than the game allows; very loud parts may clip.":
             'A música do próprio jogo, além das Opções de Áudio dele. Acima de 100% fica mais alta do que o jogo permite; partes muito altas podem distorcer.',
@@ -1323,6 +1327,10 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'Save data folder (optional)': 'Carpeta de partidas guardadas (opcional)',
+        'Choose the save data folder': 'Elige la carpeta de partidas guardadas',
+        'Only the saves, in a folder of their own: for example a network share two PCs play from (not both at once). Empty: savedata in the saves folder.':
+            'Solo las partidas, en una carpeta propia: por ejemplo una carpeta de red que usan dos PCs (no a la vez). Vacío: savedata en la carpeta de guardado.',
         'Game music volume': 'Volumen de la música del juego',
         "The game's own music, on top of its Audio Options. Above 100% it is louder than the game allows; very loud parts may clip.":
             'La música del propio juego, además de sus Opciones de audio. Por encima de 100% suena más fuerte de lo que el juego permite; las partes muy fuertes pueden saturar.',

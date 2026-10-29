@@ -434,7 +434,7 @@ UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
 GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('3', ('Third connected',)),
                    ('4', ('Fourth connected',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
-                'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
+                'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '', 'savedata_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
@@ -1201,6 +1201,9 @@ def game_environment(s):
         env['GOW3_PATCHES'] = ';'.join([n for n in env.get('GOW3_PATCHES', '').split(';') if n] + cheats)
     if s['user_dir']:
         env['GOW3_USER_DIR'] = s['user_dir']
+    env.pop('GOW3_SAVEDATA_DIR', None)
+    if s.get('savedata_dir'):
+        env['GOW3_SAVEDATA_DIR'] = s['savedata_dir']
     env['GOW3_GAMEPAD'] = str(s.get('gamepad_number') or '1')
     env.pop('GOW3_MUSIC_DIR', None)
     if s.get('music_dir'):
@@ -2015,6 +2018,9 @@ class Launcher:
                     _('Choose the saves folder', 'Выберите папку сохранений'),
                     _('Empty: {} (shader caches are kept there too).',
                       'Пусто: {} (там же кэш шейдеров).').format(DATA_DIR / 'user'), on_change=self.refresh_status)
+        self.folder(f, 'savedata_dir', _('Save data folder (optional)'), _('Choose the save data folder'),
+                    _('Only the saves, in a folder of their own: for example a network share two PCs play '
+                      'from (not both at once). Empty: savedata in the saves folder.'), on_change=self.refresh_status)
         self.section(f, _('Saves'))
         self.build_save_backups(f)
         self.section(f, _('Language'))
@@ -2104,7 +2110,7 @@ class Launcher:
                                                     'The current saves are backed up first.').format(name)):
             return
         try:
-            safety = save_backup.restore(self.user_dir(), name)
+            safety = save_backup.restore(self.user_dir(), name, savedata=self.var('savedata_dir', 'app').get() or None)
         except (OSError, ValueError) as error:
             self.messagebox.showerror(APP_NAME, _('Could not restore: {}').format(error))
             return
@@ -3143,6 +3149,8 @@ class Launcher:
     def open_path(self, path, key=None):
         if key == 'user_dir' and not path:
             path = DATA_DIR / 'user'
+        elif key == 'savedata_dir' and not path:
+            path = self.user_dir() / 'savedata'
         elif key == 'mods_dir' and not path:
             path = DATA_DIR / 'mods'
         elif key == 'music_dir' and not path:
