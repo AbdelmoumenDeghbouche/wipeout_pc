@@ -448,6 +448,28 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"  #%d %s\n",depth,where);
         rbp=frame[0];
     }
+    /* A fault in host code without frame pointers (a graphics driver, #100): the Windows unwind
+     * data walks it back to the port's call; it stops at guest code, which has none. */
+    if (RtlLookupFunctionEntry(c->Rip,&(DWORD64){0},NULL)) {
+        typedef HRESULT (WINAPI *Describe)(HANDLE,PWSTR *);
+        const Describe describe=(Describe)(void *)GetProcAddress(GetModuleHandleA("kernel32.dll"),"GetThreadDescription");
+        PWSTR name=NULL;
+        if (describe && SUCCEEDED(describe(GetCurrentThread(),&name)) && name && *name)
+            fprintf(stderr,"  thread '%ls', unwound:\n",name);
+        else
+            fprintf(stderr,"  unwound:\n");
+        if (name) LocalFree(name);
+        CONTEXT u=*c;
+        for (int depth=0; depth<24 && u.Rip; ++depth) {
+            DWORD64 base=0, frame=0;
+            PRUNTIME_FUNCTION f=RtlLookupFunctionEntry(u.Rip,&base,NULL);
+            describe_address(where,sizeof(where),(uintptr_t)u.Rip);
+            fprintf(stderr,"  ~%d %s\n",depth,where);
+            if (!f) break;
+            PVOID handler_data=NULL;
+            RtlVirtualUnwind(UNW_FLAG_NHANDLER,base,u.Rip,f,&u,&handler_data,&frame,NULL);
+        }
+    }
     if (isa_table) isa_rewrite_report(isa_table,stderr);
     fflush(NULL);
     TerminateProcess(GetCurrentProcess(),3);
