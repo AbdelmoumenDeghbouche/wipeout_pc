@@ -123,10 +123,35 @@ def encode(line):
     raise ValueError(f'unsupported patch type {kind!r}')
 
 
-def compile_patches(xml, names, app_version, segments, image=None, skipped=None):
+# rip-relative lea (REX.W, any register): the operand's 4 bytes follow these 3.
+LEA_RIP=re.compile(rb'[\x48\x4c]\x8d[\x05\x0d\x15\x1d\x25\x2d\x35\x3d]')
+
+
+def move_table(image, table, old, reserve):
+    """Writes that point every rip-relative lea into a full game table (Target; Size bytes, its
+    end included) at a bigger copy in the linked image's reserve (link_modules.py), Count
+    entries of Entry bytes: the table's end becomes the copy's end. The game's own code
+    initializes the copy; the patch's Lines raise its limit. Refs: how many leas the build has."""
+    size,entry,count=(int(table.get(k),0) for k in ('Size','Entry','Count'))
+    if not reserve or reserve[1]<count*entry:
+        raise LookupError('no memory reserved for the bigger table')
+    writes=[]
+    for m in LEA_RIP.finditer(image):
+        at=m.start()+3
+        target=at+4+struct.unpack_from('<i',image,at)[0]
+        if old<=target<=old+size:
+            moved=reserve[0]+(target-old if target<old+size else count*entry)
+            writes.append((at,struct.pack('<i',moved-at-4)))
+    if len(writes)!=int(table.get('Refs')):
+        raise LookupError(f'{len(writes)} table references, not {table.get("Refs")}')
+    return writes
+
+
+def compile_patches(xml, names, app_version, segments, image=None, skipped=None, reserve=None):
     """Writes of the named patches. With the game's image, each site is found by its signature
     (any build); without it, at the reference build's Address. A Line with a Target writes at that
     Target instead: data the code points to, such as a .bss variable (no bytes of its own to find).
+    A Table moves a full game table into reserve, (offset, bytes) after the modules (needs image).
     A patch whose sites are not all found is left out whole, with the reason in skipped[name].
     app_version None: any version."""
     found={}
@@ -144,6 +169,8 @@ def compile_patches(xml, names, app_version, segments, image=None, skipped=None)
             targets=(resolve_targets(image,found[name],sites) if image is not None else
                      {t.get('Name'):int(t.get('Address'),0)-EBOOT_BASE for t in found[name].iter('Target')})
             sites=[targets[line.get('Target')] if line.get('Target') else site for line,site in zip(lines,sites)]
+            moved=[w for table in found[name].iter('Table')
+                   for w in move_table(image,table,targets[table.get('Target')],reserve)]
         except LookupError as error:
             if skipped is None: raise ValueError(f'{name}: {error}')
             skipped[name]=str(error)
@@ -153,6 +180,7 @@ def compile_patches(xml, names, app_version, segments, image=None, skipped=None)
             if not any(start<=offset and offset+len(data)<=end for start,end in segments):
                 raise ValueError(f'{name}: address {offset+EBOOT_BASE:#x} is outside the eboot')
             writes.append((offset,data))
+        writes+=moved
     return writes
 
 
@@ -234,7 +262,7 @@ REPLACED_BY_EXCLUSIVE={'Bug Fix - Texture Corruption Fix'}
 # Fixes with nothing to choose: not offered in the launcher and applied even with its saved list,
 # which predates them (the startup black screen fix sets a value the game overwrites at once).
 ALWAYS_ON={'Bug Fix - Startup Black Screen', 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
-           'Bug Fix - Zone crash above 60 FPS'}
+           'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Model slots'}
 
 
 def selected_patches(xml, app_version, extra, only=False):
@@ -410,7 +438,10 @@ def main():
     elf=(a.out/'eboot.elf').read_bytes()
     segments=eboot_segments(elf)
     skipped={}
-    writes=compile_patches(xml,names,None,segments,eboot_image(elf),skipped)
+    link=json.loads((a.out/'link.json').read_text()) if (a.out/'link.json').is_file() else {}
+    reserve=link.get('reserve')
+    writes=compile_patches(xml,names,None,segments,eboot_image(elf),skipped,
+                           reserve and (int(reserve['base'],0),reserve['size']))
     for name,reason in skipped.items():
         print(f'Patches: {name} skipped ({reason} in this eboot.bin)')
     if a.patches_dir and sha==REFERENCE_SHA256:

@@ -94,7 +94,9 @@ def patch_fs_loads(image, ph, base):
     return patched
 
 
-def link(game, out, module_names=DEFAULT_MODULES):
+def link(game, out, module_names=DEFAULT_MODULES, reserve=0):
+    """reserve: zeroed read-write bytes after the modules for patches that move a full game table
+    there (patches.py <Table>); its offset goes to link.json."""
     main = module(game / 'eboot.bin')
     raw = (out / 'boot.bin').read_bytes()
     magic, size, entry, ns, nr, ni, flags = unpack('<8s6Q', raw, 0)
@@ -195,6 +197,14 @@ def link(game, out, module_names=DEFAULT_MODULES):
                           tls_filesz=tls['filesz'] if tls else 0, tls_module=module_id,
                           tls_relocations=tls_relocations, exports=count, sha256=m['sha256']))
         base = (base + modsize + 65535) & ~65535
+    reserved = None
+    if reserve:
+        size_reserved = (reserve + 65535) & ~65535
+        if base + size_reserved > 512 * 1024 * 1024:
+            raise ValueError('linked image exceeds probe limit')
+        image.extend(bytes(base + size_reserved - len(image)))
+        segments.append((base, size_reserved, 6))  # read-write
+        reserved = dict(base=hex(base), size=size_reserved)
 
     bindings, unresolved = [], []
     for identity, index in identities.items():
@@ -236,7 +246,7 @@ def link(game, out, module_names=DEFAULT_MODULES):
     report = dict(modules=[{k: (hex(v) if k in ('base', 'init', 'tls_address') else v) for k, v in t.items()} for t in table],
                   bindings=len(bindings), imports=len(names), fs_loads_patched=fs_patched,
                   main_tls=dict(zip(('vaddr', 'filesz', 'memsz', 'align'), main_tls_values)),
-                  unresolved_imports=unresolved)
+                  unresolved_imports=unresolved, reserve=reserved)
     (out / 'link.json').write_text(json.dumps(report, indent=2) + '\n')
     summary = ', '.join(f"{t['file']}@{t['base']:#x}" for t in table)
     print(f'Linked modules: {summary}; {len(bindings)} native bindings, {len(unresolved)} imports left to the host runtime, '
@@ -249,5 +259,6 @@ if __name__ == '__main__':
     p.add_argument('game', type=Path)
     p.add_argument('--out', type=Path, default=Path(__file__).resolve().parent.parent / 'out')
     p.add_argument('--modules', nargs='*', default=list(DEFAULT_MODULES))
+    p.add_argument('--reserve', type=lambda v: int(v, 0), default=0)
     a = p.parse_args()
-    link(a.game, a.out, a.modules)
+    link(a.game, a.out, a.modules, a.reserve)

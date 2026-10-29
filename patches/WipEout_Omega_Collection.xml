@@ -552,6 +552,21 @@
             <Line Type="bytes" Address="0x00a65e66" Pattern="41 80 67 01 fb 8b 05 ?? ?? ?? ?? ff c0 83 e0 03 89 05 ?? ?? ?? ?? eb 07" At="5" Value="8b 05 {rel:NEXT:0} ff c8 83 e0 03 89 05 {rel:INDEX:0}"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Model slots" Note="Fixes a crash while a race loads (2048 Unity Square, Empire Climb): the game's list of loaded models was full. Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <!-- Loaded models (rcsmodel, PS4.MaterialTable.inl) take a slot of a .bss table of 1396 entries
+             of 0x360 bytes at 0xedf3e0 (in use: byte +0x114; count 0xedf3c4). 0x6265a0 scans for a
+             free slot and returns -1 when none is left; 0x75a070 keeps that index in the object
+             ([obj+0x3f38]) and 0x7b87d1 then writes through it: a fault in the loading screen
+             (#96 Unity Square, #41 Empire Climb; a 2048 race takes ~650 slots, the menu ~20).
+             The table moves to 4096 entries in the image's reserve (game_profiles.py): all 192
+             rip-relative leas to it (base, in-use byte of entry 0, the end the init loop at
+             0x625e90 stops at) point there, and the scan's limit is 4096. -->
+        <Target Name="slots" Address="0x012df3e0" Pattern="89 c2 48 63 c2 48 8d 1d ?? ?? ?? ?? c5 f8 57 c0" At="8" Ref="1"/>
+        <Table Target="slots" Size="0x126780" Entry="0x360" Count="4096" Refs="192"/>
+        <PatchList>
+            <Line Type="bytes" Address="0x00a26606" Pattern="48 81 c1 60 03 00 00 ba ff ff ff ff 48 3d 74 05 00 00 72 e4" At="14" Value="00 10 00 00"/>
+        </PatchList>
+    </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Cheat - Unlock all HD and Fury events" Note="Every event of the HD and HD Fury campaigns is open: the game counts 99998 campaign points. Nothing is written to your save; off, the events need your own points again." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <!-- 0x4a7200 sums the campaign points that open the next events (cell screen: points needed =
              [cell+0x12c] - this; 99999 marks cells that points never open). It returns 99998. -->

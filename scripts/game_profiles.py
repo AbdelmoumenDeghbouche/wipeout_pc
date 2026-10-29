@@ -2,6 +2,7 @@
 
 modules: bundled sce_module PRX files linked into the image (link_modules.py), in order.
 env: default environment for the run (run.py); a value already set wins.
+reserve: zeroed bytes after the modules (link_modules.py) for patches that move a full table there.
 """
 from pathlib import Path
 
@@ -26,12 +27,14 @@ PROFILES = {
     # (ps 1ba93f5d). Found on CUSA07671 01.07. GOW3_OBJECT_MOTION=0: God of War III's object
     # motion (instrumented vertex shaders, extra pipeline variants) is not read with the game's
     # own vectors; it only cost first-start compiles and GPU time.
+    # reserve: 4096 model slots of 0x360 bytes ("Bug Fix - Model slots", #96).
     'CUSA07671': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
                   'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1',
                           'GOW3_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
                           'GOW3_GAME_MOTION': '1', 'GOW3_UPSCALE_BEFORE_PS': '4f6cc41b',
-                          'GOW3_OBJECT_MOTION': '0'}},
+                          'GOW3_OBJECT_MOTION': '0'},
+                  'reserve': 4096 * 0x360},
     # The EU build (CUSA05670) has the same code and shaders: without these three, FSR 3.1 and
     # DLAA never ran there and Temporal anti-aliasing only turned the multisampling off (#85).
     'CUSA05670': {'name': 'WipEout Omega Collection',
@@ -39,7 +42,8 @@ PROFILES = {
                   'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1',
                           'GOW3_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
                           'GOW3_GAME_MOTION': '1', 'GOW3_UPSCALE_BEFORE_PS': '4f6cc41b',
-                          'GOW3_OBJECT_MOTION': '0'}},
+                          'GOW3_OBJECT_MOTION': '0'},
+                  'reserve': 4096 * 0x360},
     'CUSA01623': {'name': 'God of War III', 'modules': ('libc.prx', 'libSceFios2.prx')},
 }
 DEFAULT = {'name': None, 'modules': ('libc.prx', 'libSceFios2.prx')}

@@ -423,20 +423,25 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 3840x1600', 'Resolution Patch - 5120x1440',
                                  'Native 4K rendering (no checkerboard)',
                                  'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
-                                 'Bug Fix - Zone crash above 60 FPS', 'Cheat - Unlock all HD and Fury events',
+                                 'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Model slots',
+                                 'Cheat - Unlock all HD and Fury events',
                                  'Cheat - Top rank in 2048', 'Cheat - Unlock all ships',
                                  'Cheat - Van Uber team (owned DLC)', 'Cheat - VR ships outside VR'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang',
-                          'Bug Fix - Effects above 60 FPS', 'Bug Fix - Zone crash above 60 FPS'])
-        self.assertTrue(compile_patches(WIPEOUT, names[1:], '01.00', SEGMENTS))
+                          'Bug Fix - Effects above 60 FPS', 'Bug Fix - Zone crash above 60 FPS',
+                          'Bug Fix - Model slots'])
+        # The model slots fix needs the game's code (test_wipeout_model_slots_move_to_the_reserve).
+        self.assertTrue(compile_patches(WIPEOUT, [n for n in names[1:] if n != 'Bug Fix - Model slots'],
+                                        '01.00', SEGMENTS))
         # FSR 3.1 and DLAA read the game's motion and run before its first post pass, in both
         # regions (#85: without them on the EU build, Temporal AA only turned multisampling off).
         import game_profiles
         for title in ('CUSA07671', 'CUSA05670'):
             env = game_profiles.PROFILES[title]['env']
             self.assertEqual((env['GOW3_GAME_MOTION'], env['GOW3_UPSCALE_BEFORE_PS']), ('1', '4f6cc41b'), title)
+            self.assertEqual(game_profiles.PROFILES[title]['reserve'], 4096 * 0x360, title)
 
     def test_wipeout_startup_hang_fix_sets_the_flag_before_the_thread_starts(self):
         # mov [rbx],rax; mov byte [0xaef4c6],1; call 0x3d20e0; cmp byte [0xaef390],0 (#43), even when
@@ -453,6 +458,31 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertIn('Bug Fix - Zone crash above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS),
                          [(0x665e66, bytes.fromhex('8b0558ff8600 ffc8 83e003 890535223400'))])
+
+    def test_wipeout_model_slots_move_to_the_reserve(self):
+        # #96: the model table (1396 slots of 0x360) moves to 4096 slots in the linked image's
+        # reserve: every lea to it (base, slot 0's in-use byte, the init loop's end) and the limit.
+        name, table, reserve = 'Bug Fix - Model slots', 0x100000, 0x400000
+        code = bytearray(0x1000)
+
+        def lea(at, target, reg):
+            code[at:at + 7] = b'\x48\x8d' + bytes([reg]) + struct.pack('<i', target - at - 7)
+        code[0:5] = bytes.fromhex('89c24863c2')
+        lea(5, table, 0x1d)
+        code[12:16] = bytes.fromhex('c5f857c0')
+        code[0x20:0x34] = bytes.fromhex('4881c160030000baffffffff483d7405000072e4')
+        for i in range(191):
+            lea(0x40 + 8 * i, table + (0x114 if i == 0 else 0x126780 if i == 1 else 0), 0x0d)
+        self.assertIn(name, selected_patches(WIPEOUT, '01.00', '', only=True))
+        skipped = {}
+        self.assertEqual(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), skipped), [])
+        self.assertEqual(skipped, {name: 'no memory reserved for the bigger table'})
+        writes = dict(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), {}, (reserve, 4096 * 0x360)))
+        self.assertEqual(writes.pop(0x2e), (4096).to_bytes(4, 'little'))
+        moved = {at: at + 4 + struct.unpack('<i', data)[0] for at, data in writes.items()}
+        self.assertEqual(len(moved), 192)
+        self.assertEqual((moved[8], moved[0x43], moved[0x4b], moved[0x53]),
+                         (reserve, reserve + 0x114, reserve + 4096 * 0x360, reserve))
 
     def test_wipeout_cheats_are_off_unless_chosen(self):
         # The Cheats page adds them; the points total returns 99998 (mov eax; ret) and the rank table holds 0.
