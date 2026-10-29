@@ -345,6 +345,7 @@ private:
     std::array<float, 2> hud_y{1.0f, 0.0f};
     VAddr hud_buffer = 0;  ///< display buffer the HUD draws are counted in
     u32 hud_draws = 0;     ///< draws into hud_buffer; the first one is the scene
+    bool hud_draw = false; ///< the current draw is a HUD draw (GOW3_HUD_16X9 counting)
     const bool host_markers_enabled;
     const bool guest_markers_enabled;
 

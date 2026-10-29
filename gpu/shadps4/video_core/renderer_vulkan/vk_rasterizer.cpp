@@ -3,6 +3,7 @@
 
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
+#include "gow3_settings.h"
 #include "gow3_toggles.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "video_core/renderer_vulkan/vk_lighting_test.h"
@@ -256,6 +257,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         return value && value[0] == '1';
     }();
     hud_x = hud_y = {1.0f, 0.0f};
+    hud_draw = false;
     if (hud_16x9 && cb_descs[0].first &&
         FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
         const VAddr address = regs.color_buffers[0].Address();
@@ -271,6 +273,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         } else if (hud_draws > 1 && inner_height + 1.0f < float(size.height)) {
             hud_y = {inner_height / float(size.height), (float(size.height) - inner_height) * 0.5f};
         }
+        hud_draw = hud_draws > 1;
     }
 
     if (GetEffectiveDepthStencilState(regs).needs_attachment) {
@@ -1050,6 +1053,11 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     motion_geometry = 0;
 
     PrepareRenderState(pipeline);
+    if (hud_draw && Gow3Settings::Get().hide_hud.load(std::memory_order_relaxed)) {
+        bind_prepared = nullptr; // gow3: Hide HUD (F8): the draw is left out, its targets let go
+        ResetBindings(false);
+        return;
+    }
     if (upscaler->Enabled() && std::popcount(pipeline->GetGraphicsKey().mrt_mask) == 1) {
         // wipeout: before the first pass reading the finished scene (a color target means a
         // pixel shader).
@@ -1277,6 +1285,10 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
     motion_draw = false;
     motion_geometry = 0;
     PrepareRenderState(pipeline);
+    if (hud_draw && Gow3Settings::Get().hide_hud.load(std::memory_order_relaxed)) {
+        ResetBindings(false); // gow3: Hide HUD (F8): the draw is left out, its targets let go
+        return;
+    }
     if (upscaler->Enabled() && std::popcount(pipeline->GetGraphicsKey().mrt_mask) == 1) {
         const auto& viewport = Regs().viewports[0];
         upscaler->OnDraw(pipeline->GetStage(Shader::SwStage::Vertex).pgm_hash,

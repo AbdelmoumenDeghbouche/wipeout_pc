@@ -94,6 +94,9 @@ struct Values {
     std::atomic<int> music_volume{100};
     /// The game's own music in percent, 0 to 300 (#97: above its 100% in the game's options). Live.
     std::atomic<int> game_music_volume{100};
+    /// The game's HUD and menus are not drawn (F8, in-game Game tab; photo mode pictures, #68).
+    /// This session only, never saved.
+    std::atomic<bool> hide_hud{false};
     // Startup: run.py turns them into patches and environment variables; "Apply and restart".
     std::atomic<int> render_resolution{0};
     std::atomic<int> engine_fps{120};

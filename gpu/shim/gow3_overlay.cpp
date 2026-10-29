@@ -371,6 +371,13 @@ void GameTab() {
         ImGui::EndTable();
     }
     if (!gow) {
+        ImGui::SeparatorText("Pictures");
+        if (BeginRows("##pictures")) {
+            CheckRow("Hide HUD (F8)", s.hide_hud,
+                     "The game's HUD and menus are not drawn, for clean pictures (photo mode, F12). F8 "
+                     "switches it while you play; it is off again at the next start.");
+            ImGui::EndTable();
+        }
         return;
     }
 
@@ -1194,6 +1201,14 @@ bool HandleEvent(const SDL_Event& event) {
         if (event.key.key == SDLK_F12) {
             if (down && !event.key.repeat) {
                 VideoCore::RequestScreenshot(VideoCore::ScreenshotRequest::GameOnly);
+            }
+            return true;
+        }
+        if (event.key.key == SDLK_F8) { // Hide HUD (#68)
+            if (down && !event.key.repeat) {
+                auto& hide = Gow3Settings::Get().hide_hud;
+                hide.store(!hide.load());
+                ShowNotice(hide.load() ? "HUD hidden (F8 shows it)" : "HUD shown", 2000);
             }
             return true;
         }
