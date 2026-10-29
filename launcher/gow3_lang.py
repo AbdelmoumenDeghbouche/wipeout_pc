@@ -960,6 +960,10 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'In-game menu patches': 'Patches dos menus do jogo',
+        'Eliminator target limit': 'Limite do alvo do Eliminator',
+        "The highest target of the Eliminator slider in the race setup (the game's own: 600 points).":
+            'O alvo mais alto do controle do Eliminator na configuração da corrida (o do jogo: 600 pontos).',
         'Upscaling': 'Upscaling',
         'Off (full resolution)': 'Desligado (resolução completa)',
         'Quality (scene at 1/1.5)': 'Qualidade (cena a 1/1,5)',
@@ -1347,6 +1351,10 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'In-game menu patches': 'Parches de los menús del juego',
+        'Eliminator target limit': 'Límite del objetivo de Eliminator',
+        "The highest target of the Eliminator slider in the race setup (the game's own: 600 points).":
+            'El objetivo más alto del control de Eliminator en la configuración de la carrera (el del juego: 600 puntos).',
         'Upscaling': 'Escalado',
         'Off (full resolution)': 'Desactivado (resolución completa)',
         'Quality (scene at 1/1.5)': 'Calidad (escena a 1/1,5)',
@@ -1683,6 +1691,13 @@ EXTRA['es'].update({
     'To report it, attach this file to your GitHub issue:\n{}\n\nShow the file now?':
         'Para informarlo, adjunta este archivo a tu issue de GitHub:\n{}\n\n¿Mostrar el archivo ahora?',
 })
+
+EXTRA['pl'] = {
+    'In-game menu patches': 'Łatki menu gry',
+    'Eliminator target limit': 'Limit celu Eliminatora',
+    "The highest target of the Eliminator slider in the race setup (the game's own: 600 points).":
+        'Najwyższy cel suwaka Eliminatora w ustawieniach wyścigu (w samej grze: 600 punktów).',
+}
 
 _tables = {}
 

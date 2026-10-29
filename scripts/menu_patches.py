@@ -3,7 +3,8 @@ src/runtime_file.c); the game files are not changed.
 
 WipEout's Eliminator target slider (Racebox) stops at 600 points (#89), a limit of the menu file
 only: data09.psarc's racebox_definition.xml, stored uncompressed, says maxSlide="600". It becomes
-"2000" in the same number of bytes (one space of the line's indentation goes).
+--limit (2000 by default; the launcher's Game page) in the same number of bytes: each extra digit
+takes one space of the line's indentation.
 Output: out/file_patches.txt, "guest-path offset original new" per line (hex); empty when no
 archive matches.
 """
@@ -40,21 +41,25 @@ def stored_entry(path, name):
         return offset, f.read(length)
 
 
-def eliminator_patches(game):
+def eliminator_patches(game, limit=2000):
     archive = next((p for p in Path(game).iterdir() if p.name.lower() == ARCHIVE), None)
     found = archive and stored_entry(archive, MENU)
     if not found:
         return []
     offset, data = found
+    new_limit = f'maxSlide="{limit}"'.encode()
+    extra = len(new_limit) - len(LIMIT)
+    if limit == 600 or extra < 0:
+        return []
     patches = []
     at = data.find(SLIDER)
     while at >= 0:
         indent = data.rfind(b'\n', 0, at) + 1
         end = data.find(LIMIT, at)
-        if indent < at and data[indent] in b' \t' and 0 < end - at < 400:
+        if indent + extra <= at and not data[indent:indent + extra].strip(b' \t') and 0 < end - at < 400:
             end += len(LIMIT)
             original = data[indent:end]
-            new = original[1:].replace(LIMIT, b'maxSlide="2000"')
+            new = original[extra:].replace(LIMIT, new_limit)
             patches.append((f'/app0/{archive.name}', offset + indent, original, new))
         at = data.find(SLIDER, at + 1)
     return patches
@@ -64,11 +69,12 @@ def main():
     p = argparse.ArgumentParser(description=__doc__)
     p.add_argument('game', type=Path)
     p.add_argument('--out', type=Path, required=True)
+    p.add_argument('--limit', type=int, default=2000, help='Eliminator target slider maximum (600 and up)')
     a = p.parse_args()
-    patches = eliminator_patches(a.game)
+    patches = eliminator_patches(a.game, a.limit)
     (a.out / 'file_patches.txt').write_text(''.join(f'{g} {o:x} {old.hex()} {new.hex()}\n' for g, o, old, new in patches))
     if patches:
-        print(f'Menu: Eliminator target up to 2000 ({len(patches)} slider{"s" if len(patches) > 1 else ""})', flush=True)
+        print(f'Menu: Eliminator target up to {a.limit} ({len(patches)} slider{"s" if len(patches) > 1 else ""})', flush=True)
 
 
 if __name__ == '__main__':
