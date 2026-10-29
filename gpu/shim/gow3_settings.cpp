@@ -5,20 +5,116 @@
 #include "gow3_graphics.h"
 
 #include <algorithm>
+#include <cerrno>
+#include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <filesystem>
 #include <string>
 #include <string_view>
 #include <vector>
+#ifdef _WIN32
+#include <io.h>
+#include <windows.h>
+#else
+#include <unistd.h>
+#endif
 
 namespace Gow3Settings {
 
 namespace {
 
-const char* Path() {
-    const char* env = wipeout_oc_getenv("WIPEOUT_OC_CONFIG");
-    return env && env[0] ? env : "gow3.ini";
+namespace fs = std::filesystem;
+fs::path selected_path;
+
+fs::path EnvironmentPath(const char* suffix) {
+#ifdef _WIN32
+    const auto current = fs::path(std::string("WIPEOUT_OC_") + suffix).wstring();
+    const auto legacy = fs::path(std::string("GOW3_") + suffix).wstring();
+    const wchar_t* value = _wgetenv(current.c_str());
+    if (!value) value = _wgetenv(legacy.c_str());
+    return value ? fs::path(value) : fs::path{};
+#else
+    const char* value = wipeout_oc_getenv((std::string("WIPEOUT_OC_") + suffix).c_str());
+    return value ? fs::path(value) : fs::path{};
+#endif
+}
+
+FILE* Open(const fs::path& path, bool write) {
+#ifdef _WIN32
+    return _wfopen(path.c_str(), write ? L"wb" : L"rb");
+#else
+    return std::fopen(path.c_str(), write ? "wb" : "rb");
+#endif
+}
+
+std::string DisplayPath(const fs::path& path) {
+    const auto utf8 = path.u8string();
+    return {reinterpret_cast<const char*>(utf8.data()), utf8.size()};
+}
+
+fs::path ResolvePath() {
+    if (const auto override = EnvironmentPath("CONFIG"); !override.empty()) {
+        return fs::absolute(override); // Do not collapse symlinks or parent components.
+    }
+    const auto data = EnvironmentPath("DATA_DIR");
+    const auto directory = data.empty() ? fs::current_path() : fs::absolute(data);
+    const auto destination = directory / "wipeout_oc.ini";
+    const auto source = directory / "gow3.ini";
+    if (fs::exists(destination) || !fs::exists(source)) return destination;
+
+    // copy_file creates a separate, exclusive temporary file. Only its complete, flushed bytes
+    // are published; neither rename nor link is ever allowed to replace a new user's file.
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    static std::atomic<unsigned> sequence{};
+    const auto temporary = directory / (".wipeout_oc-" + std::to_string(stamp) + "-" +
+                                        std::to_string(sequence++) + ".tmp");
+    std::error_code error;
+    if (!fs::copy_file(source, temporary, fs::copy_options::none, error)) {
+        if (error != std::errc::file_exists) {
+            std::error_code ignored;
+            fs::remove(temporary, ignored);
+        }
+        throw fs::filesystem_error("cannot copy legacy settings", source, temporary, error);
+    }
+    try {
+        // The original may be readonly; only our independent temporary copy must be writable.
+        fs::permissions(temporary, fs::perms::owner_write, fs::perm_options::add);
+#ifdef _WIN32
+        FILE* stream = _wfopen(temporary.c_str(), L"r+b");
+#else
+        FILE* stream = std::fopen(temporary.c_str(), "r+b");
+#endif
+        if (!stream) throw std::system_error(errno, std::generic_category(), "open settings copy");
+#ifdef _WIN32
+        const int flushed = _commit(_fileno(stream));
+#else
+        const int flushed = fsync(fileno(stream));
+#endif
+        const int saved_errno = errno;
+        const int closed = std::fclose(stream);
+        if (flushed || closed) throw std::system_error(flushed ? saved_errno : errno,
+                                                       std::generic_category(), "flush settings copy");
+#ifdef _WIN32
+        if (!MoveFileExW(temporary.c_str(), destination.c_str(), 0)) {
+            const auto code = GetLastError();
+            if (code != ERROR_ALREADY_EXISTS && code != ERROR_FILE_EXISTS) {
+                throw std::system_error(code, std::system_category(), "publish settings copy");
+            }
+        }
+#else
+        fs::create_hard_link(temporary, destination, error);
+        if (error && error != std::errc::file_exists) {
+            throw fs::filesystem_error("publish settings copy", destination, error);
+        }
+#endif
+    } catch (...) {
+        fs::remove(temporary, error);
+        throw;
+    }
+    fs::remove(temporary, error);
+    return destination;
 }
 
 float Clamp(float v, float lo, float hi) {
@@ -181,9 +277,16 @@ Values& Get() {
     return values;
 }
 
-void Load() {
+bool Load() {
     auto& v = Get();
-    if (FILE* file = std::fopen(Path(), "r")) {
+    fs::path path;
+    try {
+        path = ResolvePath();
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "Settings: cannot select configuration: %s\n", error.what());
+        return false;
+    }
+    if (FILE* file = Open(path, false)) {
         char line[256];
         while (std::fgets(line, sizeof(line), file)) {
             std::string text{line};
@@ -194,9 +297,18 @@ void Load() {
             }
             Set(v, text.substr(0, eq), text.substr(eq + 1));
         }
+        const bool failed = std::ferror(file);
         std::fclose(file);
-        std::printf("Settings: %s\n", Path());
+        if (failed) {
+            std::fprintf(stderr, "Settings: cannot read %s\n", DisplayPath(path).c_str());
+            return false;
+        }
+        std::printf("Settings: %s\n", DisplayPath(path).c_str());
+    } else if (errno != ENOENT) {
+        std::fprintf(stderr, "Settings: cannot read %s: %s\n", DisplayPath(path).c_str(), std::strerror(errno));
+        return false;
     }
+    selected_path = path;
     // Environment overrides (scripts, A/B tests).
     if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_UPSCALER")) {
         v.upscaler = UpscalerOff;
@@ -235,6 +347,7 @@ void Load() {
     v.startup_deferred_readback = v.deferred_readback;
     v.startup_stale_readback = v.stale_readback;
     v.startup_anisotropy = v.anisotropy;
+    return true;
 }
 
 bool GraphicsNeedRestart() {
@@ -295,11 +408,19 @@ bool ResolutionNeedsRestart() {
 
 void Save() {
     const auto& v = Get();
-    FILE* file = std::fopen(Path(), "w");
-    if (!file) {
-        std::printf("Settings: cannot write %s\n", Path());
+    fs::path path;
+    try {
+        path = selected_path.empty() ? ResolvePath() : selected_path;
+    } catch (const std::exception& error) {
+        std::fprintf(stderr, "Settings: cannot select configuration to save: %s\n", error.what());
         return;
     }
+    FILE* file = Open(path, true);
+    if (!file) {
+        std::fprintf(stderr, "Settings: cannot write %s: %s\n", DisplayPath(path).c_str(), std::strerror(errno));
+        return;
+    }
+    selected_path = path;
     std::fprintf(file,
                  "# gow3 settings (in-game menu: Insert / R3+L2)\n"
                  "upscaler=%s\npreset=%d\nsharpen=%d\nsharpness=%.2f\njitter=%d\n"
@@ -355,7 +476,11 @@ void Save() {
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");
-    std::fclose(file);
+    const bool failed = std::ferror(file);
+    const int closed = std::fclose(file);
+    if (failed || closed) {
+        std::fprintf(stderr, "Settings: cannot write %s\n", DisplayPath(path).c_str());
+    }
 }
 
 float PresetScale(int preset) {

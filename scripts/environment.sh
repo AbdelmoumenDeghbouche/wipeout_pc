@@ -21,3 +21,22 @@ wipeout_oc_normalize_environment() {
 }
 wipeout_oc_normalize_environment
 unset -f wipeout_oc_normalize_environment
+
+# Linux wrappers must capture an explicit caller path before entering the port directory.
+wipeout_oc_anchor_config() {
+    if [[ -n ${WIPEOUT_OC_CONFIG-} && $WIPEOUT_OC_CONFIG != /* ]]; then
+        export WIPEOUT_OC_CONFIG=$PWD/$WIPEOUT_OC_CONFIG
+    fi
+}
+
+# Packaged Linux entry points reuse an existing directory in place; no saves are moved.
+wipeout_oc_select_data_directory() {
+    if [[ ! -v WIPEOUT_OC_DATA_DIR ]]; then
+        local base=${XDG_DATA_HOME:-$HOME/.local/share}
+        WIPEOUT_OC_DATA_DIR=$base/wipeout_oc
+        if [[ ! -d $WIPEOUT_OC_DATA_DIR && -d $base/gow3 ]]; then
+            WIPEOUT_OC_DATA_DIR=$base/gow3
+        fi
+    fi
+    export WIPEOUT_OC_DATA_DIR
+}

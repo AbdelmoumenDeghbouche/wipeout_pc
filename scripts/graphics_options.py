@@ -35,7 +35,7 @@ def read_ini(path):
     values = {}
     try:
         lines = Path(path).read_text(encoding='utf-8').splitlines()
-    except OSError:
+    except FileNotFoundError:
         return values
     for line in lines:
         if '=' in line and not line.lstrip().startswith('#'):
@@ -49,7 +49,7 @@ def write_keys(path, updates):
     path = Path(path)
     try:
         lines = path.read_text(encoding='utf-8').splitlines()
-    except OSError:
+    except FileNotFoundError:
         lines = ['# gow3 settings (in-game menu: Insert / R3+L2)']
     done, out = set(), []
     for line in lines:

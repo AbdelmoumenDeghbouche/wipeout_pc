@@ -23,6 +23,7 @@ if WINDOWS:
 PORT = Path(__file__).resolve().parent
 sys.path.insert(0, str(PORT / "scripts"))
 from environment import clear_derived, getenv, normalize
+from config_path import absolute, resolve_config
 
 
 def fail(message):
@@ -170,15 +171,18 @@ def main():
     if len(args) >= 2 and args[0] == '--after':
         wait_for(int(args[1]))
         args = args[2:]
-    # As run.sh: relative paths (WIPEOUT_OC_GAME_DIR, WIPEOUT_OC_DATA_DIR, fsr4_shaders/) are from the port.
-    os.chdir(PORT)
     env = os.environ
     clear_derived(env)
     normalize(env)
+    # CONFIG is an explicit caller path; keep it stable before entering the port directory.
+    if env.get('WIPEOUT_OC_CONFIG'):
+        env['WIPEOUT_OC_CONFIG'] = str(absolute(env['WIPEOUT_OC_CONFIG']))
+    # Other relative paths (GAME_DIR, DATA_DIR, fsr4_shaders/) remain relative to the port.
+    os.chdir(PORT)
     data = Path(env.get('WIPEOUT_OC_DATA_DIR', PORT))
     out = data / 'out'
     out.mkdir(parents=True, exist_ok=True)
-    env.setdefault('WIPEOUT_OC_CONFIG', str(data / 'gow3.ini'))
+    env['WIPEOUT_OC_CONFIG'] = str(resolve_config(data, env))
     # Values this script derived on the previous start ("Apply and restart" inherits them) are
     # derived again from the new options.
     derived = []
@@ -394,3 +398,5 @@ if __name__ == '__main__':
         sys.exit(main())
     except KeyboardInterrupt:
         sys.exit(130)
+    except (OSError, UnicodeError) as error:
+        fail(f'Settings/startup: {error}')

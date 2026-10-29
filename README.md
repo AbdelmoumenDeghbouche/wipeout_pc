@@ -155,6 +155,21 @@ python launcher\gow3_launcher_win.py
 The **Advanced** page can put a shortcut on the desktop. Settings: display mode, frame rate
 limit, VSync, anisotropic filtering, HDR, controls, mods and the game language.
 
+Game settings use `wipeout_oc.ini` in the data directory (`WIPEOUT_OC_DATA_DIR`; the port
+directory in a source checkout). On first use, an existing `gow3.ini` is copied byte for byte
+to the new name and kept intact. If both exist, `wipeout_oc.ini` wins; they are never merged.
+A migration or read error stops startup and reports the path instead of loading defaults.
+`WIPEOUT_OC_CONFIG` selects an exact file, including a nonexistent file to create on Save;
+relative overrides are anchored to the caller's working directory. Legacy `GOW3_CONFIG` is
+accepted when the new variable is absent. An empty `WIPEOUT_OC_CONFIG` selects the default
+and suppresses the legacy override. Launcher options remain in `wipeout-launcher/settings.json`
+under the platform's configuration directory.
+
+AppImage and Nix default to `$XDG_DATA_HOME/wipeout_oc` (`~/.local/share/wipeout_oc` without
+`XDG_DATA_HOME`), reuse an existing `gow3` data directory in place when the new directory does
+not exist, and prefer the new directory when both exist. No saves or caches are moved.
+An explicit data directory takes precedence; an empty value means the working directory.
+
 Without the launcher, `run.py` starts the game:
 
 ```powershell

@@ -5,6 +5,7 @@ user/
 /user-debug/
 *.mp4
 gow3.ini
+wipeout_oc.ini
 fsr4_shaders/
 pgo/
 *.png

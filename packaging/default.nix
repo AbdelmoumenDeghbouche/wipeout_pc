@@ -107,7 +107,7 @@ pkgs.stdenv.mkDerivation {
     mkdir -p $out/libexec
     gcc -O2 -Wall -Werror -static -L${pkgs.glibc.static}/lib -DTARGET="\"$out/libexec/gow3\"" \
       ${./gow3-entry.c} -o $out/bin/gow3
-    # The game (settings from the data directory's gow3.ini).
+    # The game (settings from the data directory's wipeout_oc.ini; legacy copied on first use).
     makeShellWrapper ${pkgs.python3}/bin/python3 $out/libexec/gow3 \
       ${common}      --add-flags "$out/share/gow3/launcher/gow3_vulkan.py ${pkgs.bash}/bin/bash $out/share/gow3/run.sh" \
       --set WIPEOUT_OC_PREBUILT 1 \
@@ -115,7 +115,7 @@ pkgs.stdenv.mkDerivation {
       --set WIPEOUT_OC_BUNDLED_VK_DRIVER_FILES ${icds} \
       --prefix PATH : ${lib.makeBinPath [ pkgs.bash pkgs.coreutils ]} \
       --run "source $out/share/gow3/scripts/environment.sh" \
-      --run 'export WIPEOUT_OC_DATA_DIR=''${WIPEOUT_OC_DATA_DIR:-''${XDG_DATA_HOME:-$HOME/.local/share}/gow3}; mkdir -p "$WIPEOUT_OC_DATA_DIR"'
+      --run 'wipeout_oc_select_data_directory; mkdir -p "''${WIPEOUT_OC_DATA_DIR:-.}"'
   '';
   meta.mainProgram = "gow3";
 }

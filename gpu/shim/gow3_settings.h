@@ -141,7 +141,7 @@ struct Values {
 Values& Get();
 
 /// Reads the file, then the environment overrides. Called once at start.
-void Load();
+bool Load();
 /// Checks the loaded choice before the first frame; unsupported FSR 4 uses FSR 3.1.
 void ConfigureUpscalerSupport(bool fsr4, bool fsr411);
 /// After device creation: DLSS availability; a DLSS setting falls back to FSR 3.1 without it.

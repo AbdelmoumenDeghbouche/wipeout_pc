@@ -49,7 +49,9 @@ class WindowsSmokeTests(unittest.TestCase):
         self.assertNotEqual(self.smoke(lambda tree: shutil.rmtree(tree / '_internal' / 'iced_x86')), 0)
 
     def test_a_shipped_player_file_fails(self):
-        self.assertNotEqual(self.smoke(lambda tree: (tree / 'gow3.ini').write_text('[gow3]\n')), 0)
+        for name in ('gow3.ini', 'wipeout_oc.ini'):
+            with self.subTest(name=name):
+                self.assertNotEqual(self.smoke(lambda tree: (tree / name).write_text('engine_fps=120\n')), 0)
 
 
 if __name__ == '__main__':

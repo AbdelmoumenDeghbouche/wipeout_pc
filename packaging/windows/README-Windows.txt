@@ -54,7 +54,13 @@ Next time
 
 Data
 - Saves, shader cache and the log: user\ next to WipEout.exe (keep it when updating).
-- Settings: gow3.ini next to WipEout.exe; launcher options in %APPDATA%\wipeout-launcher.
+- Settings: wipeout_oc.ini next to WipEout.exe (or in WIPEOUT_OC_DATA_DIR). An existing
+  gow3.ini is copied byte for byte on first use and kept intact. If both exist, the new file
+  wins; no merge or overwrite. Migration/read errors stop startup with an error message.
+  WIPEOUT_OC_CONFIG selects an exact file (relative to the caller's working directory);
+  a missing override starts with defaults and Save creates that file. GOW3_CONFIG remains
+  accepted when the new variable is absent; an empty WIPEOUT_OC_CONFIG selects the default.
+  Launcher options remain in %APPDATA%\wipeout-launcher. Both INIs survive package updates.
 - Generated files (prepared game image, patches): out\.
 
 Known issues
@@ -72,7 +78,7 @@ Problems
 - Report problems here, with your GPU, driver, CPU and the log:
   https://github.com/AbdelmoumenDeghbouche/wipeout_pc/issues
 
-Some file names (gow3-probe.exe, gow3.ini) still come from the God of War III port this
+Some file names (gow3-probe.exe) still come from the God of War III port this
 project is based on.
 
 This project is not affiliated with Sony Interactive Entertainment, XDev, Clever Beans or EPOS

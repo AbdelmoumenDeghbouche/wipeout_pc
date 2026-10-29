@@ -1,5 +1,16 @@
 """Canonical port environment; legacy inputs remain valid, including empty values."""
 import os
+from pathlib import Path
+
+
+def data_directory(env):
+    """Packaged Linux data stays in an existing directory, with the new name preferred."""
+    explicit = getenv('WIPEOUT_OC_DATA_DIR', env=env)
+    if explicit is not None:
+        return Path(explicit)
+    base = Path(env.get('XDG_DATA_HOME') or Path.home() / '.local/share')
+    canonical, legacy = base / 'wipeout_oc', base / 'gow3'
+    return canonical if canonical.is_dir() or not legacy.is_dir() else legacy
 
 
 def _names(name):

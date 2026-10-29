@@ -14,7 +14,7 @@ from pathlib import Path, PurePosixPath
 import sys
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-from environment import clear_derived, getenv, normalize
+from environment import clear_derived, data_directory, getenv, normalize
 
 MANIFEST_DIRS = (
     Path("/etc/vulkan/icd.d"), Path("/usr/share/vulkan/icd.d"),
@@ -82,8 +82,7 @@ def configure(env, manifest_dirs=MANIFEST_DIRS, library_dirs=LIBRARY_DIRS):
     # The driver version/path and mtime give each installed driver its own small
     # cache. exec preserves process/signal behavior; the cache survives launch.
     key = hashlib.sha256(f"{driver}:{driver.stat().st_mtime_ns}".encode()).hexdigest()[:16]
-    data_dir = Path(env.get("WIPEOUT_OC_DATA_DIR") or
-                    str(Path(env.get("XDG_DATA_HOME", str(Path.home() / ".local/share"))) / "gow3"))
+    data_dir = data_directory(env)
     cache = data_dir / "vulkan" / "nvidia" / key
     libraries = cache / "lib"
     libraries.mkdir(parents=True, exist_ok=True)

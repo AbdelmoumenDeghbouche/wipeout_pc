@@ -241,7 +241,7 @@ static void StartProfileWriter() {
 #endif
 
 extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
-    Gow3Settings::Load();
+    if (!Gow3Settings::Load()) return 1;
 #ifdef GOW3_PGO_GENERATE
     StartProfileWriter();
 #endif

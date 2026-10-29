@@ -46,6 +46,7 @@ FROZEN = getattr(sys, 'frozen', False)
 PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
 from environment import clear_derived, getenv, normalize  # noqa: E402
+from config_path import resolve_config  # noqa: E402
 import graphics_options  # noqa: E402  (scripts/)
 import save_backup  # noqa: E402  (scripts/)
 import steam_shortcut  # noqa: E402  (scripts/)
@@ -68,7 +69,7 @@ RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/re
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
 # Never copied over an installation by an update (the package does not hold them either).
-USER_FILES = ('user', 'out', 'mods', 'gow3.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
+USER_FILES = ('user', 'out', 'mods', 'gow3.ini', 'wipeout_oc.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
 # The title face (Russo One), next to gow3.ico; main() registers it for this process only.
 FONT_FILE = PORT_DIR / 'launcher' / 'RussoOne-Regular.ttf'
 FR_PRIVATE = 0x10
@@ -751,14 +752,15 @@ def load_json(path, default):
 
 
 def ini_path():
-    return Path(getenv('WIPEOUT_OC_CONFIG', DATA_DIR / 'gow3.ini'))
+    return resolve_config(DATA_DIR)
 
 
 def load_ini():
     values, lines = dict(INI_DEFAULTS), []
+    path = ini_path()
     try:
-        lines = ini_path().read_text(encoding='utf-8').splitlines()
-    except OSError:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except FileNotFoundError:
         pass
     for line in lines:
         if '=' in line and not line.lstrip().startswith('#'):
@@ -772,7 +774,7 @@ def atomic_write(path, text):
     path.parent.mkdir(parents=True, exist_ok=True)
     temporary = None
     try:
-        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=path.parent,
+        with tempfile.NamedTemporaryFile(mode='w', encoding='utf-8', dir=os.path.realpath(path.parent),
                                          suffix='.tmp', delete=False) as stream:
             temporary = Path(stream.name)
             stream.write(text)
@@ -1180,6 +1182,7 @@ def game_environment(s):
     env = dict(os.environ)
     clear_derived(env)
     normalize(env)
+    env['WIPEOUT_OC_CONFIG'] = str(resolve_config(DATA_DIR, env))
     for suffix in ("HDR", "FRAME_STATS", "GPU_PROFILE", "VK_VALIDATION", "FRAME_CAPTURE_KEY",
                    "UPSCALER_KEY", "KEY_MAP", "PAD_MAP", "NO_MSAA", "DRAW_PIPE", "READBACKS", "USER_DIR"):
         env.pop("WIPEOUT_OC_" + suffix, None)
@@ -2864,14 +2867,14 @@ class Launcher:
     def collect(self):
         """Writes settings.json, gow3.ini, mods.json and patches.json."""
         state = self.gather()
-        _disk, lines = load_ini()
-        persisted = {line.split('=', 1)[0].strip() for line in lines
-                     if '=' in line and not line.lstrip().startswith('#')}
-        baseline = getattr(self, 'saved', {'ini': self.ini})['ini']
-        edited = {key: state['ini'][key] for key, var in self.vars.items()
-                  if var.store == 'ini' and
-                  (key not in persisted or state['ini'][key] != baseline.get(key))}
         try:
+            _disk, lines = load_ini()
+            persisted = {line.split('=', 1)[0].strip() for line in lines
+                         if '=' in line and not line.lstrip().startswith('#')}
+            baseline = getattr(self, 'saved', {'ini': self.ini})['ini']
+            edited = {key: state['ini'][key] for key, var in self.vars.items()
+                      if var.store == 'ini' and
+                      (key not in persisted or state['ini'][key] != baseline.get(key))}
             save_ini(edited, lines)
             atomic_write(CONFIG_FILE, json.dumps(state['app'], indent=2, ensure_ascii=False))
             if state['mods']:
@@ -2884,12 +2887,12 @@ class Launcher:
                 disabled = {k for k in chosen.get('disabled', []) if k not in shown} | set(state['patches']['disabled'])
                 atomic_write(DATA_DIR / 'patches.json', json.dumps(
                     {'enabled': sorted(enabled), 'disabled': sorted(disabled)}, indent=2))
-        except OSError:
+            self.ini, self.ini_lines = load_ini()
+        except (OSError, UnicodeError) as error:
             self.messagebox.showerror(APP_NAME, _('Could not save all settings. Check write permissions and free disk space, then try again.',
-                                                   'Не удалось сохранить все настройки. Проверьте права записи и свободное место, затем повторите.'))
+                                                   'Не удалось сохранить все настройки. Проверьте права записи и свободное место, затем повторите.') + f'\n{error}')
             return False
         self.app = state['app']
-        self.ini, self.ini_lines = load_ini()
         for key, var in self.vars.items():
             if var.store == 'ini':
                 var.set(self.ini[key] == '1' if key in INI_FLAGS else self.ini[key])
@@ -3693,12 +3696,13 @@ def main():
             root.option_add(f'*{window}.cursor', ARROW)
     pick_fonts(font.families(root))
     try:
+        os.environ['WIPEOUT_OC_CONFIG'] = str(ini_path())
         load_mods()
-    except RuntimeError as error:
+        Launcher(root, tk, ttk, filedialog, messagebox)
+    except (RuntimeError, OSError, UnicodeError) as error:
         messagebox.showerror(APP_NAME, str(error), parent=root)
         root.destroy()
         return 1
-    Launcher(root, tk, ttk, filedialog, messagebox)
     root.mainloop()
 
 

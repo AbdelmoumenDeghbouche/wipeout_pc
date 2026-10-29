@@ -12,7 +12,7 @@ $tree = Join-Path $work 'wipeout-windows'
 $failed = @()
 
 # The same names package.sh refuses to ship: game files and anything a player makes.
-$forbidden = 'eboot.bin', 'sce_module', 'sce_sys', 'savedata', 'user', 'cache', '*.log', 'gow3.ini',
+$forbidden = 'eboot.bin', 'sce_module', 'sce_sys', 'savedata', 'user', 'cache', '*.log', 'gow3.ini', 'wipeout_oc.ini',
     'settings.json', 'mods.json', 'patches.json', 'fsr4_shaders', 'nvngx_dlss*.dll', '*.spv', '*.pkg',
     '*.sprx', '*.prx'
 $found = Get-ChildItem -LiteralPath $tree -Recurse -Force |

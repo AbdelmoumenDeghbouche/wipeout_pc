@@ -69,7 +69,7 @@ find "$dest" -name __pycache__ -prune -exec rm -r {} +
 # No game files and nothing a player made (saves, shader caches built from the game's shaders,
 # settings, logs) may ship: stop when one is found.
 forbidden=$(find "$dest" \( -iname eboot.bin -o -iname sce_module -o -iname sce_sys -o -iname savedata \
-    -o -iname user -o -iname cache -o -iname '*.log' -o -iname gow3.ini -o -iname settings.json \
+    -o -iname user -o -iname cache -o -iname '*.log' -o -iname gow3.ini -o -iname wipeout_oc.ini -o -iname settings.json \
     -o -iname mods.json -o -iname patches.json -o -iname fsr4_shaders -o -iname 'nvngx_dlss*.dll' \
     -o -iname '*.spv' -o -iname '*.pkg' -o -iname '*.sprx' -o -iname '*.prx' \) -print)
 if [[ -n $forbidden ]]; then
@@ -91,8 +91,9 @@ if [[ ${running:-0} != 0 ]]; then
     echo "dist/wipeout-windows is in use ($running processes): not refreshed; the zip is ready." >&2
 else
     mkdir -p "$play"
-    find "$play" -mindepth 1 -maxdepth 1 ! -name user ! -name mods ! -name gow3.ini \
-        ! -name mods.json ! -name patches.json -exec rm -rf {} +
+    find "$play" -mindepth 1 -maxdepth 1 ! -iname user ! -iname mods ! -iname out \
+        ! -iname gow3.ini ! -iname wipeout_oc.ini ! -iname mods.json ! -iname mods_presets.json \
+        ! -iname patches.json -exec rm -rf {} +
     cp -r "$dest/." "$play/"
 fi
 du -sh "$dest" dist/wipeout-windows.zip

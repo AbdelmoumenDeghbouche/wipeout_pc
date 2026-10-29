@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
-cd -- "$(dirname -- "$0")"
-source scripts/environment.sh
+here=$(dirname -- "$0")
+source "$here/scripts/environment.sh"
+wipeout_oc_anchor_config
+cd -- "$here"
 if [[ ${1:-} == --software ]]; then
     shift
     if [[ -z ${VK_DRIVER_FILES:-} ]]; then
@@ -14,7 +16,7 @@ if [[ ${1:-} == --software ]]; then
 fi
 # WIPEOUT_OC_PREBUILT=1 (packaged builds, the AppImage): bin/gow3-probe and its GPU library are installed
 # next to this script; nothing is built and no nix-shell is needed.
-# WIPEOUT_OC_DATA_DIR: writable directory for the generated files (out/), saves (user/) and gow3.ini;
+# WIPEOUT_OC_DATA_DIR: writable directory for generated files (out/), saves (user/) and wipeout_oc.ini;
 # by default this directory. The preparation itself is in run.py.
 data=${WIPEOUT_OC_DATA_DIR:-.}
 if [[ -z ${WIPEOUT_OC_PREBUILT:-} && -z ${WIPEOUT_OC_IN_NIX_SHELL:-} ]] && ! { command -v pkg-config >/dev/null && pkg-config --exists vulkan sdl3; } && command -v nix-shell >/dev/null; then
