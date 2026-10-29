@@ -960,6 +960,8 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'Menu songs: put the songs for the menus in a subfolder named menu. They play only in the menus, and the other songs play in races.':
+            'Músicas do menu: coloque as músicas para os menus numa subpasta chamada menu. Elas tocam só nos menus, e as outras músicas tocam nas corridas.',
         'Texture quality': 'Qualidade das texturas',
         'Full (default)': 'Completa (padrão)',
         'Medium (largest textures at 4096)': 'Média (texturas maiores em 4096)',
@@ -1333,6 +1335,8 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'Menu songs: put the songs for the menus in a subfolder named menu. They play only in the menus, and the other songs play in races.':
+            'Canciones del menú: pon las canciones para los menús en una subcarpeta llamada menu. Suenan solo en los menús, y las demás canciones suenan en las carreras.',
         'Texture quality': 'Calidad de texturas',
         'Full (default)': 'Completa (predeterminada)',
         'Medium (largest textures at 4096)': 'Media (texturas más grandes a 4096)',

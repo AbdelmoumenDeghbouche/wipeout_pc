@@ -263,6 +263,7 @@ static int game_path(const char *p) {
 /* All operations return >=0 or -(host errno); wrappers adapt the convention. */
 static int64_t do_open(const char *guest,int flags,int mode) {
     if (game_path(guest) && (flags & (3|0x8|0x200|0x400|0x800))) return -EROFS;
+    if (game_path(guest)) runtime_music_scene(guest);
     char path[1024];
     int e=translate(guest,path,sizeof(path));
     if (e) return -e;

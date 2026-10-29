@@ -5,7 +5,8 @@
  * to a fixed level times "music_volume", not to the game's level; only the game's silences and fades
  * are followed (runtime_music_bgm). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
  * tab) turn them off or play the list in order; the Music tab picks a song or skips
- * (runtime_music_play, runtime_music_step). */
+ * (runtime_music_play, runtime_music_step). Songs in a "menu" subfolder play in the menus only,
+ * the others in races (#66); the game's sound banks tell which (runtime_music_scene). */
 #define _GNU_SOURCE
 #include "runtime.h"
 #include "gpu/gow3gpu.h"
@@ -40,6 +41,9 @@ static volatile int skipping; /* the decoder drops what it decodes until it take
 static char notice[600];      /* "Now playing" once the ring reaches frame notice_at */
 static size_t notice_at;
 static long notice_file=-1, playing=-1;
+static unsigned char *menu_song; /* per file: in the "menu" subfolder */
+static size_t menu_songs;
+static volatile int in_race;     /* the game loaded a race's sound banks, not the menus' */
 static int notice_pending;
 static double ours_ms;
 /* Target RMS per channel at 100%, measured above ~150 Hz: the bass, most of a modern song's energy
@@ -88,6 +92,10 @@ static char *display_name(const char *path) {
     if (dot) *dot=0;
     for (char *c=name; *c; ++c) if (*c=='_') *c=' ';
     return name;
+}
+/* Whether a song plays now: with menu songs, those in the menus and the others in races. */
+static int fits(size_t file) {
+    return !menu_songs || menu_songs==file_count || menu_song[file]==!in_race;
 }
 /* The play order from `first` on (under lock): shuffled, or the list's order. */
 static void arrange(int shuffle, size_t first) {
@@ -182,15 +190,24 @@ static void *decode(void *unused) {
         qsort(files,file_count,sizeof(*files),compare);
         names=malloc(file_count*sizeof(*names));
         order=malloc(file_count*sizeof(*order));
-        if (!names || !order) file_count=0;
-        for (size_t i=0;i<file_count;++i) if (!(names[i]=display_name(files[i]))) names[i]=files[i];
+        menu_song=calloc(file_count,1);
+        if (!names || !order || !menu_song) file_count=0;
+        const size_t root=strlen(dir);
+        for (size_t i=0;i<file_count;++i) {
+            if (!(names[i]=display_name(files[i]))) names[i]=files[i];
+            const char *sub=files[i]+root;
+            menu_song[i]=sub[0]=='/' && !strncasecmp(sub+1,"menu/",5); /* scan() joins with '/' */
+            menu_songs+=menu_song[i];
+        }
     }
     scanned=1;
     if (!file_count) return NULL;
     printf("Music: %zu files in %s replace the game's music\n",file_count,dir);
+    if (menu_songs) printf("Music: %zu of them in menu/ play in the menus\n",menu_songs);
     srand((unsigned)time(NULL));
     pthread_mutex_lock(&lock);
     arrange(gow3gpu_music_shuffle(),(size_t)rand()%file_count);
+    for (size_t tries=0; tries<file_count && !fits(order[pos]); ++tries) pos=(pos+1)%file_count;
     pthread_mutex_unlock(&lock);
     for (size_t failures=0; failures<file_count;) {
         pthread_mutex_lock(&lock);
@@ -209,6 +226,7 @@ static void *decode(void *unused) {
         } else if (++pos==file_count) {
             arrange(shuffle,shuffle ? (size_t)rand()%file_count : 0); /* the next round */
         }
+        for (size_t tries=0; jump<0 && tries<file_count && !fits(order[pos]); ++tries) pos=(pos+1)%file_count;
         pthread_mutex_unlock(&lock);
     }
     printf("Music: none of the files plays; the game's music is back\n");
@@ -246,9 +264,17 @@ void runtime_music_step(int direction) {
     const size_t now=playing>=0 ? (size_t)playing : order[pos];
     size_t k=pos;
     for (size_t i=0;i<file_count;++i) if (order[i]==now) k=i;
-    const size_t song=order[(k+(direction>0 ? 1 : file_count-1))%file_count];
+    size_t song=order[(k+(direction>0 ? 1 : file_count-1))%file_count];
+    for (size_t tries=1; tries<file_count && !fits(song); ++tries)
+        song=order[(k+(direction>0 ? 1+tries : file_count-1-tries))%file_count];
     pthread_mutex_unlock(&lock);
     runtime_music_play((int)song);
+}
+
+void runtime_music_scene(const char *guest_path) {
+    const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
+    if (strstr(guest_path,"/frontend_fliers.bnk")) in_race=0;
+    else if (env && (env[4]=='_' || isdigit((unsigned char)env[4]))) in_race=1; /* env_tower, env1_vinetak */
 }
 
 int runtime_music_bgm(float *pcm, int frames, int channels) {

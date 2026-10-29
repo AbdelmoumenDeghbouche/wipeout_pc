@@ -93,6 +93,8 @@ void runtime_audio_report(void);
 /* Custom soundtrack (runtime_music.c): replaces one buffer of the game's BGM port with the
  * player's music; 0 = no music files, the game's music plays. */
 int runtime_music_bgm(float *pcm, int frames, int channels);
+/* A game file opened (runtime_file.c): its sound banks tell menus from races (#66). */
+void runtime_music_scene(const char *guest_path);
 uintptr_t runtime_pad_resolve(const char *name);
 void runtime_pad_report(void);
 /* probe --gamepad: prints one "Gamepad:" line for the first pad found (returns 1) or none (0). */

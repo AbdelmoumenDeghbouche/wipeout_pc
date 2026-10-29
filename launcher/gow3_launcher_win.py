@@ -2051,6 +2051,8 @@ class Launcher:
                        "effects stay. Set how loud with Music volume below.\n"
                        "3. In the game, press Insert (or R3 + L2) and open the Music tab: pick a song, skip to the "
                        "next one or turn shuffle off."), top=8)
+        self.note(f, _("Menu songs: put the songs for the menus in a subfolder named menu. They play only in the "
+                       "menus, and the other songs play in races."), top=8)
         self.section(f, _('Settings'))
         self.folder(f, 'music_dir', _('Music folder'), _('Choose your music folder'),
                     _('Empty: the music folder next to your saves.'), on_change=self.refresh_music)
