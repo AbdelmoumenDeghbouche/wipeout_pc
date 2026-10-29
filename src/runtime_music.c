@@ -273,8 +273,10 @@ void runtime_music_step(int direction) {
 
 void runtime_music_scene(const char *guest_path) {
     const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
+    const int was=in_race;
     if (strstr(guest_path,"/frontend_fliers.bnk")) in_race=0;
     else if (env && (env[4]=='_' || isdigit((unsigned char)env[4]))) in_race=1; /* env_tower, env1_vinetak */
+    if (in_race!=was && menu_songs) printf("Music: %s songs from now on\n",in_race ? "race" : "menu");
 }
 
 int runtime_music_bgm(float *pcm, int frames, int channels) {
@@ -298,6 +300,12 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     for (size_t i=0;i<(size_t)frames;++i) for (int c=0;c<2;++c) { const double v=pcm[i*(size_t)channels+c]; game_ms+=v*v; }
     const double game_rms=sqrt(game_ms/(2.0*frames));
     game_env+=fmin(1.0,frames/(48000.0*(game_rms>game_env ? 0.05 : 1.0)))*(game_rms-game_env);
+    /* A song of the other scene (menu/ in a race, or the other way round) changes as soon as the
+     * scene does, music_continue or not (#104); the new one waits for the game's music. */
+    if (heard && menu_songs) {
+        const long now=runtime_music_playing();
+        if (now>=0 && !fits((size_t)now)) { runtime_music_step(1); heard=0; }
+    }
     if (game_rms>1e-5) {
         if (silent_frames>=48000 && heard && !gow3gpu_music_continue()) { runtime_music_step(1); heard=0; }
         silent_frames=0;
