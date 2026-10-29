@@ -960,6 +960,11 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'Button layout': 'Layout dos botões',
+        "Standard (the game's)": 'Padrão (o do jogo)',
+        'Racer: R2 accelerate, L2 brake': 'Racer: R2 acelera, L2 freia',
+        "Racer (as on the PS Vita): R2 accelerates, L2 brakes, Square with left or right is that air brake, Cross fires, Circle absorbs. Keep the game's own controls at their default with it.":
+            'Racer (como no PS Vita): R2 acelera, L2 freia, Quadrado com esquerda ou direita é esse freio aéreo, X dispara, Círculo absorve. Deixe os controles do próprio jogo no padrão com ele.',
         'Menu songs: put the songs for the menus in a subfolder named menu. They play only in the menus, and the other songs play in races.':
             'Músicas do menu: coloque as músicas para os menus numa subpasta chamada menu. Elas tocam só nos menus, e as outras músicas tocam nas corridas.',
         'Texture quality': 'Qualidade das texturas',
@@ -1335,6 +1340,11 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'Button layout': 'Distribución de botones',
+        "Standard (the game's)": 'Estándar (la del juego)',
+        'Racer: R2 accelerate, L2 brake': 'Racer: R2 acelera, L2 frena',
+        "Racer (as on the PS Vita): R2 accelerates, L2 brakes, Square with left or right is that air brake, Cross fires, Circle absorbs. Keep the game's own controls at their default with it.":
+            'Racer (como en PS Vita): R2 acelera, L2 frena, Cuadrado con izquierda o derecha es ese aerofreno, X dispara, Círculo absorbe. Deja los controles del propio juego en su valor predeterminado con él.',
         'Menu songs: put the songs for the menus in a subfolder named menu. They play only in the menus, and the other songs play in races.':
             'Canciones del menú: pon las canciones para los menús en una subcarpeta llamada menu. Suenan solo en los menús, y las demás canciones suenan en las carreras.',
         'Texture quality': 'Calidad de texturas',

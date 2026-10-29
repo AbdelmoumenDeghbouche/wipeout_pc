@@ -431,6 +431,8 @@ PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
+# GOW3_PAD_SCHEME (src/runtime_pad.c apply_scheme): the Vita's "Racer" layout of WipEout 2048 (#99).
+PAD_SCHEMES = [('', ("Standard (the game's)",)), ('racer', ('Racer: R2 accelerate, L2 brake',))]
 GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('3', ('Third connected',)),
                    ('4', ('Fourth connected',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
@@ -440,7 +442,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1',
+                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
                 'controls_layout': 2,
                 'glyph_style': 'off'}
 
@@ -1208,6 +1210,9 @@ def game_environment(s):
     if s.get('savedata_dir'):
         env['GOW3_SAVEDATA_DIR'] = s['savedata_dir']
     env['GOW3_GAMEPAD'] = str(s.get('gamepad_number') or '1')
+    env.pop('GOW3_PAD_SCHEME', None)
+    if s.get('pad_scheme') == 'racer':
+        env['GOW3_PAD_SCHEME'] = 'racer'
     env.pop('GOW3_MUSIC_DIR', None)
     if s.get('music_dir'):
         env['GOW3_MUSIC_DIR'] = s['music_dir']
@@ -2326,6 +2331,10 @@ class Launcher:
         self.row(f, _('Controller type'), names)
         self.row(f, _('Gamepad'), self.choice(f, 'gamepad_number', 'app', GAMEPAD_NUMBERS),
                  _('With several gamepads connected: the one that plays. Player 2 gets the next free one.'))
+        self.row(f, _('Button layout'), self.choice(f, 'pad_scheme', 'app', PAD_SCHEMES),
+                 _("Racer (as on the PS Vita): R2 accelerates, L2 brakes, Square with left or right is that air "
+                   "brake, Cross fires, Circle absorbs. Keep the game's own controls at their default with it."),
+                 restart=True)
         self.row(f, _('Vibration'), self.slider(f, 'vibration', 0, 100, '%'), _("Strength of the gamepad's vibration; 0% turns it off."))
         self.row(f, _('Stick deadzone'), self.slider(f, 'stick_deadzone', 0, 50, '%'), _("Ignores small stick movements, for a stick that drifts. 0% keeps the game's own."))
         table = mapping_table(f)

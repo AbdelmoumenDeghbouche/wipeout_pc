@@ -752,6 +752,26 @@ static void note_pause_key(const PadData *d) {
     held=pause;
 }
 
+/* GOW3_PAD_SCHEME=racer (#99, as WipEout 2048's "Racer" on the Vita): R2 accelerates, L2 brakes
+ * (both air brakes), Square with the stick left or right is that air brake, Cross fires, Circle
+ * absorbs. Turned into the game's default layout (Cross accelerate, L2/R2 air brakes, Square fire)
+ * only while R2 or L2 is held: menus and the pause menu keep Cross to confirm and Square. */
+static void apply_scheme(PadData *d) {
+    static int racer=-1;
+    if (racer<0) { const char *env=getenv("GOW3_PAD_SCHEME"); racer=env && !strcmp(env,"racer"); }
+    if (!racer || !(d->buttons & (BTN_L2|BTN_R2))) return;
+    const uint32_t in=d->buttons;
+    const uint8_t brake=d->l2;
+    uint32_t out=in & ~(BTN_CROSS|BTN_SQUARE|BTN_L2|BTN_R2);
+    d->l2=d->r2=0;
+    if (in & BTN_R2) out|=BTN_CROSS;
+    if (in & BTN_CROSS) out|=BTN_SQUARE;
+    if (in & BTN_L2) { out|=BTN_L2|BTN_R2; d->l2=d->r2=brake ? brake : 255; }
+    if ((in & BTN_SQUARE) && d->left_x<96) { out|=BTN_L2; d->l2=255; }
+    if ((in & BTN_SQUARE) && d->left_x>160) { out|=BTN_R2; d->r2=255; }
+    d->buttons=out;
+}
+
 /* One source for two buttons pressed in the same read (GOW3_KEY_MAP "rage=<key>", "grab=<key>"):
  * L3 + R3 for Rage of Sparta, L1 + Circle for the grab. */
 static void apply_combos(PadData *d) {
@@ -798,6 +818,7 @@ static void sample(PadData *d) {
     if (injected.buttons & BTN_R2) d->r2=255;
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
+    apply_scheme(d);
     apply_combos(d);
     apply_dodge(d);
     apply_mouse_aim(d);
@@ -825,6 +846,7 @@ static void sample_second(PadData *d) {
     if (injected2.buttons & BTN_R2) d->r2=255;
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected2.stick[i]>=0) *axes[i]=(uint8_t)injected2.stick[i];
+    apply_scheme(d);
 }
 /* User 2 is logged in while a second gamepad is connected, or the pad file has p2 tokens. */
 int runtime_pad_second_user(void) {
