@@ -124,7 +124,7 @@ struct PageManager::Impl {
             PageState& state = cached_pages[page];
 
             // Apply the change to the page state
-            const u8 new_count = state.AddDelta<track ? 1 : -1, is_read>();
+            const auto new_count = state.AddDelta<track ? 1 : -1, is_read>();
 
             if (auto new_perms = state.Perms(); new_perms != perms) [[unlikely]] {
                 // If the protection changed add pending (un)protect action
@@ -188,7 +188,7 @@ struct PageManager::Impl {
             const bool update = mask.Get(page);
 
             // Apply the change to the page state
-            const u8 new_count =
+            const auto new_count =
                 update ? state.AddDelta<track ? 1 : -1, is_read>() : state.AddDelta<0, is_read>();
 
             if (auto new_perms = state.Perms(); new_perms != perms) [[unlikely]] {
