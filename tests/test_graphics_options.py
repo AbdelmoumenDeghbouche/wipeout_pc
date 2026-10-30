@@ -165,15 +165,17 @@ class GraphicsOptionsTest(unittest.TestCase):
 
     def test_every_built_in_resolution_has_a_patch(self):
         import patches
-        xml = Path(__file__).resolve().parent.parent / 'patches' / 'God_of_War_III_Remastered.xml'
-        self.assertEqual(sorted(r for r in g.RESOLUTIONS if r != 'native'), sorted(patches.resolution_names([xml])))
+        xml = Path(__file__).resolve().parent.parent / 'patches' / 'WipEout_Omega_Collection.xml'
+        import game_profiles
+        allowed = game_profiles.PROFILES['CUSA05670']['env']['WIPEOUT_OC_ALLOWED_RESOLUTIONS'].split(';')
+        self.assertEqual(sorted(r for r in allowed if r != 'native'), sorted(patches.resolution_names([xml])))
 
     def test_900p_is_the_built_in_size_between_720p_and_1440p(self):
         # #238: 900p (1600x900) sits between 720p and 1440p, with its own resolution patch.
         self.assertEqual(g.RESOLUTIONS.index('900p'), 3)
         self.assertEqual(g.SIZES['900p'], (1600, 900))
         import xml.etree.ElementTree as ET
-        xml = Path(__file__).resolve().parent.parent / 'patches' / 'God_of_War_III_Remastered.xml'
+        xml = Path(__file__).resolve().parent.parent / 'patches' / 'WipEout_Omega_Collection.xml'
         names = {m.get('Name') for m in ET.parse(xml).getroot().iter('Metadata')}
         self.assertIn('Resolution Patch - 900p', names)
 

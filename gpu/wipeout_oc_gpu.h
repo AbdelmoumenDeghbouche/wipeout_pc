@@ -61,14 +61,8 @@ int wipeout_oc_gpu_music_shuffle(void);
 int wipeout_oc_gpu_music_continue(void);
 /* gow3.ini "music_volume": their loudness in percent (100: about the game's own music). */
 int wipeout_oc_gpu_music_volume(void);
-/* Mouse movement in px that counts as one step of a stick prompt, set in the menu. */
-int wipeout_oc_gpu_mouse_prompt_distance(void);
 /* The pause key (touchpad right) was pressed: it lets go of the mouse lock, or takes it back. */
 void wipeout_oc_gpu_mouse_pause_key(void);
-/* L2 aim with the mouse, set in the menu: 0 relative (follows movement), 1 absolute. */
-int wipeout_oc_gpu_mouse_aim_style(void);
-/* L2 aim sensitivity in percent (10 to 200), set in the menu. */
-int wipeout_oc_gpu_mouse_aim_sensitivity(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */
 unsigned wipeout_oc_gpu_symbol_count(void);
 #ifdef __cplusplus

@@ -123,7 +123,7 @@ class DesktopIntegrationTest(unittest.TestCase):
     def other_entry(self, text, name='gearlever.desktop'):
         path = self.home / '.local' / 'share' / 'applications' / name
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text('[Desktop Entry]\nName=God of War III Remastered\n' + text)
+        path.write_text('[Desktop Entry]\nName=WipEout Omega Collection Remastered\n' + text)
         return path
 
     def test_an_entry_of_another_tool_for_the_same_file_means_none_of_ours(self):

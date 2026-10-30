@@ -407,7 +407,7 @@ def heading_font(size, fallback=None, every_language=False):
 # Settings. gow3.ini keys (the game reads them, the in-game menu edits them) and the
 # launcher's own settings.json (passed to run.py as environment variables).
 
-INI_FLAGS = {'cheat_double_jumps', 'cheat_very_hard', 'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
+INI_FLAGS = {'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
              'stale_readback', 'music', 'music_shuffle', 'music_continue'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
 INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
@@ -415,9 +415,9 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
                 'render_resolution': 'native', 'engine_fps': '120',
-                'frames_queued': '1', 'cheat_very_hard': '0', 'cheat_double_jumps': '0',
-                'anisotropy': '0', 'vibration': '100', 'stick_deadzone': '0', 'mouse_prompt_distance': '48', 'mouse_lock': '1',
-                'mouse_aim_style': '0', 'mouse_aim_sensitivity': '100', 'music': '1', 'music_shuffle': '1', 'music_continue': '0',
+                'frames_queued': '1',
+                'anisotropy': '0', 'vibration': '100', 'stick_deadzone': '0', 'mouse_lock': '1',
+                'music': '1', 'music_shuffle': '1', 'music_continue': '0',
                 'music_volume': '100'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
@@ -439,8 +439,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': getenv('WIP
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
                 'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1',
-                'controls_layout': 2,
-                'glyph_style': 'off'}
+                'controls_layout': 2}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's

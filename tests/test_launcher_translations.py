@@ -32,11 +32,6 @@ class PortugueseTest(unittest.TestCase):
         missing = [l for l in labels if l not in self.pt and l not in SAME and not re.fullmatch(r'[A-Z0-9]{1,2}', l)]
         self.assertEqual(sorted(missing), [])
 
-    def test_the_built_in_patch_notes_are_translated(self):
-        root = ET.parse(ROOT / 'patches' / 'God_of_War_III_Remastered.xml').getroot()
-        notes = {m.get('Note') for m in root.iter('Metadata')
-                 if not m.get('Name').startswith(('Resolution Patch', 'Frame Rate Patch'))}
-        self.assertEqual(sorted(n for n in notes if n not in self.pt), [])
 
     def test_resolution_labels(self):
         self.assertEqual(self.pt[launcher.RESOLUTION_CHOICES[0][1][0]], 'Nativa · 1920 × 1080 · 16:9')

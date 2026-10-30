@@ -40,7 +40,7 @@ class GameUpdateTests(unittest.TestCase):
         write(self.update / 'SCE_SYS/param.sfo', 'new sfo')
         write(self.update / 'SCE_SYS/icon0.png', 'new icon')
 
-    def view(self, ids=('CUSA01623', 'CUSA01623')):
+    def view(self, ids=('CUSA05670', 'CUSA05670')):
         with mock.patch('patches.game_title_id', side_effect=list(ids)):
             return game_update.create_view(self.base, self.update, self.out)
 
@@ -82,7 +82,7 @@ class GameUpdateTests(unittest.TestCase):
             "flag = ctypes.c_ulong(1)\n"
             "assert ctypes.windll.kernel32.SetProcessMitigationPolicy(16, ctypes.byref(flag), 4)\n"
             "import game_update, mods\n"
-            "with mock.patch('patches.game_title_id', side_effect=['CUSA01623', 'CUSA01623']):\n"
+            "with mock.patch('patches.game_title_id', side_effect=['CUSA05670', 'CUSA05670']):\n"
             "    view = game_update.create_view(Path(sys.argv[2]), Path(sys.argv[3]), Path(sys.argv[4]))\n"
             "print((view / 'EXEC/WAD/A.WAD').read_text(), (view / 'eboot.bin').read_text().replace(' ', '_'), mods.MIRROR_DIRECTORIES)\n")
         import subprocess
@@ -124,8 +124,8 @@ class GameUpdateTests(unittest.TestCase):
 
     def test_different_titles_and_nested_folders_are_refused(self):
         with self.assertRaises(ValueError):
-            self.view(('CUSA01623', 'CUSA01715'))
-        with mock.patch('patches.game_title_id', return_value='CUSA01623'):
+            self.view(('CUSA05670', 'CUSA07671'))
+        with mock.patch('patches.game_title_id', return_value='CUSA05670'):
             with self.assertRaises(ValueError):
                 game_update.create_view(self.base, self.base / 'EXEC', self.out)
         self.assertEqual(list(self.out.iterdir()) if self.out.exists() else [], [])

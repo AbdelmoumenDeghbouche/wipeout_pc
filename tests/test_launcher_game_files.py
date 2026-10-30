@@ -30,7 +30,7 @@ class LauncherGameFilesTests(unittest.TestCase):
         (self.game / 'sce_module/libSceFios2.prx').write_bytes(b'synthetic module')
         self.source = self.folder / 'Sc0'
         self.source.mkdir()
-        (self.source / 'param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA01623', APP_VER='01.02'))
+        (self.source / 'param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA05670', APP_VER='01.02'))
         (self.source / 'trophy').mkdir()
         (self.source / 'trophy/test.trp').write_bytes(b'synthetic trophy')
         config = self.folder / 'config'

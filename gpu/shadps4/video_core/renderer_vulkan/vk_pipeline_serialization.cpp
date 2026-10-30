@@ -28,7 +28,6 @@
 #include "video_core/cache_storage.h"
 #include "video_core/renderer_vulkan/vk_amd_paths.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
-#include "video_core/renderer_vulkan/vk_lighting_test.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_warmup_inbox.h"
@@ -43,13 +42,9 @@ static constexpr u32 PipelineKeyVersion = 6u; // gow3: GraphicsPipelineKey::ps_i
 namespace Vulkan {
 
 namespace {
-// gow3: the test knobs that change recompiled SPIR-V (GOW3_LIGHTING_TEST=dref,
-// GOW3_AMD_PATHS_OFF=shaderext) get their own shader binary cache version.
+// Preserve historical default/AMD cache keys (13/45); retired diagnostic keys 29/61 stay incompatible.
 u32 CurrentShaderBinaryVersion() {
-    return LightingTest::ShaderBinaryVersion(
-        Serialization::ShaderBinaryVersion,
-        LightingTest::ShaderBinarySalt(LightingTest::Current().dref,
-                                       AmdPathsOff::Current().shaderext));
+    return Serialization::ShaderBinaryVersion + (AmdPathsOff::Current().shaderext ? 32u : 0u);
 }
 } // namespace
 

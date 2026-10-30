@@ -220,9 +220,7 @@ def compile_patches(xml, names, app_version, segments, image=None, skipped=None,
 PATCHES_DIR=Path(__file__).resolve().parent.parent/'patches'
 # Profile selection and its XML metadata tag do not authorize absolute addresses.
 # Signatures may resolve in other versions/regions; Address has its own exact-build policy.
-GAMES=[({'CUSA01623','CUSA01715','CUSA01720'},PATCHES_DIR/'God_of_War_III_Remastered.xml','01.02',
-        'God of War III'),
-       ({'CUSA07671','CUSA05670'},PATCHES_DIR/'WipEout_Omega_Collection.xml','01.00',
+GAMES=[({'CUSA07671','CUSA05670'},PATCHES_DIR/'WipEout_Omega_Collection.xml','01.00',
         'WipEout Omega Collection')]
 # Provenance verified against the original EU dump used for the B0 playtest.
 ADDRESS_BUILD=('CUSA05670','01.07','3a52e910f6c450cc2f0c85ef994be5d8c951c326a362bcc4775f29e6ff7f644c')
@@ -292,10 +290,9 @@ def available_patches(xml, app_version):
 # God of War III notes: the texture fix and the resolution patches both resize the video arena;
 # enable one, never both. A chosen resolution patch replaces the default texture fix.
 EXCLUSIVE_PREFIX='Resolution Patch'
-REPLACED_BY_EXCLUSIVE={'Bug Fix - Texture Corruption Fix'}
 # Fixes with nothing to choose: not offered in the launcher and applied even with its saved list,
 # which predates them (the startup black screen fix sets a value the game overwrites at once).
-ALWAYS_ON={'Bug Fix - Startup Black Screen', 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
+ALWAYS_ON={'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
            'Bug Fix - Zone crash above 60 FPS'}
 
 
@@ -310,7 +307,7 @@ def selected_patches(xml, app_version, extra, only=False):
     exclusive=[n for n in names if n.startswith(EXCLUSIVE_PREFIX)]
     if len(exclusive)>1:
         raise ValueError(f'choose one resolution patch, not {exclusive}')
-    return [n for n in names if not (exclusive and n in REPLACED_BY_EXCLUSIVE)]
+    return names
 
 
 def resolution_names(xmls, game=None, *, image=None, segments=None):
@@ -473,7 +470,7 @@ def main():
                    help='patch file of an enabled mod (repeat; in load order)')
     p.add_argument('--extra',default='',help='additional patch names, separated by ";"')
     p.add_argument('--out',type=Path,default=Path(__file__).resolve().parent.parent/'out')
-    p.add_argument('--game-dir',type=Path,default=Path(getenv('WIPEOUT_OC_GAME_DIR','../CUSA01623')))
+    p.add_argument('--game-dir',type=Path,default=Path(getenv('WIPEOUT_OC_GAME_DIR','../CUSA05670')))
     a=p.parse_args()
     title=game_title_id(a.game_dir)
     profile=game_profile_for(a.game_dir)

@@ -54,9 +54,8 @@ struct Profile {
     bool needs_unorm_fixup{};
     bool needs_clip_distance_emulation{};
     bool supports_shader_stencil_export{};
-    /// gow3: GOW3_LIGHTING_TEST=dref (vk_lighting_test.h): depth comparisons return the result
-    /// in all four channels instead of (v, 0, 0, 0).
-    bool dref_broadcast{};
+    // Retain the historical disk-profile byte; retired diagnostic variants are never selected.
+    bool reserved_dref_broadcast{};
 
     bool operator==(const Profile&) const = default;
 };

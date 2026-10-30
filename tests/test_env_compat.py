@@ -142,8 +142,6 @@ class EnvironmentCompatibilityTests(unittest.TestCase):
                     with mock.patch.dict(os.environ, env, clear=True), mock.patch.object(run, 'PORT', folder), \
                             mock.patch.object(run, 'find_executable', return_value=probe), \
                             mock.patch.object(run, 'run_script', side_effect=preparation), \
-                            mock.patch.object(run, 'glyph_mounts', return_value=([], None)), \
-                            mock.patch.object(run, 'pause_menu_args', return_value=[]), \
                             mock.patch.object(run.subprocess, 'run', return_value=mock.Mock(returncode=0, stdout='CPU: complete\n')), \
                             mock.patch.object(run.subprocess, 'Popen', return_value=process), \
                             mock.patch.object(sys, 'argv', ['run.py']):

@@ -29,7 +29,7 @@ class VdfTests(unittest.TestCase):
         self.assertEqual(steam.dump_vdf({'shortcuts': {}}), b'\x00shortcuts\x00\x08\x08')
 
     def test_app_id_is_the_crc_of_exe_and_name_with_the_top_bit(self):
-        exe = '"/home/user/God of War III.AppImage"'
+        exe = '"/home/user/WipEout Omega Collection.AppImage"'
         expected = binascii.crc32((exe + steam.APP_NAME).encode()) | 0x80000000
         self.assertEqual(steam.shortcut_appid(exe, steam.APP_NAME), expected)
         self.assertGreaterEqual(expected, 0x80000000)

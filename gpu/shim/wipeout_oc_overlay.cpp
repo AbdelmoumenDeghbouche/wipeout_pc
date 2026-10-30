@@ -15,13 +15,9 @@
 
 #include <SDL3/SDL.h>
 #include "wipeout_oc_settings.h"
-#include "gow3_orbs.h"
-#include "gow3_actors.h"
 #include "wipeout_oc_graphics.h"
 #include "wipeout_oc_perf_stats.h"
-#include "../../src/actor_hook.h"
 
-extern Gow3ActorSlot gow3_actor_slots[2];
 extern "C" void runtime_restart(void); // src/probe.c: starts run.py again, ends this process
 extern "C" { // src/runtime_music.c: the custom soundtrack's songs
 int runtime_music_songs(void); // -1 while the music folder is read
@@ -248,27 +244,6 @@ void ChoiceRow(const char* label, std::atomic<int>& target, const char* const* l
     ImGui::PopID();
 }
 
-// A 0.1x to 100x multiplier with a 1x button.
-void MultiplierRow(const char* label, std::atomic<float>& value, const char* help) {
-    Row(label);
-    const ImGuiStyle& style = ImGui::GetStyle();
-    ImGui::SetNextItemWidth(-(ImGui::CalcTextSize("1x").x + style.FramePadding.x * 2 + style.ItemSpacing.x));
-    float v = value;
-    if (ImGui::SliderFloat("##value", &v, 0.1f, 100.0f, "%.2fx",
-                           ImGuiSliderFlags_Logarithmic | ImGuiSliderFlags_AlwaysClamp)) {
-        value = Gow3Orbs::ClampMultiplier(v);
-        dirty = true;
-    }
-    Help(help);
-    ImGui::SameLine();
-    if (ImGui::SmallButton("1x")) {
-        value = 1.0f;
-        dirty = true;
-    }
-    Help(help);
-    ImGui::PopID();
-}
-
 void InfoRow(const char* label, const char* text) {
     Row(label);
     ImGui::TextDisabled("%s", text);
@@ -315,106 +290,16 @@ std::string OverlayText() {
     return P::Format(sample, items, s.overlay_layout == 0);
 }
 
-constexpr const char* Unsupported = "Unavailable: game version or code signature mismatch.";
-
-// gow3: the cheats, multipliers, enemy health bar and mouse aiming are God of War III's; a game
-// whose code has none of their hooks (WipEout) does not show them.
-bool GowHooks() {
-    const auto& s = WipeoutOCSettings::Get();
-    return s.cheats_supported.load() || s.red_orbs_supported.load() || s.orb_pickup_supported.load() ||
-           s.damage_supported.load() || s.actor_watch_supported.load();
-}
-
 void GameTab() {
     auto& s = WipeoutOCSettings::Get();
-    const bool gow = GowHooks();
-    if (gow) {
-        ImGui::SeparatorText("Cheats");
-    }
-    if (gow && BeginRows("##cheats")) {
-        static const char* const names[] = {"Infinite health", "Infinite magic", "Infinite item meter",
-                                            "Infinite Rage of Sparta", "Max red orbs",
-                                            "Unlock Very Hard", "Infinite Double Jumps"};
-        static const char* const helps[] = {
-            "Health stays full. Only Kratos is protected. Turning it off does not undo past refills.",
-            "Magic stays full.", "The item meter (bow, Helios' head, boots) stays full.",
-            "Rage of Sparta stays full.", "Red orbs stay at the maximum.",
-            "Enable before opening New Game. Does not change an existing save difficulty.",
-            "Repeat air jumps without landing. Turn off for normal movement."};
-        for (unsigned cheat = 0; cheat < GOW3_CHEAT_COUNT; ++cheat) {
-            const bool available = (s.cheats_supported.load() & (1u << cheat)) != 0;
-            ImGui::BeginDisabled(!available);
-            CheckRow(names[cheat], s.cheats[cheat], available ? helps[cheat] : Unsupported);
-            ImGui::EndDisabled();
-        }
-        ImGui::EndTable();
-    }
-
     ImGui::SeparatorText("Controller");
     if (BeginRows("##controller")) {
         SliderRow("Stick deadzone", s.stick_deadzone, 0, 50, "%d%%",
                   "Ignores small stick movements, for a stick that drifts. 0% keeps the game's own.");
         SliderRow("Vibration", s.vibration, 0, 100, "%d%%",
                   "Strength of the controller's vibration. 0% turns it off.");
-        if (gow) {
-            SliderRow("Mouse prompt distance", s.mouse_prompt_distance, 16, 200, "%d px",
-                      "With Joystick prompts on Adaptive mouse: how far the mouse moves for one step of a rotation.");
-            static const char* const aim_styles[] = {"Relative", "Absolute"};
-            ChoiceRow("Right stick style", s.mouse_aim_style, aim_styles, nullptr, 2,
-                      "L2 aim with the mouse (Head of Helios, Bow of Apollo). Relative: the stick follows the "
-                      "movement and goes back to neutral when the mouse stops. Absolute: the stick points from "
-                      "where the mouse was when L2 was pressed to where it is.");
-            SliderRow("Right stick sensitivity", s.mouse_aim_sensitivity, 10, 200, "%d%%",
-                      "L2 aim with the mouse: lower needs more mouse movement for the same stick, higher less.");
-        }
         CheckRow("Keep mouse in window", s.mouse_lock,
                  "While you play, the mouse stays in the game window; this menu and other windows get it back.");
-        ImGui::EndTable();
-    }
-    if (!gow) {
-        return;
-    }
-
-    ImGui::SeparatorText("Multipliers");
-    if (ImGui::Button("Reset all to 1x")) {
-        for (auto* m : {&s.red_orb_multiplier, &s.green_orb_multiplier, &s.blue_orb_multiplier,
-                        &s.gold_orb_multiplier, &s.damage_dealt, &s.damage_taken}) {
-            *m = 1.0f;
-        }
-        dirty = true;
-    }
-    Help("Every multiplier back to 1x (the game's normal values).");
-    if (BeginRows("##multipliers")) {
-        const bool max_orbs = (s.cheats_supported.load() & (1u << 4)) && s.cheats[4].load();
-        ImGui::BeginDisabled(!s.red_orbs_supported.load() || max_orbs);
-        MultiplierRow("Red orbs", s.red_orb_multiplier,
-                      !s.red_orbs_supported.load() ? Unsupported
-                      : max_orbs ? "Turn off Max red orbs to use the multiplier."
-                                 : "Red orbs gained. Orbs you have and prices stay the same.");
-        ImGui::EndDisabled();
-        ImGui::BeginDisabled(!s.orb_pickup_supported.load());
-        const char* pickup = s.orb_pickup_supported.load() ? nullptr : Unsupported;
-        MultiplierRow("Green orbs (health)", s.green_orb_multiplier,
-                      pickup ? pickup : "Health from each green orb. The bar stays within its maximum.");
-        MultiplierRow("Blue orbs (magic)", s.blue_orb_multiplier,
-                      pickup ? pickup : "Magic from each blue orb. The bar stays within its maximum.");
-        MultiplierRow("Gold orbs (Rage of Sparta)", s.gold_orb_multiplier,
-                      pickup ? pickup : "Rage of Sparta from each gold orb. The bar stays within its maximum.");
-        ImGui::EndDisabled();
-        ImGui::BeginDisabled(!s.damage_supported.load());
-        const char* damage = s.damage_supported.load() ? nullptr : Unsupported;
-        MultiplierRow("Damage dealt", s.damage_dealt, damage ? damage : "Damage Kratos does to enemies.");
-        MultiplierRow("Damage taken", s.damage_taken, damage ? damage : "Damage Kratos takes.");
-        ImGui::EndDisabled();
-        ImGui::EndTable();
-    }
-
-    ImGui::SeparatorText("HUD");
-    if (BeginRows("##hud")) {
-        ImGui::BeginDisabled(!s.actor_watch_supported.load());
-        CheckRow("Enemy health bar", s.enemy_health_bar,
-                 s.actor_watch_supported.load() ? "A thin bar at the top for the last enemy hit." : Unsupported);
-        ImGui::EndDisabled();
         ImGui::EndTable();
     }
 }
@@ -593,20 +478,6 @@ void OverlayTab() {
             std::snprintf(text, sizeof(text), "ready");
         }
         InfoRow("Shader cache", text);
-        std::string hooks;
-        const auto add = [&](bool on, const char* name) {
-            if (on) {
-                hooks += hooks.empty() ? name : std::string(", ") + name;
-            }
-        };
-        add(s.cheats_supported.load() != 0, "cheats");
-        add(s.red_orbs_supported.load(), "red orbs");
-        add(s.orb_pickup_supported.load(), "orb pickups");
-        add(s.damage_supported.load(), "damage");
-        add(s.actor_watch_supported.load(), "enemy health");
-        if (!hooks.empty()) {
-            InfoRow("Game hooks", hooks.c_str());
-        }
         ImGui::EndTable();
     }
 }
@@ -693,7 +564,7 @@ void Menu() {
     // gow3: the game's own title (param.sfo), not a fixed one.
     static const std::string heading = [] {
         const std::string_view title = Common::ElfInfo::Instance().Title();
-        return std::string(title.empty() ? "God of War III" : title) + PadText("  (Insert / R3+L2)", "  (Insert / RS+LT)", "  (Insert / RS+ZL)");
+        return std::string(title.empty() ? "WipEout Omega Collection" : title) + PadText("  (Insert / R3+L2)", "  (Insert / RS+LT)", "  (Insert / RS+ZL)");
     }();
     if (!ImGui::Begin(heading.c_str(), &keep_open, ImGuiWindowFlags_NoCollapse)) {
         ImGui::End();
@@ -771,55 +642,6 @@ void Menu() {
     ImGui::End();
     if (!keep_open) {
         SetOpen(false);
-    }
-}
-
-// Enemy health bar from the damage hook's records (gow3_actors.cpp).
-// Only the copied values are read, never the game's memory: an actor may be gone by now.
-void HealthDisplay() {
-    struct Seen {
-        uint32_t seq = 0;
-        std::chrono::steady_clock::time_point at{};
-    };
-    static Seen seen[2];
-    const auto& s = WipeoutOCSettings::Get();
-    if (!s.actor_watch_supported.load()) {
-        return;
-    }
-    const auto now = std::chrono::steady_clock::now();
-    Gow3ActorSlot slot[2];
-    for (int i = 0; i < 2; ++i) {
-        std::memcpy(&slot[i], const_cast<const Gow3ActorSlot*>(&gow3_actor_slots[i]), sizeof(slot[i]));
-        if (slot[i].seq != seen[i].seq) {
-            seen[i] = {slot[i].seq, now};
-        }
-    }
-    const auto recent = [&](int i, int seconds) {
-        return seen[i].seq != 0 && now - seen[i].at < std::chrono::seconds(seconds);
-    };
-    const ImGuiViewport* viewport = ImGui::GetMainViewport();
-    ImDrawList* draw = ImGui::GetForegroundDrawList();
-    const float scale = base_scale;
-    if (s.enemy_health_bar && recent(1, 4) && Gow3Actors::Valid(slot[1].health, slot[1].max_health)) {
-        // Minimal: a thin green bar centered on the screen's top edge; it shrinks toward the center
-        // so it stays symmetric, with the health in numbers below.
-        const ImVec2 display = ImGui::GetIO().DisplaySize;
-        const float width = 260.0f * scale, height = 5.0f * scale, center = display.x * 0.5f;
-        const float top = 36.0f * scale;
-        const float fraction = Gow3Actors::Fraction(slot[1].health, slot[1].max_health);
-        draw->AddRectFilled(ImVec2(center - width * 0.5f - scale, top - scale),
-                            ImVec2(center + width * 0.5f + scale, top + height + scale),
-                            IM_COL32(0, 0, 0, 140), 2 * scale);
-        const float half = width * 0.5f * fraction;
-        draw->AddRectFilled(ImVec2(center - half, top), ImVec2(center + half, top + height),
-                            IM_COL32(70, 190, 80, 220), 2 * scale);
-        char text[48];
-        std::snprintf(text, sizeof(text), "%.0f / %.0f", std::ceil(slot[1].health), slot[1].max_health);
-        const float font = ImGui::GetFontSize() * 0.9f;
-        const ImVec2 size = ImGui::GetFont()->CalcTextSizeA(font, FLT_MAX, 0.0f, text);
-        const ImVec2 at{center - size.x * 0.5f, top + height + 4.0f * scale};
-        draw->AddText(ImGui::GetFont(), font, ImVec2(at.x + scale, at.y + scale), IM_COL32(0, 0, 0, 160), text);
-        draw->AddText(ImGui::GetFont(), font, at, IM_COL32(225, 235, 220, 220), text);
     }
 }
 
@@ -1317,8 +1139,7 @@ void SetLoading(bool active, u32 done, u32 total) {
 bool Visible() {
     const auto& s = WipeoutOCSettings::Get();
     return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps || NoticeActive() ||
-                           (s.actor_watch_supported && s.enemy_health_bar));
+                           choice_retiring || s.show_fps || NoticeActive());
 }
 
 bool CapturesInput() {
@@ -1388,9 +1209,6 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
     if (NoticeActive()) {
         Notice();
-    }
-    if (!loading && !menu_open) {
-        HealthDisplay();
     }
     if (background_total && !loading && !menu_open) {
         BackgroundLoading();

@@ -3,8 +3,8 @@ import unittest
 
 from test_launcher_save import LauncherOverTemporaryFiles, launcher
 
-PATCH = ('<Patch><TitleID><ID>CUSA01623</ID></TitleID>'
-         '<Metadata Name="Resolution Patch - 3840x1080" AppVer="01.02"><PatchList/></Metadata></Patch>')
+PATCH = ('<Patch><TitleID><ID>CUSA05670</ID></TitleID>'
+         '<Metadata Name="Resolution Patch - 3840x1080" AppVer="01.07"><PatchList><Line Type="bytes" Pattern="aa bb" Value="90"/></PatchList></Metadata></Patch>')
 
 
 class ModResolutionsTest(LauncherOverTemporaryFiles):
@@ -30,6 +30,11 @@ class ModResolutionsTest(LauncherOverTemporaryFiles):
         folder = launcher.DATA_DIR / 'mods' / name / 'patches'
         folder.mkdir(parents=True)
         (folder / 'u.xml').write_text(PATCH)
+        from test_launcher_controls import sfo_bytes
+        game = self.tmp / 'game'; (game / 'sce_sys').mkdir(parents=True, exist_ok=True)
+        (game / 'eboot.bin').write_bytes(b'synthetic executable for UI preflight')
+        (game / 'sce_sys/param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA05670', APP_VER='01.07'))
+        self.app.var('game_dir', 'app').set(str(game))
 
     def sizes(self):
         return [value for value, _text in self.app.resolution_options()]

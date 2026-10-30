@@ -59,6 +59,19 @@ class LauncherOverTemporaryFiles(unittest.TestCase):
 
 
 class SaveButtonTest(LauncherOverTemporaryFiles):
+    def test_legacy_and_unknown_settings_survive_save(self):
+        import json
+        self.app.app['glyph_style'] = 'keyboard'
+        self.app.app['future_option'] = {'kept': [1, 2]}
+        (self.tmp / 'gow3.ini').write_text('cheat_health=1\nfuture_ini=kept  \t\n')
+        self.assertTrue(self.app.collect())
+        saved = json.loads(launcher.CONFIG_FILE.read_text())
+        self.assertEqual(saved['glyph_style'], 'keyboard')
+        self.assertEqual(saved['future_option'], {'kept': [1, 2]})
+        text = (self.tmp / 'gow3.ini').read_text()
+        self.assertIn('cheat_health=1\n', text)
+        self.assertIn('future_ini=kept  \t\n', text)
+
     def test_failed_save_does_not_close_the_launcher(self):
         with mock.patch.object(self.app, 'collect', return_value=False), \
                 mock.patch.object(self.root, 'destroy') as destroy:

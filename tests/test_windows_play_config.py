@@ -43,7 +43,9 @@ class PlayConfigTests(unittest.TestCase):
                 caller.write_bytes(b'engine_fps=240\nunknown=caller\n')
                 installed.write_bytes(b'engine_fps=60\nunknown=install\n')
                 self.assertEqual(self.play(env), str(caller))
-                self.assertNotIn('unknown=caller', caller.read_text())  # Native Save reached the caller.
+                saved = caller.read_text()
+                self.assertIn('unknown=caller\n', saved)
+                self.assertIn('music_volume=100\n', saved)  # Native Save reached the selected caller.
                 self.assertEqual(installed.read_bytes(), b'engine_fps=60\nunknown=install\n')
 
     def test_canonical_empty_keeps_default_and_suppresses_legacy(self):

@@ -40,7 +40,6 @@ PROFILES = {
                           'WIPEOUT_OC_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;5120x2160',
                           'WIPEOUT_OC_GAME_MOTION': '1', 'WIPEOUT_OC_UPSCALE_BEFORE_PS': '4f6cc41b',
                           'WIPEOUT_OC_OBJECT_MOTION': '0'}},
-    'CUSA01623': {'name': 'God of War III', 'modules': ('libc.prx', 'libSceFios2.prx')},
 }
 DEFAULT = {'name': None, 'modules': ('libc.prx', 'libSceFios2.prx')}
 

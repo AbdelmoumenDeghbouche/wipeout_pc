@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 #include "../shadps4/common/wipeout_oc_env.h"
 #include "wipeout_oc_settings.h"
-#include "gow3_orbs.h"
 #include "wipeout_oc_graphics.h"
 
 #include <algorithm>
@@ -27,6 +26,7 @@ namespace {
 
 namespace fs = std::filesystem;
 fs::path selected_path;
+std::vector<std::string> retained_keys;
 
 fs::path EnvironmentPath(const char* suffix) {
 #ifdef _WIN32
@@ -121,7 +121,7 @@ float Clamp(float v, float lo, float hi) {
     return std::clamp(v, lo, hi);
 }
 
-void Set(Values& v, const std::string& key, const std::string& value) {
+bool Set(Values& v, const std::string& key, const std::string& value) {
     const float f = float(std::atof(value.c_str()));
     const int i = std::atoi(value.c_str());
     static const char* const overlay_keys[] = {"overlay_fps", "overlay_frametime", "overlay_upscaler",
@@ -130,36 +130,28 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         if (key == overlay_keys[item]) {
             const unsigned bit = 1u << item;
             v.overlay_items = i ? (v.overlay_items | bit) : (v.overlay_items & ~bit);
-            return;
+            return true;
         }
     }
     if (key == "overlay_scale") {
         v.overlay_scale = std::clamp(i, 50, 300);
-        return;
+        return true;
     }
     if (key == "overlay_corner") {
         v.overlay_corner = i >= 0 && i <= 3 ? i : 1;
-        return;
+        return true;
     }
     if (key == "overlay_opacity") {
         v.overlay_opacity = std::clamp(i, 0, 100);
-        return;
+        return true;
     }
     if (key == "overlay_layout") {
         v.overlay_layout = i == 1 ? 1 : 0;
-        return;
+        return true;
     }
     if (key == "menu_tab") {
         v.menu_tab = i >= 0 && i <= 4 ? i : 0;
-        return;
-    }
-    const char* cheat_keys[] = {"cheat_health", "cheat_magic", "cheat_item", "cheat_rage", "cheat_orbs",
-                                "cheat_very_hard", "cheat_double_jumps"};
-    for (unsigned cheat = 0; cheat < GOW3_CHEAT_COUNT; ++cheat) {
-        if (key == cheat_keys[cheat]) {
-            v.cheats[cheat] = i != 0;
-            return;
-        }
+        return true;
     }
     if (key == "upscaler") {
         for (int u = 0; u < UpscalerCount; ++u) {
@@ -221,8 +213,7 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.vibration = value.empty() ? 100 : std::clamp(i, 0, 100);
     } else if (key == "stick_deadzone") {
         v.stick_deadzone = std::clamp(i, 0, 50);
-    } else if (key == "mouse_prompt_distance") {
-        v.mouse_prompt_distance = value.empty() ? 48 : std::clamp(i, 16, 200);
+
     } else if (key == "mouse_lock") {
         v.mouse_lock = value.empty() || i != 0;
     } else if (key == "music") {
@@ -233,26 +224,17 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.music_continue = !value.empty() && i != 0;
     } else if (key == "music_volume") {
         v.music_volume = value.empty() ? 100 : std::clamp(i, 0, 200);
-    } else if (key == "mouse_aim_style") {
-        v.mouse_aim_style = std::clamp(i, 0, 1);
-    } else if (key == "mouse_aim_sensitivity") {
-        v.mouse_aim_sensitivity = value.empty() ? 100 : std::clamp(i, 10, 200);
+
+
     } else if (key == "restart_unconfirmed") {
         v.restart_unconfirmed = i != 0;
-    } else if (key == "enemy_health_bar") {
-        v.enemy_health_bar = i != 0;
-    } else if (key == "red_orb_multiplier") {
-        v.red_orb_multiplier = Gow3Orbs::ClampMultiplier(f);
-    } else if (key == "damage_dealt") {
-        v.damage_dealt = Gow3Orbs::ClampMultiplier(f);
-    } else if (key == "damage_taken") {
-        v.damage_taken = Gow3Orbs::ClampMultiplier(f);
-    } else if (key == "green_orb_multiplier") {
-        v.green_orb_multiplier = Gow3Orbs::ClampMultiplier(f);
-    } else if (key == "blue_orb_multiplier") {
-        v.blue_orb_multiplier = Gow3Orbs::ClampMultiplier(f);
-    } else if (key == "gold_orb_multiplier") {
-        v.gold_orb_multiplier = Gow3Orbs::ClampMultiplier(f);
+
+
+
+
+
+
+
     } else if (key == "fsr4_auto_exposure") {
         v.fsr4_auto_exposure = i != 0;
     } else if (key == "fsr4_invert_jitter") {
@@ -267,7 +249,10 @@ void Set(Values& v, const std::string& key, const std::string& value) {
                 v.output_res = r;
             }
         }
+    } else {
+        return false;
     }
+    return true;
 }
 
 } // namespace
@@ -286,17 +271,23 @@ bool Load() {
         std::fprintf(stderr, "Settings: cannot select configuration: %s\n", error.what());
         return false;
     }
+    std::vector<std::string> pending_keys;
     if (FILE* file = Open(path, false)) {
-        char line[256];
-        while (std::fgets(line, sizeof(line), file)) {
-            std::string text{line};
-            text.erase(text.find_last_not_of(" \t\r\n") + 1);
+        const auto read_line = [&](std::string raw) {
+            while (!raw.empty() && (raw.back() == '\r' || raw.back() == '\n')) raw.pop_back();
+            std::string text = raw;
+            text.erase(text.find_last_not_of(" \t") + 1);
             const auto eq = text.find('=');
-            if (text.empty() || text[0] == '#' || eq == std::string::npos) {
-                continue;
-            }
-            Set(v, text.substr(0, eq), text.substr(eq + 1));
+            if (text.empty() || text[0] == '#' || eq == std::string::npos) return;
+            if (!Set(v, text.substr(0, eq), text.substr(eq + 1))) pending_keys.push_back(raw);
+        };
+        char chunk[256];
+        std::string line;
+        while (std::fgets(chunk, sizeof(chunk), file)) {
+            line += chunk;
+            if (line.back() == '\n') { read_line(line); line.clear(); }
         }
+        if (!line.empty()) read_line(line);
         const bool failed = std::ferror(file);
         std::fclose(file);
         if (failed) {
@@ -309,6 +300,7 @@ bool Load() {
         return false;
     }
     selected_path = path;
+    retained_keys = std::move(pending_keys);
     // Environment overrides (scripts, A/B tests).
     if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_UPSCALER")) {
         v.upscaler = UpscalerOff;
@@ -325,9 +317,7 @@ bool Load() {
         {"WIPEOUT_OC_ASYNC_SHADERS", "async_shaders"},      {"WIPEOUT_OC_DEFERRED_READBACK", "deferred_readback"},
         {"WIPEOUT_OC_STALE_READBACK", "stale_readback"},     {"WIPEOUT_OC_FSR1", "fsr1"},
         {"WIPEOUT_OC_RCAS", "rcas"},                        {"WIPEOUT_OC_FRAMES_AHEAD", "frames_queued"},
-        {"WIPEOUT_OC_ANISOTROPY", "anisotropy"},            {"WIPEOUT_OC_VIBRATION", "vibration"}, {"WIPEOUT_OC_STICK_DEADZONE", "stick_deadzone"},
-        {"WIPEOUT_OC_MOUSE_PROMPT_DISTANCE", "mouse_prompt_distance"}, {"WIPEOUT_OC_MOUSE_LOCK", "mouse_lock"},
-        {"WIPEOUT_OC_MOUSE_AIM_STYLE", "mouse_aim_style"}, {"WIPEOUT_OC_MOUSE_AIM_SENSITIVITY", "mouse_aim_sensitivity"},
+        {"WIPEOUT_OC_ANISOTROPY", "anisotropy"},            {"WIPEOUT_OC_VIBRATION", "vibration"}, {"WIPEOUT_OC_STICK_DEADZONE", "stick_deadzone"}, {"WIPEOUT_OC_MOUSE_LOCK", "mouse_lock"},
     };
     for (const auto& [env, key] : env_keys) {
         if (const char* value = wipeout_oc_getenv(env); value && value[0]) {
@@ -434,18 +424,6 @@ void Save() {
                  int(v.fsr4_auto_exposure.load()), int(v.fsr4_invert_jitter.load()));
     std::fprintf(file, "dlss_preset=%d\n", v.dlss_preset.load());
     std::fprintf(file, "output_res=%dx%d\n", OutputWidths[v.output_res], OutputHeights[v.output_res]);
-    std::fprintf(file, "red_orb_multiplier=%.3f\n", v.red_orb_multiplier.load());
-    std::fprintf(file, "damage_dealt=%.3f\n", v.damage_dealt.load());
-    std::fprintf(file, "damage_taken=%.3f\n", v.damage_taken.load());
-    std::fprintf(file, "green_orb_multiplier=%.3f\n", v.green_orb_multiplier.load());
-    std::fprintf(file, "blue_orb_multiplier=%.3f\n", v.blue_orb_multiplier.load());
-    std::fprintf(file, "gold_orb_multiplier=%.3f\n", v.gold_orb_multiplier.load());
-    std::fprintf(file, "cheat_health=%d\ncheat_magic=%d\ncheat_item=%d\ncheat_rage=%d\ncheat_orbs=%d\n"
-                       "cheat_very_hard=%d\ncheat_double_jumps=%d\n",
-                 int(v.cheats[0].load()), int(v.cheats[1].load()), int(v.cheats[2].load()),
-                 int(v.cheats[3].load()), int(v.cheats[4].load()),
-                 int(v.cheats[5].load()), int(v.cheats[6].load()));
-    std::fprintf(file, "enemy_health_bar=%d\n", int(v.enemy_health_bar.load()));
     std::fprintf(file,
                  "overlay_fps=%d\noverlay_frametime=%d\noverlay_upscaler=%d\noverlay_gpu=%d\n"
                  "overlay_cpu=%d\noverlay_ram=%d\noverlay_vram=%d\noverlay_scale=%d\noverlay_corner=%d\n"
@@ -466,13 +444,13 @@ void Save() {
                  resolution_names[std::clamp(v.render_resolution.load(), 0, int(resolution_names.size()) - 1)].c_str(),
                  v.engine_fps.load(), int(v.deferred_readback.load()), int(v.stale_readback.load()),
                  int(v.restart_unconfirmed.load()));
-    std::fprintf(file, "anisotropy=%d\nvibration=%d\nmouse_prompt_distance=%d\nmouse_lock=%d\nmouse_aim_style=%d\n"
-                       "mouse_aim_sensitivity=%d\nmusic=%d\nmusic_shuffle=%d\nmusic_volume=%d\n"
+    std::fprintf(file, "anisotropy=%d\nvibration=%d\nmouse_lock=%d\n"
+                       "music=%d\nmusic_shuffle=%d\nmusic_volume=%d\n"
                        "stick_deadzone=%d\nmusic_continue=%d\n",
-                 v.anisotropy.load(), v.vibration.load(), v.mouse_prompt_distance.load(), int(v.mouse_lock.load()),
-                 v.mouse_aim_style.load(), v.mouse_aim_sensitivity.load(), int(v.music.load()),
+                 v.anisotropy.load(), v.vibration.load(), int(v.mouse_lock.load()), int(v.music.load()),
                  int(v.music_shuffle.load()), v.music_volume.load(), v.stick_deadzone.load(),
                  int(v.music_continue.load()));
+    for (const auto& line : retained_keys) std::fprintf(file, "%s\n", line.c_str());
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"
                                                   : v.live_resolution ? "1" : "0");

@@ -29,7 +29,7 @@ def sfo_bytes(**values):
             + entries + keys + data)
 
 
-BASE_SFO = sfo_bytes(TITLE_ID='CUSA01623', APP_VER='01.00')
+BASE_SFO = sfo_bytes(TITLE_ID='CUSA05670', APP_VER='01.00')
 
 
 class DiskModsTest(unittest.TestCase):
@@ -69,11 +69,6 @@ class DiskModsTest(unittest.TestCase):
 
 
 class ControlMapTest(unittest.TestCase):
-    def test_new_cheats_default_to_disabled(self):
-        self.assertEqual(launcher.INI_DEFAULTS['cheat_double_jumps'], '0')
-        self.assertEqual(launcher.INI_DEFAULTS['cheat_very_hard'], '0')
-        self.assertIn('cheat_double_jumps', launcher.INI_FLAGS)
-        self.assertIn('cheat_very_hard', launcher.INI_FLAGS)
 
     def test_pipeline_binary_cache_switch(self):
         settings = {**launcher.APP_DEFAULTS}
@@ -182,7 +177,7 @@ class ControlMapTest(unittest.TestCase):
         self.assertEqual(launcher.control_changes(values, 'key'), {'square': 'E'})
 
     def test_the_keyboard_table_has_only_the_ps4_buttons(self):
-        # God of War III's own actions (Rage of Sparta, grab, dodge) are gone: L3 and R3 keep their keys.
+        # Retired God of War III actions (Rage of Sparta, grab, dodge) are gone: L3 and R3 keep their keys.
         saved = {'key': {'rage': 'Mouse Middle', 'grab': 'C', 'dodge': 'V'}}
         self.assertEqual(launcher.control_values(saved, 'key'), {})
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'controls': saved, 'rage_one_input': True})
@@ -279,12 +274,9 @@ class ControlMapTest(unittest.TestCase):
             env = launcher.game_environment({**launcher.APP_DEFAULTS, 'experimental_upscaler': saved})
             self.assertEqual(env['WIPEOUT_OC_EXPERIMENTAL_UPSCALER'], value)
 
-    def test_glyph_style_is_off_by_default(self):
-        self.assertEqual(launcher.APP_DEFAULTS['glyph_style'], 'off')
-        self.assertNotIn('WIPEOUT_OC_GLYPH_STYLE', launcher.game_environment({**launcher.APP_DEFAULTS}))
 
     def test_no_god_of_war_button_icons(self):
-        # They are drawn into God of War III's R_UI.WAD, which WipEout has not: a saved or inherited
+        # Retired God of War III icons used R_UI.WAD, which WipEout does not have: a saved or inherited
         # choice never reaches the game.
         from unittest import mock
 
@@ -295,7 +287,7 @@ class ControlMapTest(unittest.TestCase):
 
     def test_settings_keys_kept(self):
         for key in ('game_dir', 'user_dir', 'mods_dir', 'patches_dir', 'language', 'hdr',
-                    'draw_pipe', 'readbacks', 'background_warmup', 'parallel_warmup', 'controls', 'pad_style', 'glyph_style'):
+                    'draw_pipe', 'readbacks', 'background_warmup', 'parallel_warmup', 'controls', 'pad_style'):
             self.assertIn(key, launcher.APP_DEFAULTS)
         # The player name option is gone: an old settings.json value is ignored.
         self.assertNotIn('player_name', launcher.APP_DEFAULTS)
@@ -324,7 +316,7 @@ class GameFilesTest(unittest.TestCase):
         for name in ('collect', 'play_button', 'status', 'meta_dir', 'summary', 'messagebox', 'show'):
             setattr(app, name, mock.Mock())
         with mock.patch.object(launcher.threading, 'Thread'), \
-                mock.patch.object(launcher, 'game_info', return_value=('God of War III', '01.02')):
+                mock.patch.object(launcher, 'game_info', return_value=('WipEout Omega Collection', '01.02')):
             app.adopt_in_background('Sc0', 'Image0')
             app.play()
             app.refresh_status()
@@ -488,7 +480,7 @@ class GameFilesTest(unittest.TestCase):
             self.assertEqual(base['APP_VER'], '01.00')
             beside = root / 'Base0'  # the base game beside this folder: Sc0 at its version is its own
             self.assertIsNone(launcher.system_files_beside(game, reference=base, base=beside))
-            self.assertEqual(launcher.system_files_beside(game, reference={'TITLE_ID': 'CUSA01623', 'APP_VER': '01.02'},
+            self.assertEqual(launcher.system_files_beside(game, reference={'TITLE_ID': 'CUSA05670', 'APP_VER': '01.02'},
                                                          base=beside), root / 'Sc0')
             self.assertIsNone(launcher.system_files_beside(game, reference={'TITLE_ID': 'CUSA00001', 'APP_VER': '01.02'},
                                                            base=beside))
@@ -546,7 +538,7 @@ class GameFilesTest(unittest.TestCase):
             if placeholder is not None:
                 (game / 'sce_sys/param.sfo').write_bytes(placeholder)
             (root / name / 'Sc0').mkdir()
-            (root / name / 'Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA01623', APP_VER=version))
+            (root / name / 'Sc0/param.sfo').write_bytes(sfo_bytes(TITLE_ID='CUSA05670', APP_VER=version))
             return game
 
         def launcher_app(game, update=''):

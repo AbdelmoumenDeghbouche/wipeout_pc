@@ -21,10 +21,7 @@ static bool SDLCALL record_rumble(void *userdata, uint16_t low, uint16_t high) {
 void runtime_user_events(void) {}
 int wipeout_oc_gpu_stick_deadzone_percent(void) { return 0; }
 void wipeout_oc_gpu_request_screenshot(void) {}
-int wipeout_oc_gpu_mouse_prompt_distance(void) { return 0; }
 void wipeout_oc_gpu_mouse_pause_key(void) {}
-int wipeout_oc_gpu_mouse_aim_style(void) { return 0; }
-int wipeout_oc_gpu_mouse_aim_sensitivity(void) { return 100; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;

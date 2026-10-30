@@ -21,7 +21,7 @@ class RunLogTest(unittest.TestCase):
         for name in ('collect', 'offer_system_files', 'set_log', 'play_button', 'status'):
             setattr(owner, name, mock.Mock(return_value=True))
         process, log = mock.Mock(), launcher._NullLog()
-        with mock.patch.object(launcher, 'game_info', return_value=('God of War III', '01.02')), \
+        with mock.patch.object(launcher, 'game_info', return_value=('WipEout Omega Collection', '01.02')), \
                 mock.patch.object(launcher, 'missing_game_files', return_value=[]), \
                 mock.patch.object(launcher, 'open_play_log', return_value=log), \
                 mock.patch.object(launcher.subprocess, 'Popen', return_value=process), \

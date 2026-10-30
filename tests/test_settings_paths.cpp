@@ -60,7 +60,7 @@ int main(int argc, char** argv) {
     assert(Read("wipeout_oc.ini") == original);
     assert(Read("gow3.ini") == original);
     // Both files exist; the new one wins and the old one is never modified by Save.
-    Write("wipeout_oc.ini", "engine_fps=240\n");
+    Write("wipeout_oc.ini", std::string("engine_fps=240\nfuture_setting=keep-original\ncheat_health=1\nfuture_long=") + std::string(900, 'x') + "  \t\n");
     assert(WipeoutOCSettings::Load());
     assert(WipeoutOCSettings::Get().engine_fps == 240);
     fs::create_directory("other");
@@ -69,6 +69,15 @@ int main(int argc, char** argv) {
     assert(!fs::exists("wipeout_oc.ini"));
     assert(Read(root / "wipeout_oc.ini").find("engine_fps=240\n") != std::string::npos);
     assert(Read(root / "gow3.ini") == original);
+    assert(Read(root / "wipeout_oc.ini").find("future_setting=keep-original\n") != std::string::npos);
+    assert(Read(root / "wipeout_oc.ini").find("cheat_health=1\n") != std::string::npos);
+    assert(Read(root / "wipeout_oc.ini").find("future_long=" + std::string(900, 'x') + "  \t\n") != std::string::npos);
+    // A failed Load keeps the last successful path and its unknown values together.
+    fs::create_directory(root / "not-a-file");
+    Env("WIPEOUT_OC_CONFIG", (root / "not-a-file").string());
+    assert(!WipeoutOCSettings::Load());
+    WipeoutOCSettings::Save();
+    assert(Read(root / "wipeout_oc.ini").find("future_setting=keep-original\n") != std::string::npos);
     // An explicit missing path neither loads nor migrates an unrelated legacy file.
     Env("WIPEOUT_OC_CONFIG", "chosen.ini");
     Write("gow3.ini", original);
@@ -76,6 +85,8 @@ int main(int argc, char** argv) {
     assert(!fs::exists("chosen.ini") && !fs::exists("wipeout_oc.ini"));
     WipeoutOCSettings::Save();
     assert(fs::exists("chosen.ini"));
+    assert(Read("chosen.ini").find("future_setting=") == std::string::npos);
+    assert(Read("chosen.ini").find("cheat_health=") == std::string::npos);
     assert(Read("gow3.ini") == original);
     // Native data override, including Unicode, selects that directory without a binary-path guess.
     const auto data = root / fs::path(u8"datos-ó-Ω");
