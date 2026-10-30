@@ -33,7 +33,6 @@ import threading
 import time
 import urllib.request
 import webbrowser
-import zipfile
 
 WINDOWS = sys.platform == 'win32'
 import ctypes  # GDI on Windows, fontconfig elsewhere
@@ -67,9 +66,6 @@ UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 VERSION = '0.2.43'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
-UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
-# Never copied over an installation by an update (the package does not hold them either).
-USER_FILES = ('user', 'out', 'mods', 'gow3.ini', 'wipeout_oc.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
 # The title face (Russo One), next to wipeout_oc.ico; main() registers it for this process only.
 FONT_FILE = PORT_DIR / 'launcher' / 'RussoOne-Regular.ttf'
 FR_PRIVATE = 0x10
@@ -179,7 +175,7 @@ def find_tool(name):
 
 
 def parse_gpu_list(text):
-    """One tuple per line of `gow3-gpu-capabilities --list`: index, name, type and, from the tools
+    """One tuple per line of `wipeout_oc-gpu-capabilities --list`: index, name, type and, from the tools
     that print them, the game's multisampling default on that driver ('off' or 'on') and '1' on
     the GPU the game picks without WIPEOUT_OC_GPU_ID. Other lines are skipped."""
     rows = [line.split('\t') for line in text.splitlines()]
@@ -204,7 +200,7 @@ def no_msaa_options(gpus, gpu_id):
 
 def list_gpus():
     """The Vulkan GPUs in the order the game numbers them, or [] when the tool cannot tell."""
-    tool = find_tool('gow3-gpu-capabilities' + ('.exe' if WINDOWS else ''))
+    tool = find_tool('wipeout_oc-gpu-capabilities' + ('.exe' if WINDOWS else ''))
     if not tool:
         return []
     try:
@@ -482,8 +478,8 @@ CONTROL_DEVICES = (('keyboard', 'Keyboard & mouse'), ('gamepad', 'Gamepad'))
 
 
 def connected_gamepad():
-    """Whether gow3-probe sees a gamepad now; None when the probe is missing or fails."""
-    name = 'gow3-probe.exe' if WINDOWS else 'gow3-probe'
+    """Whether wipeout_oc-probe sees a gamepad now; None when the probe is missing or fails."""
+    name = 'wipeout_oc-probe.exe' if WINDOWS else 'wipeout_oc-probe'
     probe = next((p for p in (PORT_DIR / 'bin' / name, PORT_DIR / 'out' / name) if p.is_file()), None)
     if not probe:
         return None
@@ -982,13 +978,18 @@ def adopt_system_files(source, game):
     return copied
 
 
-DESKTOP_MARKER = 'X-GOW3-Integration=true'
+DESKTOP_MARKER = 'X-Wipeout-OC-Integration=true'
+LEGACY_DESKTOP_MARKER = 'X-GOW3-Integration=true'
+
+
+def _managed_desktop_entry(entry, marker):
+    return entry.is_file() and marker in entry.read_text(encoding='utf-8', errors='replace').splitlines()
 
 
 def desktop_entry(command, icon, marker=False):
     """The menu entry; its StartupWMClass is the application id of the launcher and of the game window."""
     return ('[Desktop Entry]\nType=Application\nName=WipEout Omega Collection\n'
-            f'Exec={command}\nIcon={icon}\nTerminal=false\nCategories=Game;\nStartupWMClass=gow3\n'
+            f'Exec={command}\nIcon={icon}\nTerminal=false\nCategories=Game;\nStartupWMClass=wipeout_oc\n'
             + (DESKTOP_MARKER + '\n' if marker else ''))
 
 
@@ -1003,11 +1004,12 @@ def other_desktop_entries(applications, appimage):
     except OSError:
         return found
     for entry in entries:
-        if entry.name == 'gow3.desktop':
-            continue
         try:
             lines = entry.read_text(encoding='utf-8', errors='replace').splitlines()
         except OSError:
+            continue
+        if ((entry.name == 'wipeout_oc.desktop' and DESKTOP_MARKER in lines) or
+                (entry.name == 'gow3.desktop' and LEGACY_DESKTOP_MARKER in lines)):
             continue
         for line in lines:
             key, _, value = line.partition('=')
@@ -1035,33 +1037,35 @@ def integrated_by_other_tool(applications, appimage, environment=None):
 
 
 def integrate_desktop(enabled, appimage, icon_source, data_dir, home=None, environment=None):
-    """AppImage on Linux: the menu entry the desktop matches the windows (application id gow3) to,
+    """AppImage on Linux: the menu entry the desktop matches the windows (application id wipeout_oc) to,
     which is what shows their icon in the dock. The entry is ours while it carries the marker; one
     without it was written by hand (the Desktop shortcut button) and is left alone. When another
     tool already integrated this AppImage (an entry that starts it, or DESKTOPINTEGRATION in the
     environment, which Gear Lever sets), ours would be a duplicate: it is not made, and removed."""
     applications = Path(home or Path.home()) / '.local' / 'share' / 'applications'
-    entry = applications / 'gow3.desktop'
+    entry = applications / 'wipeout_oc.desktop'
+    legacy = applications / 'gow3.desktop'
     try:
-        ours = entry.is_file() and DESKTOP_MARKER in entry.read_text(encoding='utf-8', errors='replace')
-        if not enabled:
+        ours = _managed_desktop_entry(entry, DESKTOP_MARKER)
+        legacy_ours = _managed_desktop_entry(legacy, LEGACY_DESKTOP_MARKER)
+        if not enabled or integrated_by_other_tool(applications, appimage, environment):
             if ours:
                 entry.unlink()
+            if legacy_ours:
+                legacy.unlink()
             return None
-        if not appimage or (entry.is_file() and not ours):
+        if not appimage or ((entry.is_file() or entry.is_symlink()) and not ours):
             return None
-        if integrated_by_other_tool(applications, appimage, environment):
-            if ours:
-                entry.unlink()
-            return None
-        icon = Path(data_dir) / 'gow3.png'
+        icon = Path(data_dir) / 'wipeout_oc.png'
         icon.parent.mkdir(parents=True, exist_ok=True)
         if not icon.is_file() or icon.read_bytes() != Path(icon_source).read_bytes():
             shutil.copyfile(icon_source, icon)
         text = desktop_entry(f'"{appimage}"', icon, marker=True)
         entry.parent.mkdir(parents=True, exist_ok=True)
         if not entry.is_file() or entry.read_text(encoding='utf-8') != text:
-            entry.write_text(text, encoding='utf-8')
+            atomic_write(entry, text)
+        if legacy_ours:
+            legacy.unlink()
         return entry
     except (OSError, ValueError):  # runs before the window opens: it must never stop the launcher
         return None
@@ -1073,15 +1077,28 @@ def write_linux_shortcut(command, appimage, icon_source, desktop, home=None, env
     show the game twice). Returns the files written."""
     home = Path(home or Path.home())
     icon_dir = home / '.local' / 'share' / 'icons'
-    icon = icon_dir / 'gow3.png'
+    icon = icon_dir / 'wipeout_oc.png'
     try:
         icon_dir.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(icon_source, icon)
     except OSError:
-        icon = 'gow3'
+        icon = 'wipeout_oc'
     entry = desktop_entry(command, icon)
     applications = home / '.local' / 'share' / 'applications'
-    folders = [] if integrated_by_other_tool(applications, appimage, environment) else [applications]
+    others = other_desktop_entries(applications, appimage) if appimage else []
+    # Repeated clicks may refresh the exact unmarked shortcut this button wrote.
+    target = applications / 'wipeout_oc.desktop'
+    manual = target.is_symlink()
+    try:
+        if target.exists() and not manual:
+            same = target.is_file() and target.read_text(encoding='utf-8') == entry
+            manual = not same and not _managed_desktop_entry(target, DESKTOP_MARKER)
+            if same and target in others:
+                others.remove(target)
+    except (OSError, UnicodeError):
+        manual = True
+    external = manual or (environment if environment is not None else os.environ).get('DESKTOPINTEGRATION') or others
+    folders = [] if external else [applications]
     folders.append(Path(desktop))
     created = []
     for folder in folders:
@@ -1089,7 +1106,7 @@ def write_linux_shortcut(command, appimage, icon_source, desktop, home=None, env
             continue
         folder.mkdir(parents=True, exist_ok=True)
         # In the applications menu the file is named after the window's application id.
-        target = folder / ('gow3.desktop' if folder == applications else 'WipEout Omega Collection.desktop')
+        target = folder / ('wipeout_oc.desktop' if folder == applications else 'WipEout Omega Collection.desktop')
         target.write_text(entry, encoding='utf-8')
         target.chmod(0o755)
         created.append(str(target))
@@ -1119,7 +1136,7 @@ def game_profile_of(folder):
 
 
 # NVIDIA's DLSS runtime is not in the package: the launcher downloads it on request from NVIDIA's
-# own repository, the SDK release gow3_dlss.dll is built with (.github/workflows/windows-zip.yml),
+# own repository, the SDK release wipeout_oc_dlss.dll is built with (.github/workflows/windows-zip.yml),
 # and keeps it only when its SHA-256 matches. Updates copy over bin/ and keep it.
 DLSS_SDK_VERSION = '310.9.16'
 DLSS_RUNTIME_URL = ('https://raw.githubusercontent.com/NVIDIA/DLSS/v' + DLSS_SDK_VERSION +
@@ -1129,18 +1146,18 @@ DLSS_RUNTIME_MB = 56
 
 
 def dlss_directory():
-    """Where gow3-probe looks for gow3_dlss.dll and nvngx_dlss.dll: beside itself."""
-    probe = find_tool('gow3-probe' + ('.exe' if WINDOWS else ''))
+    """Where wipeout_oc-probe looks for wipeout_oc_dlss.dll and nvngx_dlss.dll: beside itself."""
+    probe = find_tool('wipeout_oc-probe' + ('.exe' if WINDOWS else ''))
     return Path(probe).parent if probe else PORT_DIR / ('bin' if FROZEN else 'out')
 
 
 def dlss_bridge_installed():
-    """gow3_dlss.dll (the port's bridge to NVIDIA's SDK, Windows only) is in this build."""
-    return WINDOWS and (dlss_directory() / 'gow3_dlss.dll').is_file()
+    """wipeout_oc_dlss.dll (the port's bridge to NVIDIA's SDK, Windows only) is in this build."""
+    return WINDOWS and (dlss_directory() / 'wipeout_oc_dlss.dll').is_file()
 
 
 def dlss_installed():
-    """Whether the DLSS bridge and NVIDIA's runtime sit next to gow3-probe. Whether the GPU can run
+    """Whether the DLSS bridge and NVIDIA's runtime sit next to wipeout_oc-probe. Whether the GPU can run
     DLSS is only known in the game; without it the game uses FSR 3.1."""
     return dlss_bridge_installed() and (dlss_directory() / 'nvngx_dlss.dll').is_file()
 
@@ -1317,13 +1334,13 @@ class Launcher:
         self.mod_order, self.mod_vars, self.patch_vars = [], {}, {}
         self.selected_mod, self.mod_rows, self.mod_conflicts, self.conflicts_open = None, {}, [], False
         self.mod_details_shown, self.mod_picture_key, self.mod_photo = False, None, None
-        self.pending_update = None  # (version, url, page, notes) once offered
-        self.update_window, self.update_parts, self.update_popped = None, None, False
+        self.pending_update = None  # (version, page, notes) once offered
+        self.update_window, self.update_popped = None, False
         root.title(f'{APP_NAME} (PC)')
         if sys.platform == 'win32':
             try:  # the taskbar shows this window's icon, not Python's
                 import ctypes
-                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('gow3pc.launcher')
+                ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID('wipeout_oc.launcher')
             except (AttributeError, OSError):
                 pass
         root.configure(bg=BG)
@@ -2468,7 +2485,7 @@ class Launcher:
         tools = linux_tools()
         self.section(f, _('Linux'), top=4)
         self.check(f, 'desktop_integration', 'app', _('Menu entry and icon (AppImage)'),
-                   _('Creates gow3.desktop in ~/.local/share/applications so the launcher and the game show their '
+                   _('Creates wipeout_oc.desktop in ~/.local/share/applications so the launcher and the game show their '
                      'icon in the dock and the menu. Turning it off removes the entry.'))
         self.row(f, _('Window system'), self.choice(f, 'video_backend', 'app', VIDEO_BACKENDS), restart=True,
                  hint=_('Automatic lets SDL choose. Pick X11 if the window misbehaves on Wayland (it runs through '
@@ -3173,7 +3190,7 @@ class Launcher:
         tries three times, so a short network drop does not hide a new version."""
         for _attempt in range(1 if manual else 3):
             try:
-                version, url, page, notes = latest_release()
+                version, page, notes = latest_release()
                 break
             except (OSError, ValueError, KeyError) as failure:
                 error = failure
@@ -3185,17 +3202,16 @@ class Launcher:
             return
 
         def show():
-            # A release without its zip yet (it is still being built) is offered only on a manual check.
-            if version_tuple(version) > version_tuple(VERSION) and (url or manual):
-                self.offer_update(version, url, page, notes)
+            if version_tuple(version) > version_tuple(VERSION):
+                self.offer_update(version, page, notes)
                 if manual:
-                    self.update_dialog(version, url, page, notes)
+                    self.update_dialog(version, page, notes)
             elif manual:
                 self.messagebox.showinfo(APP_NAME, _('You have the latest version ({}).',
                                                          'У вас последняя версия ({}).').format(VERSION))
         self.ui_calls.put(show)
 
-    def offer_update(self, version, url, page, notes=''):
+    def offer_update(self, version, page, notes=''):
         """The side box of a newer version, and once per launcher session its pop-up."""
         if self.update_box:
             return
@@ -3208,21 +3224,21 @@ class Launcher:
         buttons = tk.Frame(box, bg=CARD)
         buttons.pack(fill='x', padx=self.px(10), pady=self.px((0, 10)))
         self.update_button = ttk.Button(buttons, text=_('Update', 'Обновить'),
-                                        command=lambda: self.update_dialog(version, url, page, notes))
+                                        command=lambda: self.update_dialog(version, page, notes))
         self.update_button.pack(fill='x')
         ttk.Button(buttons, text=_("What's new", 'Что нового'), command=lambda: open_url(page)).pack(
             fill='x', pady=self.px((4, 0)))
         box.pack(fill='x', padx=self.px((22, 18)), pady=self.px((0, 14)), before=self.side_note)
         self.update_box = box
-        self.pending_update = (version, url, page, notes)
+        self.pending_update = (version, page, notes)
         if not self.process:
             self.status.configure(text=text, fg=TEXT)
         if not self.update_popped:
             self.update_popped = True
-            self.update_dialog(version, url, page, notes)
+            self.update_dialog(version, page, notes)
 
-    def update_dialog(self, version, url, page, notes):
-        """The pop-up of a newer version: what is new, then UPDATE NOW downloads and installs it."""
+    def update_dialog(self, version, page, notes):
+        """The pop-up of a newer version: notes and a link to the original release page."""
         if self.update_window and self.update_window.winfo_exists():
             self.update_window.deiconify()
             self.update_window.lift()
@@ -3246,19 +3262,16 @@ class Launcher:
             text.insert('1.0', notes)
             text.configure(state='disabled')
             text.pack(fill='x', padx=pad)
-        status = tk.Label(win, text=_('Your saves, settings, mods and music stay.'), bg=PANEL, fg=MUTED,
+        status = tk.Label(win, text=_('The release page opens in your browser.', 'Страница релизов откроется в браузере.'), bg=PANEL, fg=MUTED,
                           font=self.font(UI_FONT, 9), anchor='w', justify='left')
         status.pack(fill='x', padx=pad, pady=(self.px(12), 0))
-        bar = ttk.Progressbar(win, maximum=100)
         buttons = tk.Frame(win, bg=PANEL)
         buttons.pack(fill='x', padx=pad, pady=(self.px(14), pad))
         later = ttk.Button(buttons, text=_('Later'), command=win.destroy)
         later.pack(side='right')
-        now = ttk.Button(buttons, text=_('UPDATE NOW'), style='Play.TButton',
-                         command=lambda: self.install_update(version, url, page))
+        now = ttk.Button(buttons, text=_('Release page'), style='Play.TButton',
+                         command=lambda: open_url(page))
         now.pack(side='right', padx=(0, self.px(10)))
-        ttk.Button(buttons, text=_('Release page'), style='Link.TButton', command=lambda: open_url(page)).pack(side='left')
-        self.update_parts = status, bar, now, later
         win.update_idletasks()  # centred over the launcher
         root = self.root
         x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
@@ -3338,80 +3351,7 @@ class Launcher:
             self.ui_calls.put(finished)
         threading.Thread(target=work, daemon=True).start()
 
-    def update_progress(self, text=None, percent=0):
-        """The download's progress in the pop-up and the side box; None: back to the offer."""
-        busy = text is not None
-        if self.update_box:
-            self.update_button.configure(state='disabled' if busy else 'normal')
-            self.update_label.configure(text=f'{percent}%' if busy else
-                                        _('Version {} is available.', 'Доступна версия {}.').format(self.pending_update[0]))
-        if self.update_window and self.update_window.winfo_exists():
-            status, bar, now, later = self.update_parts
-            for button in (now, later):
-                button.configure(state='disabled' if busy else 'normal')
-            # The window cannot be closed while the download runs; it closes with the launcher.
-            self.update_window.protocol('WM_DELETE_WINDOW', (lambda: None) if busy else self.update_window.destroy)
-            status.configure(text=text or _('Your saves, settings, mods and music stay.'), fg=TEXT if busy else MUTED)
-            if busy:
-                bar.pack(fill='x', padx=self.px(22), pady=(self.px(8), 0), before=now.master)
-                bar.configure(value=percent)
-            else:
-                bar.pack_forget()
 
-    def install_update(self, version, url, page):
-        if self.process:
-            self.messagebox.showinfo(APP_NAME, _('Close the game before updating.', 'Закройте игру перед обновлением.'))
-            return
-        if not FROZEN:  # a source tree updates with git
-            open_url(page)
-            return
-        if not url:
-            # The release was offered before its zip was built (#61): ask GitHub again.
-            try:
-                version, url, page, _notes = latest_release()
-            except (OSError, ValueError, KeyError):
-                url = None
-            if not url:
-                self.messagebox.showinfo(APP_NAME, _('The download of version {} is still being prepared. '
-                                                     'Try again in a few minutes.').format(version))
-                return
-        self.update_progress(_('Downloading version {}…').format(version))
-
-        def work():
-            try:
-                shutil.rmtree(UPDATE_DIR, ignore_errors=True)
-                UPDATE_DIR.mkdir(parents=True, exist_ok=True)
-                archive = UPDATE_DIR / 'update.zip'
-                request = urllib.request.Request(url, headers={'User-Agent': 'wipeout-launcher'})
-                with urllib.request.urlopen(request, timeout=60) as response, open(archive, 'wb') as out:
-                    total, done, shown = int(response.headers.get('Content-Length') or 0), 0, -1
-                    while chunk := response.read(1 << 20):
-                        out.write(chunk)
-                        done += len(chunk)
-                        percent = done * 100 // total if total else 0
-                        if percent != shown:
-                            shown = percent
-                            text = _('Downloading version {}… {} of {} MB').format(version, done >> 20, total >> 20)
-                            self.ui_calls.put(lambda t=text, p=percent: self.update_progress(t, p))
-                self.ui_calls.put(lambda: self.update_progress(_('Unpacking…'), 100))
-                with zipfile.ZipFile(archive) as package:
-                    package.extractall(UPDATE_DIR / 'new')
-                archive.unlink()
-                new = next((p.parent for p in (UPDATE_DIR / 'new').rglob('WipEout.exe')), None)
-                if not new:
-                    raise OSError('WipEout.exe is missing from the download')
-                # The new launcher copies itself over this installation once this one has closed.
-                subprocess.Popen([str(new / 'WipEout.exe'), '--install-update', str(PORT_DIR), str(os.getpid())],
-                                 cwd=str(new), stdin=subprocess.DEVNULL, creationflags=NO_WINDOW)
-                self.ui_calls.put(lambda: self.update_progress(
-                    _('Installing… the launcher opens again in a few seconds.'), 100))
-                self.ui_calls.put(lambda: self.root.after(1500, self.root.destroy))
-            except (OSError, zipfile.BadZipFile) as failure:
-                def failed(error=failure):
-                    self.update_progress()
-                    self.messagebox.showerror(APP_NAME, _('Update failed: {}', 'Не удалось обновить: {}').format(error))
-                self.ui_calls.put(failed)
-        threading.Thread(target=work, daemon=True).start()
 
     def clear_cache(self):
         """Shader and pipeline caches; they are rebuilt while playing."""
@@ -3500,7 +3440,7 @@ class Launcher:
 
 
 class GameJob:
-    """A Windows job holding run.py and everything it starts: gow3-probe.exe and the launches made
+    """A Windows job holding run.py and everything it starts: wipeout_oc-probe.exe and the launches made
     by the in-game restart (no longer descendants of the first process)."""
 
     def __init__(self, process):
@@ -3628,40 +3568,13 @@ def whats_new(body):
 def latest_release():
     """(version, zip URL, page URL, what's new) of the newest GitHub release."""
     request = urllib.request.Request(RELEASES_API, headers={'Accept': 'application/vnd.github+json',
-                                                            'User-Agent': 'gow3-launcher'})
+                                                            'User-Agent': 'wipeout_oc-launcher'})
     with urllib.request.urlopen(request, timeout=15) as response:
         release = json.load(response)
     version = '.'.join(re.findall(r'\d+', release['tag_name']))
-    url = next((asset['browser_download_url'] for asset in release.get('assets', [])
-                if asset.get('name', '').lower().endswith('.zip')), None)
-    return version, url, release.get('html_url') or RELEASES_PAGE, whats_new(release.get('body') or '')
+    return version, release.get('html_url') or RELEASES_PAGE, whats_new(release.get('body') or '')
 
 
-def install_update(target, wait_pid):
-    """--install-update TARGET PID, run by the downloaded version from its temporary folder:
-    waits for the old launcher to close, copies this version over TARGET (never the saves,
-    settings or mods) and starts it."""
-    target = Path(target)
-    kernel = ctypes.windll.kernel32
-    handle = kernel.OpenProcess(0x00100000, False, int(wait_pid))  # SYNCHRONIZE
-    if handle:
-        kernel.WaitForSingleObject(handle, 60000)
-        kernel.CloseHandle(handle)
-    ignore = shutil.ignore_patterns(*USER_FILES)
-    for attempt in range(30):
-        try:
-            shutil.copytree(PORT_DIR, target, dirs_exist_ok=True, ignore=ignore)
-            break
-        except OSError:  # a file still in use: the old launcher is closing
-            time.sleep(1)
-    else:
-        ctypes.windll.user32.MessageBoxW(None, _(
-            'Could not install the update. Download it from the releases page.',
-            'Не удалось установить обновление. Скачайте его со страницы релизов.'), APP_NAME, 0x10)
-        open_url(RELEASES_PAGE)
-        return 1
-    subprocess.Popen([str(target / 'WipEout.exe')], cwd=str(target))
-    return 0
 
 
 def main():
@@ -3674,10 +3587,6 @@ def main():
     if not WINDOWS:
         integrate_desktop(settings.get('desktop_integration', True), os.environ.get('APPIMAGE'),
                           PORT_DIR / 'launcher' / 'wipeout_oc.png', DATA_DIR)
-    if WINDOWS and args[:1] == ['--install-update'] and len(args) == 3:
-        sys.exit(install_update(args[1], args[2]))
-    if WINDOWS and FROZEN and UPDATE_DIR not in PORT_DIR.parents:
-        shutil.rmtree(UPDATE_DIR, ignore_errors=True)  # what a finished update left behind
     # Without a usable game folder there is nothing to play yet: open the launcher instead.
     if '--play' in args and ready_to_play(settings['game_dir'], settings.get('update_dir') or ''):
         sys.exit(play_without_window(settings))
@@ -3689,7 +3598,7 @@ def main():
     FONT_LOADED = register_font(FONT_FILE)  # titles keep the usual serif without it
     import tkinter as tk
     from tkinter import filedialog, font, messagebox, ttk
-    root = tk.Tk() if WINDOWS else tk.Tk(className='gow3')
+    root = tk.Tk() if WINDOWS else tk.Tk(className='wipeout_oc')
     if root.tk.call('tk', 'windowingsystem') == 'x11':
         root.configure(cursor=ARROW)
         for window in ('Toplevel', 'Dialog', 'TkFDialog', 'TkChooseDir'):  # dialogs: tk_messageBox, file pickers

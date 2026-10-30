@@ -161,7 +161,7 @@ class EnvironmentCompatibilityTests(unittest.TestCase):
                     os.chdir(previous)
 
 
-EXE = ROOT / 'out' / ('gow3-probe.exe' if sys.platform == 'win32' else 'gow3-probe')
+EXE = ROOT / 'out' / ('wipeout_oc-probe.exe' if sys.platform == 'win32' else 'wipeout_oc-probe')
 
 
 @unittest.skipUnless(EXE.is_file(), 'build native probe first')
@@ -326,12 +326,12 @@ class NixWrapperEnvironmentTests(unittest.TestCase):
                 (root / name).mkdir(parents=True)
             for name in ('packaging/appimage.sh', 'scripts/environment.sh'):
                 shutil.copy2(ROOT / name, root / name)
-            for name in ('out/gow3-probe', 'out/gpu/libgow3gpu.so'):
+            for name in ('out/wipeout_oc-probe', 'out/gpu/libwipeout_oc_gpu.so'):
                 (root / name).touch()
             readelf = root / 'bin/readelf'
             readelf.write_text('#!/usr/bin/env bash\nprintf "Library runpath: [/nix/store/fixture/lib]\\n"\n')
             nix = root / 'bin/nix'
-            nix.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$NIX_ARGS_FILE"\ntouch gow3.AppImage\n')
+            nix.write_text('#!/usr/bin/env bash\nprintf "%s\\n" "$@" > "$NIX_ARGS_FILE"\ntouch wipeout_oc.AppImage\n')
             readelf.chmod(0o755)
             nix.chmod(0o755)
             for old, new, wanted in ((None, None, 'false'), ('1', None, 'true'),

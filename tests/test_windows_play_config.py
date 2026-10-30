@@ -8,7 +8,7 @@ import sys
 import tempfile
 import unittest
 
-PLAY = ROOT / 'out/gpu/gow3-play.exe'
+PLAY = ROOT / 'out/gpu/wipeout_oc-play.exe'
 CHILD = ROOT / 'out/gpu/settings-paths-test.exe'
 
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Prepares the game image and starts gow3-probe (Windows and Linux; run.sh wraps it on Linux).
+"""Prepares the game image and starts wipeout_oc-probe (Windows and Linux; run.sh wraps it on Linux).
 
 Environment variables (WIPEOUT_OC_GAME_DIR, WIPEOUT_OC_DATA_DIR, WIPEOUT_OC_PATCHES, WIPEOUT_OC_MODS_*,
-WIPEOUT_OC_USER_DIR, ...). Extra arguments go to gow3-probe.
+WIPEOUT_OC_USER_DIR, ...). Extra arguments go to wipeout_oc-probe.
 The in-game "Apply and restart" runs this script again through WIPEOUT_OC_RESTART_COMMAND;
 `--after PID` waits for the previous game process to end first (its GPU device and memory).
 """
@@ -59,7 +59,7 @@ def no_console():
 
 
 def parse_cpu_features(output):
-    """Instruction sets `gow3-probe --cpu-features` reports missing ([] when complete)."""
+    """Instruction sets `wipeout_oc-probe --cpu-features` reports missing ([] when complete)."""
     for line in output.splitlines():
         if line.startswith('CPU: missing '):
             return [name.strip() for name in line[len('CPU: missing '):].split(',') if name.strip()]
@@ -210,9 +210,9 @@ def main():
     if not env.get('WIPEOUT_OC_FSR411_DIR') and not (PORT / 'fsr4_411').is_dir() and (data / 'fsr4_411').is_dir():
         env['WIPEOUT_OC_FSR411_DIR'] = str(data / 'fsr4_411')
 
-    probe = Path(env['WIPEOUT_OC_PROBE']) if env.get('WIPEOUT_OC_PROBE') else find_executable('gow3-probe' + EXE_SUFFIX)
+    probe = Path(env['WIPEOUT_OC_PROBE']) if env.get('WIPEOUT_OC_PROBE') else find_executable('wipeout_oc-probe' + EXE_SUFFIX)
     if not probe or not probe.is_file():
-        fail(f'gow3-probe{EXE_SUFFIX} not found: build it with build.sh or use a packaged build.')
+        fail(f'wipeout_oc-probe{EXE_SUFFIX} not found: build it with build.sh or use a packaged build.')
     # Development builds run from the MSYS2 tree: its CLANG64 DLLs (SDL3, FFmpeg, ...).
     if WINDOWS and not (probe.parent / 'SDL3.dll').is_file():
         clang64 = Path(env.get('MSYS2_ROOT', r'C:\msys64')) / 'clang64' / 'bin'
@@ -275,7 +275,7 @@ def main():
         # an application id the desktop entry matches, so the shell shows the same icon.
         icon_file = game / 'sce_sys' / 'icon0.png'
         if not WINDOWS:
-            env.setdefault('SDL_APP_ID', 'gow3')
+            env.setdefault('SDL_APP_ID', 'wipeout_oc')
             if (PORT / 'launcher' / 'wipeout_oc.png').is_file():
                 icon_file = PORT / 'launcher' / 'wipeout_oc.png'
         try:

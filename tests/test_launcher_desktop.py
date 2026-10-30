@@ -19,27 +19,92 @@ class DesktopIntegrationTest(unittest.TestCase):
         self.icon = self.home / 'source.png'
         self.icon.write_bytes(b'png one')
         self.data = self.home / 'data'
-        self.entry = self.home / '.local' / 'share' / 'applications' / 'gow3.desktop'
+        self.entry = self.home / '.local' / 'share' / 'applications' / 'wipeout_oc.desktop'
 
     def integrate(self, enabled=True, appimage='/games/gow3.AppImage', environment=None):
         # The environment is ours, not the shell's: DESKTOPINTEGRATION in the real one must not decide a test.
         return launcher.integrate_desktop(enabled, appimage, self.icon, self.data, home=self.home,
                                           environment={} if environment is None else environment)
 
+    def legacy_entry(self, marker=True):
+        path = self.home / '.local/share/applications/gow3.desktop'
+        path.parent.mkdir(parents=True, exist_ok=True)
+        text = '[Desktop Entry]\nExec="/games/gow3.AppImage"\nIcon=old.png\n'
+        if marker:
+            text += 'X-GOW3-Integration=true\n'
+        path.write_text(text)
+        return path, text
+
+    def test_legacy_managed_entry_is_replaced_only_after_new_entry_succeeds(self):
+        legacy, _text = self.legacy_entry()
+        new = legacy.with_name('wipeout_oc.desktop')
+        self.assertEqual(self.integrate(), new)
+        self.assertTrue(new.is_file())
+        self.assertFalse(legacy.exists())
+        self.assertIn('StartupWMClass=wipeout_oc', new.read_text())
+
+    def test_failed_new_entry_keeps_legacy_managed_bytes(self):
+        legacy, text = self.legacy_entry()
+        with mock.patch.object(launcher, 'atomic_write', side_effect=OSError('disk full')):
+            self.assertIsNone(self.integrate())
+        self.assertEqual(legacy.read_text(), text)
+        self.assertFalse(legacy.with_name('wipeout_oc.desktop').exists())
+
+    def test_disabled_integration_removes_both_owned_entries(self):
+        legacy, _text = self.legacy_entry()
+        new = legacy.with_name('wipeout_oc.desktop')
+        new.write_text('[Desktop Entry]\n' + launcher.DESKTOP_MARKER + '\n')
+        self.integrate(enabled=False)
+        self.assertFalse(new.exists())
+        self.assertFalse(legacy.exists())
+
+    def test_external_integration_removes_legacy_owned_entry_without_creating_new(self):
+        legacy, _text = self.legacy_entry()
+        self.other_entry('Exec="/games/gow3.AppImage"')
+        self.assertIsNone(self.integrate())
+        self.assertFalse(legacy.exists())
+        self.assertFalse(legacy.with_name('wipeout_oc.desktop').exists())
+
+    def test_manual_legacy_entry_counts_as_external_and_is_preserved(self):
+        legacy, text = self.legacy_entry(marker=False)
+        self.assertIsNone(self.integrate())
+        self.assertEqual(legacy.read_text(), text)
+        self.assertFalse(legacy.with_name('wipeout_oc.desktop').exists())
+        self.assertIn(legacy, launcher.other_desktop_entries(legacy.parent, '/games/gow3.AppImage'))
+
+    def test_commented_legacy_marker_does_not_grant_ownership(self):
+        legacy, text = self.legacy_entry(marker=False)
+        text += '#X-GOW3-Integration=true\n'
+        legacy.write_text(text)
+        self.assertIsNone(self.integrate())
+        self.assertEqual(legacy.read_text(), text)
+
+    def test_dangling_manual_new_entry_is_not_replaced(self):
+        entry = self.home / '.local/share/applications/wipeout_oc.desktop'
+        entry.parent.mkdir(parents=True)
+        try:
+            entry.symlink_to('missing-manual.desktop')
+        except OSError as error:
+            self.skipTest(f'symlink privilege unavailable: {error}')
+        original = os.readlink(entry)
+        self.assertIsNone(self.integrate())
+        self.assertTrue(entry.is_symlink())
+        self.assertEqual(os.readlink(entry), original)
+
     def test_entry_names_the_appimage_the_icon_and_the_window_class(self):
         self.assertEqual(self.integrate(), self.entry)
         text = self.entry.read_text()
         self.assertIn('Exec="/games/gow3.AppImage"', text)
-        self.assertIn(f'Icon={self.data / "gow3.png"}', text)
-        self.assertIn('StartupWMClass=gow3', text)
-        self.assertEqual((self.data / 'gow3.png').read_bytes(), b'png one')
+        self.assertIn(f'Icon={self.data / "wipeout_oc.png"}', text)
+        self.assertIn('StartupWMClass=wipeout_oc', text)
+        self.assertEqual((self.data / 'wipeout_oc.png').read_bytes(), b'png one')
 
     def test_a_moved_appimage_or_a_new_icon_updates_the_entry(self):
         self.integrate()
         self.icon.write_bytes(b'png two')
         self.integrate(appimage='/elsewhere/gow3.AppImage')
         self.assertIn('Exec="/elsewhere/gow3.AppImage"', self.entry.read_text())
-        self.assertEqual((self.data / 'gow3.png').read_bytes(), b'png two')
+        self.assertEqual((self.data / 'wipeout_oc.png').read_bytes(), b'png two')
 
     def test_turning_it_off_removes_only_our_entry(self):
         self.integrate()
@@ -209,13 +274,13 @@ class LinuxShortcutTest(unittest.TestCase):
         self.desktop.mkdir()
         for _ in range(2):
             created = self.click()
-            self.assertEqual(created, [str(self.applications / 'gow3.desktop'), str(self.desktop / 'WipEout Omega Collection.desktop')])
+            self.assertEqual(created, [str(self.applications / 'wipeout_oc.desktop'), str(self.desktop / 'WipEout Omega Collection.desktop')])
             shutil.rmtree(self.applications)
             (self.desktop / 'WipEout Omega Collection.desktop').unlink()
-        self.assertTrue((self.home / '.local' / 'share' / 'icons' / 'gow3.png').is_file())
+        self.assertTrue((self.home / '.local' / 'share' / 'icons' / 'wipeout_oc.png').is_file())
 
     def test_the_desktop_folder_is_not_made_when_it_does_not_exist(self):
-        self.assertEqual(self.click(), [str(self.applications / 'gow3.desktop')])
+        self.assertEqual(self.click(), [str(self.applications / 'wipeout_oc.desktop')])
         self.assertFalse(self.desktop.exists())
 
     def test_another_tools_entry_keeps_the_menu_free_of_a_duplicate(self):
@@ -223,21 +288,21 @@ class LinuxShortcutTest(unittest.TestCase):
         (self.applications / 'tool.desktop').write_text(f'[Desktop Entry]\nExec=env DESKTOPINTEGRATION=1 {self.appimage}\n')
         self.desktop.mkdir()
         self.assertEqual(self.click(), [str(self.desktop / 'WipEout Omega Collection.desktop')])
-        self.assertFalse((self.applications / 'gow3.desktop').exists())
+        self.assertFalse((self.applications / 'wipeout_oc.desktop').exists())
 
     def test_a_broken_entry_of_another_program_does_not_stop_the_button(self):
         self.applications.mkdir(parents=True)
         (self.applications / 'broken.desktop').write_bytes(b'[Desktop Entry]\nExec=/a/\x00b\n')
         self.desktop.mkdir()
-        self.assertEqual(self.click(), [str(self.applications / 'gow3.desktop'), str(self.desktop / 'WipEout Omega Collection.desktop')])
+        self.assertEqual(self.click(), [str(self.applications / 'wipeout_oc.desktop'), str(self.desktop / 'WipEout Omega Collection.desktop')])
 
     def test_the_files_run_the_appimage_with_its_icon(self):
         self.desktop.mkdir()
         for path in self.click():
             text = Path(path).read_text()
             self.assertIn(f'Exec="{self.appimage}"', text)
-            self.assertIn(f'Icon={self.home / ".local" / "share" / "icons" / "gow3.png"}', text)
-            self.assertIn('StartupWMClass=gow3', text)
+            self.assertIn(f'Icon={self.home / ".local" / "share" / "icons" / "wipeout_oc.png"}', text)
+            self.assertIn('StartupWMClass=wipeout_oc', text)
             self.assertNotIn(launcher.DESKTOP_MARKER, text)
 
     @unittest.skipUnless(sys.platform.startswith('linux'), 'Linux executable permissions')
@@ -249,7 +314,30 @@ class LinuxShortcutTest(unittest.TestCase):
     def test_a_missing_icon_falls_back_to_the_theme_name(self):
         self.icon.unlink()
         created = self.click()
-        self.assertIn('Icon=gow3\n', Path(created[0]).read_text())
+        self.assertIn('Icon=wipeout_oc\n', Path(created[0]).read_text())
+
+    def test_manual_menu_entry_for_another_command_is_preserved(self):
+        self.applications.mkdir(parents=True)
+        target = self.applications / 'wipeout_oc.desktop'
+        self.desktop.mkdir()
+        for original in (b'[Desktop Entry]\nExec=/opt/my-custom-wrapper\nIcon=custom\n',
+                         b'\xff\xfe[Desktop Entry]'):
+            with self.subTest(original=original):
+                target.write_bytes(original)
+                self.assertEqual(self.click(), [str(self.desktop / 'WipEout Omega Collection.desktop')])
+                self.assertEqual(target.read_bytes(), original)
+
+    def test_manual_menu_symlink_is_preserved(self):
+        self.applications.mkdir(parents=True)
+        target = self.applications / 'wipeout_oc.desktop'
+        try:
+            target.symlink_to('missing-manual.desktop')
+        except OSError as error:
+            self.skipTest(f'symlink privilege unavailable: {error}')
+        self.desktop.mkdir()
+        self.assertEqual(self.click(), [str(self.desktop / 'WipEout Omega Collection.desktop')])
+        self.assertEqual(os.readlink(target), 'missing-manual.desktop')
+        self.assertFalse(target.exists())
 
     def test_clicking_again_rewrites_the_same_files(self):
         self.desktop.mkdir()
@@ -258,12 +346,12 @@ class LinuxShortcutTest(unittest.TestCase):
 
     def test_the_shells_variable_is_not_read_when_the_environment_is_given(self):
         with mock.patch.dict(os.environ, {'DESKTOPINTEGRATION': '1'}):
-            self.assertEqual(self.click(), [str(self.applications / 'gow3.desktop')])
+            self.assertEqual(self.click(), [str(self.applications / 'wipeout_oc.desktop')])
 
     def test_the_environment_variable_of_gear_lever_does_the_same(self):
         self.assertEqual(self.click({'DESKTOPINTEGRATION': '1'}), [str(self.desktop / 'WipEout Omega Collection.desktop')])
         self.assertTrue(self.desktop.is_dir())
-        self.assertFalse((self.applications / 'gow3.desktop').exists())
+        self.assertFalse((self.applications / 'wipeout_oc.desktop').exists())
 
 
 if __name__ == '__main__':

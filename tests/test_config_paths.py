@@ -211,7 +211,7 @@ class ConfigPathsTests(ConfigFixture):
 
 
 NATIVE = ROOT / 'out/gpu' / ('settings-paths-test.exe' if sys.platform == 'win32' else 'settings-paths-test')
-PROBE = ROOT / 'out' / ('gow3-probe.exe' if sys.platform == 'win32' else 'gow3-probe')
+PROBE = ROOT / 'out' / ('wipeout_oc-probe.exe' if sys.platform == 'win32' else 'wipeout_oc-probe')
 
 
 @unittest.skipUnless(NATIVE.is_file(), 'build settings-paths-test first')

@@ -237,7 +237,7 @@ static DWORD WINAPI profiler_thread(LPVOID unused) {
  * recorded; the draw recording thread the GPU command thread hands draws to, and the Vulkan
  * recording thread after it, are sampled too.
  * Every second: each thread's CPU ms per frame, then its hottest positions ("self")
- * and the callers most often on its stack ("in"), as guest offsets or gow3-probe.exe+offset.
+ * and the callers most often on its stack ("in"), as guest offsets or wipeout_oc-probe.exe+offset.
  * ponytail: a thread that ran and then blocked inside the millisecond is caught waiting
  * (ntdll); those samples are counted under "waiting" and left out of the lists. */
 enum { CPU_PROFILE_SLOTS=4096, CPU_PROFILE_DEPTH=16, CPU_PROFILE_TOP=16 };

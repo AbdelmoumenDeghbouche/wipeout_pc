@@ -119,7 +119,7 @@ struct Values {
     /// Why FSR 4 cannot run (assets, device features), or null. Set by the renderer.
     std::atomic<const char*> fsr4_problem{nullptr};
     std::atomic<bool> fsr4_supported{false}, fsr411_supported{false};
-    /// DLSS (gow3_dlss.dll, NVIDIA RTX) is ready, or why not (null before the device exists).
+    /// DLSS (wipeout_oc_dlss.dll, NVIDIA RTX) is ready, or why not (null before the device exists).
     std::atomic<bool> dlss_supported{false};
     std::atomic<const char*> dlss_problem{nullptr};
     /// DLSS render preset (NVSDK_NGX_DLSS_Hint_Render_Preset): 0 the driver's default (K for DLAA

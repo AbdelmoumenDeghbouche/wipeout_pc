@@ -1,6 +1,6 @@
 # Packaged port: the prebuilt game binaries (build.sh first), the start-up scripts and the GTK4
 # launcher, with their whole Nix closure and Mesa's Vulkan drivers. `bash packaging/appimage.sh`
-# turns it into an AppImage (Steam Deck); `nix-build packaging` alone gives result/bin/gow3.
+# turns it into an AppImage (Steam Deck); `nix-build packaging` alone gives result/bin/wipeout_oc.
 { pkgs ? import <nixpkgs> { }
   # Store paths the prebuilt binaries load libraries from (their RUNPATHs), written by
   # appimage.sh. Nix only finds references to its inputs, and the binaries were built outside.
@@ -16,10 +16,10 @@ let
   assetDirs = [ "scripts" "patches" "fsr4_shaders" "launcher" ] ++ lib.optional fsr411 "fsr4_411";
   # Only what the package needs (the tree also holds builds, profiles and captures).
   wanted = [
-    "run.sh" "out" "out/gow3-probe" "out/gow3-gpu-capabilities" "out/gpu" "out/gpu/libgow3gpu.so"
+    "run.sh" "out" "out/wipeout_oc-probe" "out/wipeout_oc-gpu-capabilities" "out/gpu" "out/gpu/libwipeout_oc_gpu.so"
   ] ++ assetDirs;
   src = builtins.path {
-    name = "gow3-src";
+    name = "wipeout_oc-src";
     path = root;
     filter = path: type:
       let rel = lib.removePrefix (toString root + "/") (toString path);
@@ -34,7 +34,7 @@ let
   # Fonts: bundled DejaVu and Adwaita plus the host's usual font directories, but not the host's
   # /etc/fonts: on NixOS it names fonts in the host's /nix/store, which the AppImage hides behind
   # its own store in some environments (Steam's FHS sandbox), and the launcher showed boxes.
-  fontsConf = pkgs.writeText "gow3-fonts.conf" ''
+  fontsConf = pkgs.writeText "wipeout_oc-fonts.conf" ''
     <?xml version="1.0"?>
     <!DOCTYPE fontconfig SYSTEM "urn:fontconfig:fonts.dtd">
     <fontconfig>
@@ -59,7 +59,7 @@ let
   '';
 in
 pkgs.stdenv.mkDerivation {
-  pname = "gow3";
+  pname = "wipeout_oc";
   version = "0.1";
   inherit src;
   nativeBuildInputs = [ pkgs.makeShellWrapper pkgs.wrapGAppsHook4 pkgs.gobject-introspection ];
@@ -69,19 +69,19 @@ pkgs.stdenv.mkDerivation {
   dontConfigure = true;
   # The binaries live under share/ (next to the scripts run.sh expects): strip them too, which
   # also drops the compiler and header paths their debug info would keep in the closure.
-  stripDebugList = [ "share/gow3/bin/gpu" ];
+  stripDebugList = [ "share/wipeout_oc/bin/gpu" ];
   # patchelf (RPATH shrinking) corrupts the non-PIE game binary's symbol versions; it finds
   # its library through $ORIGIN/gpu and its other libraries through the build's RUNPATH.
   dontPatchELF = true;
   dontWrapGApps = true; # wrapped once below, together with the launcher's own variables
   installPhase = ''
     runHook preInstall
-    d=$out/share/gow3
+    d=$out/share/wipeout_oc
     mkdir -p $d/bin $out/bin
     cp run.sh $d/
     cp -r scripts patches fsr4_shaders launcher $d/
     # FSR 4.1.1 models only with WIPEOUT_OC_PACKAGE_FSR411=1 (see above); otherwise run.sh finds them in
-    # the data directory (~/.local/share/gow3/fsr4_411).
+    # the data directory (~/.local/share/wipeout_oc/fsr4_411).
     if [ -d fsr4_411 ]; then
       ${pkgs.python3}/bin/python3 - <<'PY'
     import sys
@@ -96,26 +96,26 @@ pkgs.stdenv.mkDerivation {
     PY
       cp -r fsr4_411 $d/
     fi
-    install -m755 out/gow3-probe $d/bin/gow3-probe
-    install -m755 out/gow3-gpu-capabilities $d/bin/gow3-gpu-capabilities
-    install -Dm755 out/gpu/libgow3gpu.so $d/bin/gpu/libgow3gpu.so
+    install -m755 out/wipeout_oc-probe $d/bin/wipeout_oc-probe
+    install -m755 out/wipeout_oc-gpu-capabilities $d/bin/wipeout_oc-gpu-capabilities
+    install -Dm755 out/gpu/libwipeout_oc_gpu.so $d/bin/gpu/libwipeout_oc_gpu.so
     runHook postInstall
   '';
   postFixup = ''
-    # bin/gow3 is a static program (wipeout_oc_entry.c) that clears the host's LD_PRELOAD (Steam's
+    # bin/wipeout_oc is a static program (wipeout_oc_entry.c) that clears the host's LD_PRELOAD (Steam's
     # overlay) and similar before the wrapper's own dynamic programs start.
     mkdir -p $out/libexec
-    gcc -O2 -Wall -Werror -static -L${pkgs.glibc.static}/lib -DTARGET="\"$out/libexec/gow3\"" \
-      ${./wipeout_oc_entry.c} -o $out/bin/gow3
+    gcc -O2 -Wall -Werror -static -L${pkgs.glibc.static}/lib -DTARGET="\"$out/libexec/wipeout_oc\"" \
+      ${./wipeout_oc_entry.c} -o $out/bin/wipeout_oc
     # The game (settings from the data directory's wipeout_oc.ini; legacy copied on first use).
-    makeShellWrapper ${pkgs.python3}/bin/python3 $out/libexec/gow3 \
-      ${common}      --add-flags "$out/share/gow3/launcher/wipeout_oc_vulkan.py ${pkgs.bash}/bin/bash $out/share/gow3/run.sh" \
+    makeShellWrapper ${pkgs.python3}/bin/python3 $out/libexec/wipeout_oc \
+      ${common}      --add-flags "$out/share/wipeout_oc/launcher/wipeout_oc_vulkan.py ${pkgs.bash}/bin/bash $out/share/wipeout_oc/run.sh" \
       --set WIPEOUT_OC_PREBUILT 1 \
       --set PYTHON ${pkgs.python3}/bin/python3 \
       --set WIPEOUT_OC_BUNDLED_VK_DRIVER_FILES ${icds} \
       --prefix PATH : ${lib.makeBinPath [ pkgs.bash pkgs.coreutils ]} \
-      --run "source $out/share/gow3/scripts/environment.sh" \
+      --run "source $out/share/wipeout_oc/scripts/environment.sh" \
       --run 'wipeout_oc_select_data_directory; mkdir -p "''${WIPEOUT_OC_DATA_DIR:-.}"'
   '';
-  meta.mainProgram = "gow3";
+  meta.mainProgram = "wipeout_oc";
 }

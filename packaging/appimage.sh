@@ -7,14 +7,14 @@
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/environment.sh"
 cd -- "$(dirname -- "$0")/.."
-[[ -f out/gow3-probe && -f out/gpu/libgow3gpu.so ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
+[[ -f out/wipeout_oc-probe && -f out/gpu/libwipeout_oc_gpu.so ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
 root=$PWD
 package_fsr411=false
 if [[ ${WIPEOUT_OC_PACKAGE_FSR411:-} == 1 ]]; then package_fsr411=true; fi
 # The libraries' store paths (RUNPATH entries and their closures come along).
 {
     echo '['
-    for elf in out/gow3-probe out/gpu/libgow3gpu.so; do
+    for elf in out/wipeout_oc-probe out/gpu/libwipeout_oc_gpu.so; do
         readelf -d "$elf" | sed -n 's/.*\[\(.*\)\]/\1/p' | tr ':' '\n'
     done | grep -o '^/nix/store/[^/]*' | sort -u | grep -v -- '-nix-shell$' | sed 's/.*/  "&"/'
     echo ']'
@@ -24,5 +24,5 @@ trap 'rm -rf "$work"' EXIT
 (cd "$work" && nix bundle --impure --bundler github:ralismark/nix-appimage \
     --expr "import $root/packaging { packageFsr411 = $package_fsr411; }")
 mkdir -p dist
-install -m755 "$work/gow3.AppImage" dist/wipeout-x86_64.AppImage
+install -m755 "$work/wipeout_oc.AppImage" dist/wipeout-x86_64.AppImage
 ls -lh dist/wipeout-x86_64.AppImage

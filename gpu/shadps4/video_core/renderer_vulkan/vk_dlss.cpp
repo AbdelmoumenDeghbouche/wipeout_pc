@@ -31,7 +31,7 @@ int Dlss::QualityForScale(float scale) {
 #ifdef _WIN32
 
 namespace {
-constexpr wchar_t BridgeName[] = L"gow3_dlss.dll";
+constexpr wchar_t BridgeName[] = L"wipeout_oc_dlss.dll";
 constexpr wchar_t NgxName[] = L"nvngx_dlss.dll";
 
 std::filesystem::path ExecutableDirectory() {
@@ -121,7 +121,7 @@ Dlss::Dlss() : impl{std::make_unique<Impl>()} {
                      : nullptr;
     impl->api = get_api ? get_api() : nullptr;
     if (!impl->api || impl->api->abi != GOW3_DLSS_BRIDGE_ABI) {
-        impl->Disable("gow3_dlss.dll is missing or from another version");
+        impl->Disable("wipeout_oc_dlss.dll is missing or from another version");
         return;
     }
     // NGX writes its logs and model updates here: beside the saves and shader caches.

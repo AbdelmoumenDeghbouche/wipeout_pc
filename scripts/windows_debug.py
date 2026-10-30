@@ -186,9 +186,9 @@ def main():
                    f'& {ps_quote(python)} -u run.py; exit $LASTEXITCODE')
         powershell(setup + command, logs / 'run.log')
     else:
-        executable = windows_dir + '\\out\\gow3-probe.exe'
+        executable = windows_dir + '\\out\\wipeout_oc-probe.exe'
         debugger = msys + '\\clang64\\bin\\gdb.exe'
-        command = (setup + '$games=@(Get-Process -Name gow3-probe -ErrorAction SilentlyContinue | '
+        command = (setup + '$games=@(Get-Process -Name wipeout_oc-probe -ErrorAction SilentlyContinue | '
                    f'Where-Object {{$_.Path -eq {ps_quote(executable)}}}); '
                    'if ($games.Count -ne 1) { throw "Start exactly one debug game with the run command first" }; '
                    f'& {ps_quote(debugger)} -nx -q {ps_quote(executable)} -p $games[0].Id; exit $LASTEXITCODE')

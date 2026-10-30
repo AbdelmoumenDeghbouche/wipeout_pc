@@ -4,7 +4,7 @@
 # Usage: wipeout-x86_64.AppImage [--play]
 set -euo pipefail
 here=$(dirname -- "$(readlink -f -- "$0")")
-share=$here/usr/share/gow3
+share=$here/usr/share/wipeout_oc
 
 export LD_LIBRARY_PATH="$here/usr/lib${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
 source "$share/scripts/environment.sh"
@@ -13,4 +13,4 @@ wipeout_oc_select_data_directory
 mkdir -p "${WIPEOUT_OC_DATA_DIR:-.}"
 
 cd -- "$share"
-exec "$share/gow3-launcher" "$@"
+exec "$share/wipeout_oc-launcher" "$@"

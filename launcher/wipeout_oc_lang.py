@@ -889,7 +889,7 @@ EXTRA = {
         'The shortcut "{}" was updated in Steam (accounts: {}), with its icon, capsules, background and logo. Open Steam to see it in the library.': 'O atalho "{}" foi atualizado na Steam (contas: {}), com ícone, capas, fundo e logotipo. Abra a Steam para vê-lo na biblioteca.',
         'The shortcut "{}" was added to Steam (accounts: {}), with its icon, capsules, background and logo. Open Steam to see it in the library.': 'O atalho "{}" foi adicionado à Steam (contas: {}), com ícone, capas, fundo e logotipo. Abra a Steam para vê-lo na biblioteca.',
         'Menu entry and icon (AppImage)': 'Entrada no menu e ícone (AppImage)',
-        'Creates gow3.desktop in ~/.local/share/applications so the launcher and the game show their icon in the dock and the menu. Turning it off removes the entry.': 'Cria o gow3.desktop em ~/.local/share/applications para o launcher e o jogo mostrarem o ícone no dock e no menu. Desligar remove a entrada.',
+        'Creates wipeout_oc.desktop in ~/.local/share/applications so the launcher and the game show their icon in the dock and the menu. Turning it off removes the entry.': 'Cria o wipeout_oc.desktop em ~/.local/share/applications para o launcher e o jogo mostrarem o ícone no dock e no menu. Desligar remove a entrada.',
         'The game dump is incomplete. Missing or empty files:\n\n{}\n\nDump the game again, or copy these files from a complete dump.': 'O dump do jogo está incompleto. Arquivos faltando ou vazios:\n\n{}\n\nFaça o dump do jogo de novo, ou copie esses arquivos de um dump completo.',
         'The files in {} look like a PKG extraction: the system files (param.sfo, icon0.png, pic1.png and the rest) are in\n\n{}\n\nCopy all of them into its sce_sys folder now? Files already there are kept.': 'Os arquivos em {} parecem vir de um PKG extraído: os arquivos de sistema (param.sfo, icon0.png, pic1.png e os demais) estão em\n\n{}\n\nCopiar todos para a pasta sce_sys dele agora? Os arquivos que já estão lá são mantidos.',
         'Could not copy the files: {}': 'Não foi possível copiar os arquivos: {}',
@@ -942,6 +942,7 @@ EXTRA = {
         'Later': 'Depois',
         'UPDATE NOW': 'ATUALIZAR AGORA',
         'Release page': 'Página da versão',
+        'The release page opens in your browser.': 'A página de versões abre no navegador.',
         'Downloading version {}…': 'Baixando a versão {}…',
         'Downloading version {}… {} of {} MB': 'Baixando a versão {}… {} de {} MB',
         'Unpacking…': 'Descompactando…',
@@ -949,7 +950,7 @@ EXTRA = {
         'PS4 Pro mode (experimental)': 'Modo PS4 Pro (experimental)',
         'The game runs as on a PS4 Pro, with its Pro graphics. Menus and a race start work; other events are not tested yet. Turn it off if something looks wrong.': 'O jogo roda como num PS4 Pro, com os gráficos do Pro. Os menus e o início de uma corrida funcionam; os outros eventos ainda não foram testados. Desligue se algo parecer errado.',
         'Anti-aliasing (experimental)': 'Antisserrilhamento (experimental)',
-        'DLAA needs gow3_dlss.dll and nvngx_dlss.dll next to gow3-probe.exe.': 'O DLAA precisa de gow3_dlss.dll e nvngx_dlss.dll ao lado de gow3-probe.exe.',
+        'DLAA needs wipeout_oc_dlss.dll and nvngx_dlss.dll next to wipeout_oc-probe.exe.': 'O DLAA precisa de wipeout_oc_dlss.dll e nvngx_dlss.dll ao lado de wipeout_oc-probe.exe.',
         'DLAA preset': 'Predefinição do DLAA',
         'F10 switches the anti-aliasing (off, FSR 3.1, DLAA)': 'F10 alterna o antisserrilhamento (desligado, FSR 3.1, DLAA)',
         'For comparing them in the same scene. Needs Graphics > Temporal anti-aliasing on; DLAA only where the game found DLSS working.': 'Para compará-los na mesma cena. Precisa de Gráficos > Antisserrilhamento temporal ligado; DLAA só onde o jogo encontrou o DLSS funcionando.',
@@ -1238,8 +1239,8 @@ EXTRA = {
         'The shortcut "{}" was added to Steam (accounts: {}), with its icon, capsules, background and logo. Open Steam to see it in the library.':
             'El acceso directo "{}" se añadió a Steam (cuentas: {}), con su icono, cápsulas, fondo y logotipo. Abre Steam para verlo en la biblioteca.',
         'Menu entry and icon (AppImage)': 'Entrada de menú e icono (AppImage)',
-        'Creates gow3.desktop in ~/.local/share/applications so the launcher and the game show their icon in the dock and the menu. Turning it off removes the entry.':
-            'Crea gow3.desktop en ~/.local/share/applications para que el lanzador y el juego muestren su icono en el dock y en el menú. Al desactivarlo se elimina la entrada.',
+        'Creates wipeout_oc.desktop in ~/.local/share/applications so the launcher and the game show their icon in the dock and the menu. Turning it off removes the entry.':
+            'Crea wipeout_oc.desktop en ~/.local/share/applications para que el lanzador y el juego muestren su icono en el dock y en el menú. Al desactivarlo se elimina la entrada.',
         'The game dump is incomplete. Missing or empty files:\n\n{}\n\nDump the game again, or copy these files from a complete dump.':
             'El volcado del juego está incompleto. Archivos que faltan o están vacíos:\n\n{}\n\nVuelve a volcar el juego o copia esos archivos de un volcado completo.',
         'The files in {} look like a PKG extraction: the system files (param.sfo, icon0.png, pic1.png and the rest) are in\n\n{}\n\nCopy all of them into its sce_sys folder now? Files already there are kept.':
@@ -1302,6 +1303,7 @@ EXTRA = {
         'Later': 'Más tarde',
         'UPDATE NOW': 'ACTUALIZAR AHORA',
         'Release page': 'Página de la versión',
+        'The release page opens in your browser.': 'La página de versiones se abre en tu navegador.',
         'Downloading version {}…': 'Descargando la versión {}…',
         'Downloading version {}… {} of {} MB': 'Descargando la versión {}… {} de {} MB',
         'Unpacking…': 'Descomprimiendo…',
@@ -1309,7 +1311,7 @@ EXTRA = {
         'PS4 Pro mode (experimental)': 'Modo PS4 Pro (experimental)',
         'The game runs as on a PS4 Pro, with its Pro graphics. Menus and a race start work; other events are not tested yet. Turn it off if something looks wrong.': 'El juego funciona como en una PS4 Pro, con los gráficos de Pro. Los menús y el inicio de una carrera funcionan; los demás eventos aún no se han probado. Desactívalo si algo se ve mal.',
         'Anti-aliasing (experimental)': 'Antialiasing (experimental)',
-        'DLAA needs gow3_dlss.dll and nvngx_dlss.dll next to gow3-probe.exe.': 'DLAA necesita gow3_dlss.dll y nvngx_dlss.dll junto a gow3-probe.exe.',
+        'DLAA needs wipeout_oc_dlss.dll and nvngx_dlss.dll next to wipeout_oc-probe.exe.': 'DLAA necesita wipeout_oc_dlss.dll y nvngx_dlss.dll junto a wipeout_oc-probe.exe.',
         'DLAA preset': 'Preajuste de DLAA',
         'F10 switches the anti-aliasing (off, FSR 3.1, DLAA)': 'F10 cambia el antialiasing (desactivado, FSR 3.1, DLAA)',
         'For comparing them in the same scene. Needs Graphics > Temporal anti-aliasing on; DLAA only where the game found DLSS working.': 'Para compararlos en la misma escena. Necesita Gráficos > Antialiasing temporal activado; DLAA solo donde el juego encontró DLSS funcionando.',

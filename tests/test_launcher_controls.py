@@ -1,4 +1,6 @@
 import os
+import io
+import json
 from pathlib import Path
 import queue
 import struct
@@ -6,6 +8,7 @@ import sys
 import tempfile
 import types
 import unittest
+import zipfile
 from unittest import mock
 
 from paths import ROOT
@@ -691,7 +694,7 @@ class GpuChoiceTest(unittest.TestCase):
         from unittest import mock
         with mock.patch.object(launcher, 'find_tool', return_value=None):
             self.assertEqual(launcher.list_gpus(), [])
-        with mock.patch.object(launcher, 'find_tool', return_value='gow3-gpu-capabilities.exe'):
+        with mock.patch.object(launcher, 'find_tool', return_value='wipeout_oc-gpu-capabilities.exe'):
             with mock.patch.object(launcher.subprocess, 'run', side_effect=subprocess.TimeoutExpired('x', 5)):
                 self.assertEqual(launcher.list_gpus(), [])
             with mock.patch.object(launcher.subprocess, 'run', side_effect=OSError):
@@ -783,7 +786,7 @@ class DlssDownloadTest(unittest.TestCase):
         self.assertEqual(len(launcher.DLSS_RUNTIME_SHA256), 64)
 
     def test_the_release_builds_the_bridge_from_the_same_sdk(self):
-        # gow3_dlss.dll and the downloaded nvngx_dlss.dll come from the same NVIDIA SDK release.
+        # wipeout_oc_dlss.dll and the downloaded nvngx_dlss.dll come from the same NVIDIA SDK release.
         workflow = (ROOT / '.github/workflows/windows-zip.yml').read_text(encoding='utf-8')
         self.assertIn(f'--branch v{launcher.DLSS_SDK_VERSION} ', workflow)
         self.assertIn('DLSS_REQUIRED=1', workflow)
@@ -826,7 +829,7 @@ class ReleaseVersionTest(unittest.TestCase):
     def test_update_check_at_start_retries(self):
         # Two network failures, then an answer: offered. Three failures: nothing, and no error box.
         app = types.SimpleNamespace(ui_calls=queue.Queue())
-        for results, offered in (([OSError(), OSError(), ('9.9.9', 'u', 'p', '')], 1), ([OSError()] * 3, 0)):
+        for results, offered in (([OSError(), OSError(), ('9.9.9', 'p', '')], 1), ([OSError()] * 3, 0)):
             answers = iter(results)
 
             def release():
@@ -840,15 +843,54 @@ class ReleaseVersionTest(unittest.TestCase):
             while not app.ui_calls.empty():
                 app.ui_calls.get()
 
-    def test_update_without_its_zip_asks_again(self):
-        # A release offered before its zip was built: UPDATE NOW asks GitHub again and says to
-        # wait, instead of opening the release page (#61).
-        app = types.SimpleNamespace(process=None, messagebox=mock.Mock(), update_progress=mock.Mock())
-        with mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'open_url') as opened,                 mock.patch.object(launcher, 'latest_release', return_value=('9.9.9', None, 'p', '')):
-            launcher.Launcher.install_update(app, '9.9.9', None, 'p')
-        opened.assert_not_called()
-        app.messagebox.showinfo.assert_called_once()
-        app.update_progress.assert_not_called()
+    def release_response(self, assets=None):
+        release = {'tag_name': 'windows-v9.9.9', 'html_url': launcher.RELEASES_PAGE,
+                   'body': "## What's new\n\nA release note.\n"}
+        if assets is not None:
+            release['assets'] = assets
+        return io.BytesIO(json.dumps(release).encode())
+
+    def test_release_metadata_does_not_require_an_asset_or_download_url(self):
+        with mock.patch.object(launcher.urllib.request, 'urlopen', return_value=self.release_response()):
+            self.assertEqual(launcher.latest_release(), ('9.9.9', launcher.RELEASES_PAGE, 'A release note.'))
+
+    def test_new_version_without_zip_is_offered_at_start(self):
+        app = types.SimpleNamespace(ui_calls=queue.Queue(), offer_update=mock.Mock(), update_dialog=mock.Mock())
+        with mock.patch.object(launcher.urllib.request, 'urlopen', return_value=self.release_response()), \
+                mock.patch.object(launcher.time, 'sleep'):
+            launcher.Launcher.check_update(app)
+        while not app.ui_calls.empty():
+            app.ui_calls.get()()
+        app.offer_update.assert_called_once_with('9.9.9', launcher.RELEASES_PAGE, 'A release note.')
+
+    def test_frozen_primary_update_action_only_opens_the_original_release_page(self):
+        app = object.__new__(launcher.Launcher)
+        app.tk, app.ttk, app.root = mock.Mock(), mock.Mock(), mock.Mock()
+        app.root.winfo_rootx.return_value = app.root.winfo_rooty.return_value = 0
+        app.root.winfo_width.return_value, app.root.winfo_height.return_value = 800, 600
+        window = app.tk.Toplevel.return_value
+        window.winfo_reqwidth.return_value, window.winfo_reqheight.return_value = 640, 480
+        app.update_window, app.process = None, None
+        app.font, app.heading_font, app.px = mock.Mock(), mock.Mock(), lambda value: value
+        app.messagebox, app.update_progress, app.ui_calls = mock.Mock(), mock.Mock(), queue.Queue()
+        assets = [{'name': 'wipeout-windows.zip', 'browser_download_url': 'https://example.invalid/port.zip'}]
+        with mock.patch.object(launcher.urllib.request, 'urlopen', return_value=self.release_response(assets)):
+            release = launcher.latest_release()
+        launcher.Launcher.update_dialog(app, *release)
+        primary = next(c.kwargs['command'] for c in app.ttk.Button.call_args_list
+                       if c.kwargs.get('style') == 'Play.TButton')
+        with mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'open_url') as opened, \
+                mock.patch.object(launcher.subprocess, 'Popen') as spawned, \
+                mock.patch.object(launcher.urllib.request, 'urlopen') as downloaded, \
+                mock.patch.object(launcher.threading, 'Thread') as thread, \
+                mock.patch.object(launcher.shutil, 'copytree') as copied, \
+                mock.patch.object(launcher.shutil, 'rmtree') as removed, \
+                mock.patch.object(zipfile, 'ZipFile') as extracted, \
+                mock.patch.object(Path, 'mkdir') as created, mock.patch('builtins.open') as written:
+            primary()
+        opened.assert_called_once_with(launcher.RELEASES_PAGE)
+        for operation in (spawned, downloaded, thread, copied, removed, extracted, created, written):
+            operation.assert_not_called()
 
     def test_whats_new_is_cut_from_the_release_note(self):
         body = "## What's new\n\n**Pop-up.** Click `UPDATE NOW`.\n- one\n\n## All features\n\n- everything\n"
@@ -877,7 +919,7 @@ class PadStyleTest(unittest.TestCase):
         self.assertEqual(list(launcher.PAD_STYLES), ['playstation', 'xbox', 'nintendo'])
 
     def test_connected_gamepad_skips_a_probe_without_its_dlls(self):
-        on_disk = lambda path: path.name in ('gow3-probe.exe', 'gow3-probe')  # no SDL3.dll anywhere
+        on_disk = lambda path: path.name in ('wipeout_oc-probe.exe', 'wipeout_oc-probe')  # no SDL3.dll anywhere
         with mock.patch.object(launcher, 'WINDOWS', True), \
                 mock.patch.object(launcher.Path, 'is_file', on_disk), \
                 mock.patch.object(launcher.subprocess, 'run') as run:

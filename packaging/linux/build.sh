@@ -6,15 +6,15 @@
 set -euo pipefail
 source "$(dirname -- "${BASH_SOURCE[0]}")/../../scripts/environment.sh"
 cd -- "$(dirname -- "$0")/../.."
-[[ -f out/gow3-probe && -f out/gpu/libgow3gpu.so ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
+[[ -f out/wipeout_oc-probe && -f out/gpu/libwipeout_oc_gpu.so ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
 
 appdir=out/AppDir
 rm -rf "$appdir"
-share=$appdir/usr/share/gow3
+share=$appdir/usr/share/wipeout_oc
 mkdir -p "$share/bin/gpu" "$appdir/usr/lib"
 
-install -m755 out/gow3-probe out/gow3-gpu-capabilities "$share/bin/"
-install -m755 out/gpu/libgow3gpu.so "$share/bin/gpu/"
+install -m755 out/wipeout_oc-probe out/wipeout_oc-gpu-capabilities "$share/bin/"
+install -m755 out/gpu/libwipeout_oc_gpu.so "$share/bin/gpu/"
 cp run.py "$share/"
 cp -r scripts patches "$share/"
 mkdir -p "$share/launcher"
@@ -35,14 +35,14 @@ for module in argparse base64 collections hashlib json re shutil struct tempfile
     hidden+=(--hidden-import "$module")
 done
 python3 -c 'import iced_x86' || { echo 'Need iced-x86: pip install iced-x86==1.21.0' >&2; exit 1; }
-python3 -m PyInstaller --noconfirm --clean --log-level WARN --windowed --name gow3-launcher \
+python3 -m PyInstaller --noconfirm --clean --log-level WARN --windowed --name wipeout_oc-launcher \
     --distpath out/pyi-dist --workpath out/pyi-work --specpath out/pyi-work \
     --paths "$PWD/scripts" "${hidden[@]}" "$PWD/launcher/wipeout_oc_launcher_win.py"
-cp -r out/pyi-dist/gow3-launcher/. "$share/"
+cp -r out/pyi-dist/wipeout_oc-launcher/. "$share/"
 find "$share" -name __pycache__ -prune -exec rm -r {} +
 install -m755 packaging/linux/AppRun "$appdir/AppRun"
-install -m644 packaging/linux/wipeout_oc.desktop "$appdir/gow3.desktop"
-install -m644 "$icon" "$appdir/gow3.png"
+install -m644 packaging/linux/wipeout_oc.desktop "$appdir/wipeout_oc.desktop"
+install -m644 "$icon" "$appdir/wipeout_oc.png"
 
 # Host-provided libraries: bundling any of these breaks drivers or the display connection.
 excluded='^(ld-linux.*|libc|libm|libdl|librt|libpthread|libresolv|libutil|libnsl|libanl|libvulkan|libGL|libGLX|libGLdispatch|libEGL|libOpenGL|libgbm|libdrm.*|libX11|libX11-xcb|libxcb.*|libXau|libXdmcp|libXext|libXfixes|libXrender|libXi|libXcursor|libXrandr|libwayland-.*|libasound|libudev|libpulse.*|libfontconfig|libfreetype|libOpenCL|libva.*|libvdpau|libvpl|libnvidia-.*|libcuda|libz|libstdc\+\+|libgcc_s)\.so'
@@ -60,12 +60,12 @@ bundle() {
         bundle "$lib"
     done < <(ldd "$elf")
 }
-bundle out/gpu/libgow3gpu.so
-bundle out/gow3-probe
+bundle out/gpu/libwipeout_oc_gpu.so
+bundle out/wipeout_oc-probe
 # libstdc++/libgcc/libz come from the build host: the same glibc generation as the one that runs
 # the AppImage is assumed, and a newer libstdc++ than Mesa's is the safe direction.
 for name in libstdc++.so.6 libgcc_s.so.1; do
-    install -m755 "$(ldd out/gpu/libgow3gpu.so | awk -v n="$name" '$1==n{print $3}')" "$appdir/usr/lib/$name"
+    install -m755 "$(ldd out/gpu/libwipeout_oc_gpu.so | awk -v n="$name" '$1==n{print $3}')" "$appdir/usr/lib/$name"
 done
 # $ORIGIN/gpu is already the probe's RUNPATH; the libraries it needs sit in usr/lib via AppRun.
 find "$appdir/usr/lib" -name '*.so*' -exec strip --strip-unneeded {} + 2>/dev/null || true

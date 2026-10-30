@@ -4,7 +4,8 @@ source "$(dirname -- "${BASH_SOURCE[0]}")/../scripts/environment.sh"
 # WIPEOUT_OC_TOGGLE_FILE (out/pad, out/toggles) and enters the level (title: cross, cross).
 cd -- "$(dirname -- "$0")/.."
 T=tools
-pkill -x gow3-probe; sleep 2; pkill -9 -x gow3-probe; sleep 1
+# Linux comm is limited to 15 characters: wipeout_oc-probe becomes wipeout_oc-prob.
+pkill -x wipeout_oc-prob; sleep 2; pkill -9 -x wipeout_oc-prob; sleep 1
 : > out/pad; echo ${BASE_MASK:-0} > out/toggles
 WIPEOUT_OC_PAD_FILE=$PWD/out/pad WIPEOUT_OC_FRAME_STATS=1 WIPEOUT_OC_TOGGLE_FILE=$PWD/out/toggles WIPEOUT_OC_FPS_LIMIT=0 \
     ${CPUS:+taskset -c $CPUS} setsid stdbuf -oL -eL bash run.sh "$@" > out/session.log 2>&1 < /dev/null &

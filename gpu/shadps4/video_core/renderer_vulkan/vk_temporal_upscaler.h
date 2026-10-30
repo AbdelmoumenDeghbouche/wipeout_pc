@@ -169,7 +169,7 @@ private:
     bool RecordReactive(vk::ImageView color_view);
     /// FSR 4 is selected, possible in this session (not GOW3_RENDER_RES) and has not failed.
     [[nodiscard]] bool UseFsr4() const;
-    /// gow3: DLSS selected and the bridge is ready (NVIDIA RTX, gow3_dlss.dll).
+    /// gow3: DLSS selected and the bridge is ready (NVIDIA RTX, wipeout_oc_dlss.dll).
     [[nodiscard]] bool UseDlss() const;
     /// Records DLSS into `cmdbuf` (output in General). `hdr`: linear scene color input.
     bool RecordDlss(vk::CommandBuffer cmdbuf, const Dlss::Resource& color,

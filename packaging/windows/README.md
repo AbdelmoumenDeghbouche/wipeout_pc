@@ -26,7 +26,7 @@ Then, in the repository, build with MSYS2 CLANG64:
 
 ```bash
 git submodule update --init --recursive
-bash build.sh                      # out/gow3-probe.exe, out/gow3-gpu-capabilities.exe
+bash build.sh                      # out/wipeout_oc-probe.exe, out/wipeout_oc-gpu-capabilities.exe
 bash packaging/windows/package.sh  # dist/wipeout-windows/ and .zip: WipEout.exe + DLLs
 ```
 
@@ -59,7 +59,7 @@ patch and texture fix are mutually exclusive. See the root README for tested bui
 From a source tree, `run.py` adds `C:\msys64\clang64\bin` (or `$MSYS2_ROOT`) to `PATH` for DLLs.
 
 Temporal anti-aliasing (Graphics > Temporal anti-aliasing) offers FSR 3.1 and, on NVIDIA RTX cards,
-DLAA. The package ships `bin/gow3_dlss.dll` (the bridge to NVIDIA's DLSS SDK, built by
+DLAA. The package ships `bin/wipeout_oc_dlss.dll` (the bridge to NVIDIA's DLSS SDK, built by
 `build_dlss.sh` with MSVC) but never NVIDIA's `nvngx_dlss.dll`: the launcher's **Download NVIDIA
 DLSS** button fetches it from NVIDIA's GitHub (the SDK release in `DLSS_SDK_VERSION`) and keeps it
 only when its SHA-256 matches. RCAS sharpening remains available. The FSR asset tools in the tree
@@ -72,8 +72,8 @@ for differences between published packages and current source builds, including 
 The launcher texts are written in English with the Russian beside them; the other languages
 are in `launcher/wipeout_oc_lang.py` (one list per language in the order of `KEYS`; a missing or
 empty text falls back to English). The icon (`launcher/wipeout_oc.ico`/`.png`) is drawn by
-`packaging/windows/make_icon.py` and built into `WipEout.exe`, `gow3-probe.exe` (the game
-window) and `gow3-gpu-capabilities.exe`.
+`packaging/windows/make_icon.py` and built into `WipEout.exe`, `wipeout_oc-probe.exe` (the game
+window) and `wipeout_oc-gpu-capabilities.exe`.
 
 ## What is different from Linux
 
@@ -85,7 +85,7 @@ window) and `gow3-gpu-capabilities.exe`.
 | SIGSEGV handler, `sigsetjmp` recovery | Vectored exception handler; `gow3_setjmp`/`gow3_longjmp` (`src/compat_win.c`) restore all Win64 callee-saved registers without SEH unwinding (guest frames have no unwind data; clang's `__builtin_longjmp` restores a wrong frame pointer on Win64). |
 | Guest thread stacks from `runtime_low_map` | Windows allocates them, fully committed (`pthread_attr_setstacksize`): guest code has no stack probes and would skip the guard page. The main thread stack is 16 MiB committed. |
 | glibc `nanosleep`, monotonic condition variables | High-resolution waitable timers (`compat_sleep_ns`; winpthreads' sleep rounds to 15.6 ms); semaphore deadlines use `CLOCK_REALTIME` (winpthreads rejects monotonic condition variables). |
-| `libgow3gpu.so` | `libgow3gpu.a`, linked into `gow3-probe.exe` by CMake (`gpu/CMakeLists.txt`), with a manifest for UTF-8 paths and long paths. |
+| `libwipeout_oc_gpu.so` | `libwipeout_oc_gpu.a`, linked into `wipeout_oc-probe.exe` by CMake (`gpu/CMakeLists.txt`), with a manifest for UTF-8 paths and long paths. |
 | `execlp bash run.sh` (in-game restart) | `run.py` puts its command line in `WIPEOUT_OC_RESTART_COMMAND`; the new launch waits for the old process (`--after PID`). The launcher keeps the game in a job object. |
 | Mod overlay with symlinks | Symlinks when allowed (Developer Mode), else junctions for folders and hard links for files. On a network share (SMB), which refuses junctions too, folders are mirrored with hard links so the game still reads real files through the view. |
 

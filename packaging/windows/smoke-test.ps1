@@ -1,5 +1,5 @@
 # Opens dist/wipeout-windows.zip as a player gets it, on a Windows without MSYS2: no game or player
-# file ships, gow3-probe.exe finds every DLL it links, the frozen launcher imports what the
+# file ships, wipeout_oc-probe.exe finds every DLL it links, the frozen launcher imports what the
 # preparation scripts need and its window stays open (.github/workflows/windows-zip.yml).
 # Usage: powershell -File smoke-test.ps1 path\to\wipeout-windows.zip
 param([Parameter(Mandatory)][string]$Package)
@@ -20,15 +20,15 @@ $found = Get-ChildItem -LiteralPath $tree -Recurse -Force |
 if ($found) { $failed += "files that must not ship: $($found.FullName -join ', ')" }
 
 # A missing DLL stops the probe before main (0xC0000135).
-$probe = Start-Process -FilePath (Join-Path $tree 'bin\gow3-probe.exe') -ArgumentList '--cpu-features' `
+$probe = Start-Process -FilePath (Join-Path $tree 'bin\wipeout_oc-probe.exe') -ArgumentList '--cpu-features' `
     -NoNewWindow -PassThru -RedirectStandardOutput (Join-Path $work 'probe.log')
 $null = $probe.Handle  # without it ExitCode stays empty after WaitForExit(timeout)
 if (-not $probe.WaitForExit(60000)) {
     Stop-Process -Id $probe.Id -Force
     $probe.WaitForExit()
-    $failed += 'gow3-probe.exe --cpu-features did not finish in 60 s'
+    $failed += 'wipeout_oc-probe.exe --cpu-features did not finish in 60 s'
 } elseif ($probe.ExitCode -ne 0) {
-    $failed += ('gow3-probe.exe --cpu-features exited 0x{0:X}' -f $probe.ExitCode)
+    $failed += ('wipeout_oc-probe.exe --cpu-features exited 0x{0:X}' -f $probe.ExitCode)
 }
 Get-Content (Join-Path $work 'probe.log')
 

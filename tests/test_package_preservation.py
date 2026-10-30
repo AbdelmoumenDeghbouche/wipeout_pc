@@ -18,7 +18,7 @@ class PackagePreservationTests(unittest.TestCase):
             (self.root / folder).mkdir(parents=True)
         shutil.copyfile(ROOT / 'packaging/windows/package.sh', self.root / 'packaging/windows/package.sh')
         (self.root / 'msys2-env.sh').write_text(':\n')
-        for name in ('out/gow3-probe.exe', 'out/gow3-gpu-capabilities.exe', 'out/gow3-play.exe',
+        for name in ('out/wipeout_oc-probe.exe', 'out/wipeout_oc-gpu-capabilities.exe', 'out/wipeout_oc-play.exe',
                      'launcher/wipeout_oc.ico', 'launcher/wipeout_oc.png', 'launcher/RussoOne-Regular.ttf',
                      'launcher/OFL-RussoOne.txt', 'scripts/discord_presence.py', 'run.py', 'LICENSE',
                      'README.md', 'packaging/windows/README-Windows.txt'):

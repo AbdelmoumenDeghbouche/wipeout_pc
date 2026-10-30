@@ -24,11 +24,11 @@ class DataDirectoryTests(unittest.TestCase):
         self.xdg = self.root / 'xdg'
         self.xdg.mkdir()
         self.app = self.root / 'app'
-        self.share = self.app / 'usr/share/gow3'
+        self.share = self.app / 'usr/share/wipeout_oc'
         (self.share / 'scripts').mkdir(parents=True)
         shutil.copyfile(ROOT / 'scripts/environment.sh', self.share / 'scripts/environment.sh')
         shutil.copyfile(ROOT / 'packaging/linux/AppRun', self.app / 'AppRun')
-        launcher = self.share / 'gow3-launcher'
+        launcher = self.share / 'wipeout_oc-launcher'
         launcher.write_text('#!/usr/bin/env bash\nprintf "%s" "$WIPEOUT_OC_DATA_DIR"\n'
                             '[[ ${PRINT_CONFIG:-} == 1 ]] && printf "|%s" "${WIPEOUT_OC_CONFIG-<missing>}"\nexit 0\n')
         launcher.chmod(0o755)
@@ -40,7 +40,7 @@ class DataDirectoryTests(unittest.TestCase):
         if nix:
             text = (ROOT / 'packaging/default.nix').read_text()
             command = re.findall(r"--run '([^\n]+)'", text)[-1].replace("''${", '${')
-            command = command.replace('$out/share/gow3', str(self.share))
+            command = command.replace('$out/share/wipeout_oc', str(self.share))
             args = [shutil.which('bash'), '-c', 'source "$1"; ' + command + '; printf "%s" "$WIPEOUT_OC_DATA_DIR"',
                     'nix-data-test', str(self.share / 'scripts/environment.sh')]
         else:

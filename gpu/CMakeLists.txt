@@ -1,7 +1,7 @@
 # gow3 GPU library: shadPS4 video core + shader recompiler + Gnm/VideoOut
 # drivers, adapted to the native_probe runtime through shims in shim/.
 cmake_minimum_required(VERSION 3.24)
-project(gow3gpu LANGUAGES C CXX)
+project(wipeout_oc_gpu LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -13,9 +13,9 @@ add_compile_options(-fno-omit-frame-pointer)
 
 # gow3: link-time optimization (GOW3_LTO, default on) and profile-guided optimization
 # (GOW3_PGO: off, generate = instrumented build writing into GOW3_PGO_DIR, use = build with that
-# profile). Covers gow3gpu and the static libraries linked into it. No -march: the same build
+# profile). Covers wipeout_oc_gpu and the static libraries linked into it. No -march: the same build
 # runs on the Steam Deck.
-option(GOW3_LTO "Link-time optimization of gow3gpu" ON)
+option(GOW3_LTO "Link-time optimization of wipeout_oc_gpu" ON)
 set(GOW3_PGO "off" CACHE STRING "Profile-guided optimization: off, generate, use")
 set(GOW3_PGO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../pgo" CACHE PATH "Profile directory")
 if (GOW3_LTO)
@@ -145,51 +145,51 @@ set(COMMON
 file(GLOB AVPLAYER CONFIGURE_DEPENDS shadps4/core/libraries/avplayer/*.cpp)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
 file(GLOB SHIM_SOURCES CONFIGURE_DEPENDS shim/*.cpp shim/*/*.cpp)
-# Windows: a DLL cannot leave the runtime_* symbols for gow3-probe.exe to resolve, so the
+# Windows: a DLL cannot leave the runtime_* symbols for wipeout_oc-probe.exe to resolve, so the
 # library is static there and linked into the executable.
 if (WIN32)
     set(GOW3GPU_KIND STATIC)
 else()
     set(GOW3GPU_KIND SHARED)
 endif()
-add_library(gow3gpu ${GOW3GPU_KIND} ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
+add_library(wipeout_oc_gpu ${GOW3GPU_KIND} ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
     shadps4/core/libraries/gnmdriver/gnmdriver.cpp
     shadps4/core/libraries/videoout/driver.cpp shadps4/core/libraries/videoout/video_out.cpp
     shadps4/core/libraries/kernel/equeue.cpp ${AVPLAYER}
     shadps4/core/libraries/videodec/video_utils.cpp)
-add_dependencies(gow3gpu host_shaders)
+add_dependencies(wipeout_oc_gpu host_shaders)
 # In-game settings menu: Dear ImGui (third_party/imgui, MIT) with its Vulkan backend, and an
 # embedded Cyrillic font (third_party/fonts).
-target_sources(gow3gpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
+target_sources(wipeout_oc_gpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
     third_party/imgui/backends/imgui_impl_vulkan.cpp)
-target_include_directories(gow3gpu PRIVATE third_party/imgui third_party/imgui/backends)
-target_compile_definitions(gow3gpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+target_include_directories(wipeout_oc_gpu PRIVATE third_party/imgui third_party/imgui/backends)
+target_compile_definitions(wipeout_oc_gpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
     GOW3_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
 set_source_files_properties(shim/wipeout_oc_overlay.cpp PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf)
-target_include_directories(gow3gpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include)
-target_compile_definitions(gow3gpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
-target_compile_options(gow3gpu PRIVATE -Wno-deprecated-declarations -Wno-missing-field-initializers)
-# Runtime symbols (runtime_memory_*, runtime_process_*) resolve against gow3-probe.
+target_include_directories(wipeout_oc_gpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include)
+target_compile_definitions(wipeout_oc_gpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
+target_compile_options(wipeout_oc_gpu PRIVATE -Wno-deprecated-declarations -Wno-missing-field-initializers)
+# Runtime symbols (runtime_memory_*, runtime_process_*) resolve against wipeout_oc-probe.
 if (NOT WIN32)
-    target_link_options(gow3gpu PRIVATE -Wl,--allow-shlib-undefined)
+    target_link_options(wipeout_oc_gpu PRIVATE -Wl,--allow-shlib-undefined)
 endif()
-target_link_libraries(gow3gpu PRIVATE ffx-vulkan::portable ffx-vulkan::fsr4-v07-vulkan)
-target_link_libraries(gow3gpu PUBLIC Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum
+target_link_libraries(wipeout_oc_gpu PRIVATE ffx-vulkan::portable ffx-vulkan::fsr4-v07-vulkan)
+target_link_libraries(wipeout_oc_gpu PUBLIC Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum
     tsl::robin_map GPUOpen::VulkanMemoryAllocator PkgConfig::XXHASH PkgConfig::SDL3 PkgConfig::FFMPEG miniz::miniz Zydis::Zydis sirit)
-target_include_directories(gow3gpu PRIVATE third_party/xbyak)
+target_include_directories(wipeout_oc_gpu PRIVATE third_party/xbyak)
 if (WIN32)
     # Guest code is entered with the System V ABI; NOMINMAX/WIN32_LEAN_AND_MEAN keep
     # <windows.h> out of the way of std::min/max and the Vulkan/SDL headers.
-    target_compile_definitions(gow3gpu PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_compile_options(gow3gpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/wipeout_oc_win_compat.h)
-    target_link_libraries(gow3gpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh)
+    target_compile_definitions(wipeout_oc_gpu PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(wipeout_oc_gpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/wipeout_oc_win_compat.h)
+    target_link_libraries(wipeout_oc_gpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh)
 else()
-    target_link_libraries(gow3gpu PUBLIC PkgConfig::X11)
+    target_link_libraries(wipeout_oc_gpu PUBLIC PkgConfig::X11)
 endif()
 
-# gow3 (Windows): gow3gpu is a static library there, so the loader and the HLE runtime are
+# gow3 (Windows): wipeout_oc_gpu is a static library there, so the loader and the HLE runtime are
 # linked here, where CMake knows its dependencies (build.sh builds them with ninja).
 if (WIN32)
     enable_language(RC)
@@ -198,18 +198,18 @@ if (WIN32)
     add_library(atrac9 STATIC ${GOW3_ATRAC9})
     target_compile_options(atrac9 PRIVATE -w)
     set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
-    add_executable(gow3-probe ../src/probe.c ${GOW3_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
+    add_executable(wipeout_oc-probe ../src/probe.c ${GOW3_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
         ../src/isa_rewrite.c ../src/isa_emulate.c ../src/redzone.cpp
         ../packaging/windows/wipeout_oc_probe.rc)
     # redzone.cpp: Zydis decodes the game's functions, xbyak writes the trampolines.
     set_source_files_properties(../src/redzone.cpp PROPERTIES COMPILE_OPTIONS "-std=c++20")
-    set_target_properties(gow3-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
-    target_compile_options(gow3-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
-    target_include_directories(gow3-probe PRIVATE .. ../src third_party/xbyak)
-    target_link_libraries(gow3-probe PRIVATE gow3gpu atrac9 Zydis::Zydis onecore bcrypt ws2_32 -pthread)
+    set_target_properties(wipeout_oc-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_options(wipeout_oc-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+    target_include_directories(wipeout_oc-probe PRIVATE .. ../src third_party/xbyak)
+    target_link_libraries(wipeout_oc-probe PRIVATE wipeout_oc_gpu atrac9 Zydis::Zydis onecore bcrypt ws2_32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
-    target_link_options(gow3-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
+    target_link_options(wipeout_oc-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
     # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test savedata-test savedata-mount-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)
@@ -265,13 +265,13 @@ if (WIN32)
     target_compile_options(mutex-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
     target_include_directories(mutex-test PRIVATE .. ../src)
     target_link_libraries(mutex-test PRIVATE -pthread)
-    add_executable(gow3-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/wipeout_oc_gpu_capabilities.rc)
-    target_include_directories(gow3-gpu-capabilities PRIVATE shadps4)
-    target_link_libraries(gow3-gpu-capabilities PRIVATE Vulkan::Vulkan)
+    add_executable(wipeout_oc-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/wipeout_oc_gpu_capabilities.rc)
+    target_include_directories(wipeout_oc-gpu-capabilities PRIVATE shadps4)
+    target_link_libraries(wipeout_oc-gpu-capabilities PRIVATE Vulkan::Vulkan)
     # "Play God of War III.exe": the game with the launcher's saved settings, no launcher window.
-    add_executable(gow3-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
-    target_compile_options(gow3-play PRIVATE -municode)
-    target_link_options(gow3-play PRIVATE -municode)
+    add_executable(wipeout_oc-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
+    target_compile_options(wipeout_oc-play PRIVATE -municode)
+    target_link_options(wipeout_oc-play PRIVATE -municode)
 endif()
 
 # Explicit test targets; neither launches the game nor needs a Vulkan device.
@@ -279,7 +279,7 @@ add_executable(pipeline-binary-cache-test EXCLUDE_FROM_ALL ../tests/test_pipelin
     ../tests/test_gpu_runtime_stubs.cpp)
 target_compile_definitions(pipeline-binary-cache-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_include_directories(pipeline-binary-cache-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pipeline-binary-cache-test PRIVATE gow3gpu)
+target_link_libraries(pipeline-binary-cache-test PRIVATE wipeout_oc_gpu)
 target_compile_options(pipeline-binary-cache-test PRIVATE -fPIC)
 if (WIN32)
     target_sources(pipeline-binary-cache-test PRIVATE ../src/compat_win.c)
@@ -292,7 +292,7 @@ add_executable(pipeline-binary-initialization-test EXCLUDE_FROM_ALL
     ../tests/test_pipeline_binary_initialization.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_compile_definitions(pipeline-binary-initialization-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_include_directories(pipeline-binary-initialization-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pipeline-binary-initialization-test PRIVATE gow3gpu)
+target_link_libraries(pipeline-binary-initialization-test PRIVATE wipeout_oc_gpu)
 target_compile_options(pipeline-binary-initialization-test PRIVATE -fPIC)
 if (WIN32)
     target_sources(pipeline-binary-initialization-test PRIVATE ../src/compat_win.c)
@@ -308,13 +308,13 @@ target_compile_options(motion-history-test PRIVATE -UNDEBUG -Wall -Wextra -Werro
 target_include_directories(motion-history-test PRIVATE ..)
 add_executable(motion-shader-test EXCLUDE_FROM_ALL ../tests/test_motion_shaders.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(motion-shader-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(motion-shader-test PRIVATE gow3gpu)
+target_link_libraries(motion-shader-test PRIVATE wipeout_oc_gpu)
 add_executable(pro-shader-test EXCLUDE_FROM_ALL ../tests/test_pro_shader.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-shader-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pro-shader-test PRIVATE gow3gpu)
+target_link_libraries(pro-shader-test PRIVATE wipeout_oc_gpu)
 add_executable(pro-shader-gpu-test EXCLUDE_FROM_ALL ../tests/test_pro_shader_gpu.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-shader-gpu-test PRIVATE shim shadps4 third_party/gcn/include ${CMAKE_CURRENT_BINARY_DIR}/include)
-target_link_libraries(pro-shader-gpu-test PRIVATE gow3gpu)
+target_link_libraries(pro-shader-gpu-test PRIVATE wipeout_oc_gpu)
 # Vulkan-Hpp's dispatcher layout must match the GPU library, including on Windows.
 target_compile_definitions(pro-shader-gpu-test PRIVATE NDEBUG)
 set_source_files_properties(../tests/test_pro_shader_gpu.cpp PROPERTIES
@@ -337,7 +337,7 @@ target_include_directories(aliasing-test PRIVATE shim shadps4 third_party/gcn/in
 target_link_libraries(aliasing-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
 add_executable(pro-tiling-test EXCLUDE_FROM_ALL ../tests/test_pro_tiling.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-tiling-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pro-tiling-test PRIVATE gow3gpu)
+target_link_libraries(pro-tiling-test PRIVATE wipeout_oc_gpu)
 target_compile_definitions(pro-tiling-test PRIVATE NDEBUG)
 set_source_files_properties(../tests/test_pro_tiling.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
@@ -408,19 +408,19 @@ target_include_directories(scene-resolution-test PRIVATE shim shadps4 third_part
 target_compile_options(scene-resolution-test PRIVATE -UNDEBUG -fPIC)
 set_source_files_properties(../tests/test_scene_resolution.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
-target_link_libraries(scene-resolution-test PRIVATE gow3gpu)
+target_link_libraries(scene-resolution-test PRIVATE wipeout_oc_gpu)
 add_executable(taa-shader-test EXCLUDE_FROM_ALL ../tests/test_taa_shader.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(taa-shader-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
 target_compile_options(taa-shader-test PRIVATE -UNDEBUG -fPIC)
 set_source_files_properties(../tests/test_taa_shader.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
-target_link_libraries(taa-shader-test PRIVATE gow3gpu)
+target_link_libraries(taa-shader-test PRIVATE wipeout_oc_gpu)
 add_dependencies(taa-shader-test host_shaders)
 
 add_executable(camera-motion-test EXCLUDE_FROM_ALL ../tests/test_camera_motion.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(camera-motion-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
 target_compile_options(camera-motion-test PRIVATE -UNDEBUG -fPIC)
-target_link_libraries(camera-motion-test PRIVATE gow3gpu)
+target_link_libraries(camera-motion-test PRIVATE wipeout_oc_gpu)
 add_dependencies(camera-motion-test host_shaders)
 
 # gow3: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.

@@ -1,7 +1,7 @@
 """Launcher setting for the game's multisampling (WIPEOUT_OC_NO_MSAA): environment, page and texts.
 Automatic leaves the decision to the game (off on AMD's and Intel's Windows drivers,
 wipeout_oc_msaa_default.h) and names the chosen card and that decision, read from
-`gow3-gpu-capabilities --list`."""
+`wipeout_oc-gpu-capabilities --list`."""
 import os
 import sys
 import unittest
@@ -12,7 +12,7 @@ sys.path.insert(0, str(ROOT / 'launcher'))
 import wipeout_oc_lang  # noqa: E402
 import wipeout_oc_launcher_win as launcher  # noqa: E402
 
-# `gow3-gpu-capabilities --list`: index, name, type, multisampling default, the game's pick.
+# `wipeout_oc-gpu-capabilities --list`: index, name, type, multisampling default, the game's pick.
 ARC_LAPTOP = [('0', 'Intel(R) Arc(TM) Graphics', 'integrated', 'off', '0'),
               ('1', 'NVIDIA GeForce RTX 4060 Laptop GPU', 'discrete', 'on', '1')]
 OLD_TOOL = [('0', 'AMD Radeon RX 6600', 'discrete')]

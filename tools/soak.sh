@@ -8,7 +8,8 @@ end=$((SECONDS + $1))
 while ((SECONDS < end)); do
     "$(dirname "$0")/press.sh" "rx=60" 2; sleep 8
     "$(dirname "$0")/press.sh" "rx=195" 2; sleep 8
-    if ! pgrep -x gow3-probe > /dev/null; then
+# Linux comm is limited to 15 characters: wipeout_oc-probe becomes wipeout_oc-prob.
+    if ! pgrep -x wipeout_oc-prob > /dev/null; then
         echo "DIED after $((SECONDS)) s: $(grep -m1 -E 'fault|Assert|Fault' out/session.log | cut -c1-160)"; exit 1
     fi
 done

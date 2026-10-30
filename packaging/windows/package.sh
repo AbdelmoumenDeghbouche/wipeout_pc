@@ -1,16 +1,16 @@
 #!/usr/bin/env bash
 # Builds dist/wipeout-windows/ (and dist/wipeout-windows.zip): WipEout.exe (the launcher, frozen
-# with PyInstaller so players need no Python), gow3-probe.exe with the MSYS2 CLANG64 DLLs it needs,
+# with PyInstaller so players need no Python), wipeout_oc-probe.exe with the MSYS2 CLANG64 DLLs it needs,
 # the preparation scripts and run.py. Run from an MSYS2 CLANG64 shell after `bash build.sh`.
 # Freezing uses a Windows Python 3.10+ (python.org; WINPYTHON overrides) and a private venv in
 # out/pyenv with PyInstaller and Pillow (the game icon and the Steam pictures need it). The DLSS
-# bridge (out/gow3_dlss.dll, build_dlss.sh) ships with its license; NVIDIA's runtime never does:
+# bridge (out/wipeout_oc_dlss.dll, build_dlss.sh) ships with its license; NVIDIA's runtime never does:
 # the launcher downloads it from NVIDIA on request. DLSS_REQUIRED=1 (the release build) stops when
 # the bridge is missing. The FSR 4 assets are not packaged.
 set -euo pipefail
 cd -- "$(dirname -- "$0")/../.."
 source ./msys2-env.sh
-[[ -f out/gow3-probe.exe && -f out/gow3-gpu-capabilities.exe && -f out/gow3-play.exe ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
+[[ -f out/wipeout_oc-probe.exe && -f out/wipeout_oc-gpu-capabilities.exe && -f out/wipeout_oc-play.exe ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
 
 # A Windows Python (not MSYS2's) for PyInstaller.
 python=${WINPYTHON:-}
@@ -43,23 +43,23 @@ dest=out/stage/wipeout-windows
 rm -rf -- out/stage
 mkdir -p "$dest/bin" "$dest/launcher"
 cp -r "out/pyi-dist/WipEout/." "$dest/"
-llvm-strip -o "$dest/Play WipEout.exe" out/gow3-play.exe
+llvm-strip -o "$dest/Play WipEout.exe" out/wipeout_oc-play.exe
 cp launcher/wipeout_oc.ico launcher/wipeout_oc.png launcher/RussoOne-Regular.ttf launcher/OFL-RussoOne.txt "$dest/launcher/"
 # The executables without debug information (out/ keeps the symbols for crash reports).
-for exe in gow3-probe.exe gow3-gpu-capabilities.exe; do
+for exe in wipeout_oc-probe.exe wipeout_oc-gpu-capabilities.exe; do
     llvm-strip --strip-debug -o "$dest/bin/$exe" "out/$exe"
 done
 # Every DLL the executables load from the CLANG64 tree (SDL3, FFmpeg, Vulkan loader, ...).
-ldd "$dest/bin/gow3-probe.exe" "$dest/bin/gow3-gpu-capabilities.exe" |
+ldd "$dest/bin/wipeout_oc-probe.exe" "$dest/bin/wipeout_oc-gpu-capabilities.exe" |
     awk '/\/clang64\/bin\// {print $3}' | sort -u | while read -r dll; do
         cp -u "$dll" "$dest/bin/"
     done
-if [[ -f out/gow3_dlss.dll ]]; then
-    cp out/gow3_dlss.dll "$dest/bin/"
-    cp gpu/dlss_bridge/LICENSE.txt "$dest/bin/gow3_dlss-LICENSE.txt"
+if [[ -f out/wipeout_oc_dlss.dll ]]; then
+    cp out/wipeout_oc_dlss.dll "$dest/bin/"
+    cp gpu/dlss_bridge/LICENSE.txt "$dest/bin/wipeout_oc_dlss-LICENSE.txt"
     [[ -f out/NVIDIA-DLSS-LICENSE.txt ]] && cp out/NVIDIA-DLSS-LICENSE.txt "$dest/bin/"
 elif [[ ${DLSS_REQUIRED:-} == 1 ]]; then
-    echo 'out/gow3_dlss.dll is missing: run packaging/windows/build_dlss.sh' >&2
+    echo 'out/wipeout_oc_dlss.dll is missing: run packaging/windows/build_dlss.sh' >&2
     exit 1
 fi
 cp -r scripts patches "$dest/"

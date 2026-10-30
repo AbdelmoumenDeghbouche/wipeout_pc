@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2026 IFreemz (shadps4_dlss bridge), gow3 contributors
 // SPDX-License-Identifier: MIT
 //
-// C interface between gow3 and gow3_dlss.dll. The port contains no NVIDIA code: it loads the
-// bridge at run time when it is present (next to gow3-probe.exe, with nvngx_dlss.dll) and keeps
+// C interface between gow3 and wipeout_oc_dlss.dll. The port contains no NVIDIA code: it loads the
+// bridge at run time when it is present (next to wipeout_oc-probe.exe, with nvngx_dlss.dll) and keeps
 // its other upscalers when it is absent. Adapted from IFreemz/shadPS4-Bloodborne-DLSS-FSR.
 
 #pragma once

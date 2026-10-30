@@ -14,7 +14,7 @@ if [[ ${1:-} == --software ]]; then
     if [[ -z ${VK_DRIVER_FILES:-} ]]; then echo 'Lavapipe not found; set VK_DRIVER_FILES.' >&2; exit 1; fi
     export VK_LOADER_LAYERS_DISABLE='~implicit~'
 fi
-# WIPEOUT_OC_PREBUILT=1 (packaged builds, the AppImage): bin/gow3-probe and its GPU library are installed
+# WIPEOUT_OC_PREBUILT=1 (packaged builds, the AppImage): bin/wipeout_oc-probe and its GPU library are installed
 # next to this script; nothing is built and no nix-shell is needed.
 # WIPEOUT_OC_DATA_DIR: writable directory for generated files (out/), saves (user/) and wipeout_oc.ini;
 # by default this directory. The preparation itself is in run.py.

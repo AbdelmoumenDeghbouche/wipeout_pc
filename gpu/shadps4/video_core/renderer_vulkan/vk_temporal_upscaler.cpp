@@ -170,7 +170,7 @@ TemporalUpscaler::TemporalUpscaler(const Instance& instance_, Scheduler& schedul
     {
         const Dlss* dlss = Dlss::Get();
         static std::string problem;
-        problem = !dlss ? "gow3_dlss.dll and nvngx_dlss.dll are not installed"
+        problem = !dlss ? "wipeout_oc_dlss.dll and nvngx_dlss.dll are not installed"
                         : dlss->Problem();
         Gow3Settings::ConfigureDlssSupport(dlss && dlss->Available(), problem.c_str());
     }

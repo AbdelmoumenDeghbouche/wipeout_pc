@@ -206,7 +206,7 @@ function the runtime does not implement and prints its name.
 
 Environment options use `WIPEOUT_OC_*`. Older `GOW3_*` names remain accepted as inputs; the new
 name wins whenever present, including an empty value or `0`. Launchers and wrappers export the
-new names. File names such as `gow3-probe.exe` still come from the original God of War III port.
+new names. File names such as `wipeout_oc-probe.exe` still come from the original God of War III port.
 
 ## Credits
 
