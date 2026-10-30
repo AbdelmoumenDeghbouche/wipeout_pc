@@ -17,7 +17,7 @@
 #include "wipeout_oc_toggles.h"
 #include "common/thread.h"
 
-namespace Gow3Copy {
+namespace WipeoutOCCopy {
 namespace {
 
 thread_local bool in_copy_thread = false;
@@ -27,7 +27,7 @@ public:
     Pool() {
         // Copies are on the critical path (fences wait for them): normal priority, a quarter
         // of the hardware threads available to the process (Steam Deck 2).
-        unsigned count = std::clamp(Gow3Threads::Available() / 4, 1u, 4u);
+        unsigned count = std::clamp(WipeoutOCThreads::Available() / 4, 1u, 4u);
         if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_COPY_THREADS")) {
             count = static_cast<unsigned>(std::clamp(std::atoi(env), 0, 16));
         }
@@ -239,7 +239,7 @@ thread_local Batch batch;
 } // namespace
 
 bool Enabled() {
-    return GetPool().Enabled() && !Gow3Toggle::Disabled(Gow3Toggle::ParallelCopies);
+    return GetPool().Enabled() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::ParallelCopies);
 }
 
 void Async(std::function<void()> task) {
@@ -305,4 +305,4 @@ void ParallelFor(std::size_t count, const std::function<void(std::size_t)>& task
     GetPool().Run(count, task);
 }
 
-} // namespace Gow3Copy
+} // namespace WipeoutOCCopy

@@ -14,20 +14,20 @@
 extern "C" {
 #endif
 
-#define GOW3_DLSS_BRIDGE_ABI 1
+#define WIPEOUT_OC_DLSS_BRIDGE_ABI 1
 
-typedef void (*Gow3DlssLogFn)(int warning, const char* message);
+typedef void (*WipeoutOCDlssLogFn)(int warning, const char* message);
 
-typedef struct Gow3DlssImage {
+typedef struct WipeoutOCDlssImage {
     VkImage image;
     VkImageView view;
     VkImageSubresourceRange range;
     VkFormat format;
     uint32_t width;
     uint32_t height;
-} Gow3DlssImage;
+} WipeoutOCDlssImage;
 
-typedef struct Gow3DlssFeature {
+typedef struct WipeoutOCDlssFeature {
     uint32_t input_width;
     uint32_t input_height;
     uint32_t output_width;
@@ -36,25 +36,25 @@ typedef struct Gow3DlssFeature {
     int32_t depth_inverted;
     uint32_t preset; // NVSDK_NGX_DLSS_Hint_Render_Preset value, 0 = driver default
     int32_t hdr;     // 1: linear HDR colour with automatic exposure, 0: tonemapped colour
-} Gow3DlssFeature;
+} WipeoutOCDlssFeature;
 
-typedef struct Gow3DlssEvaluate {
-    Gow3DlssImage color;  // sampled
-    Gow3DlssImage depth;  // sampled, hardware depth
-    Gow3DlssImage motion; // sampled, render-resolution pixels, current to previous
-    Gow3DlssImage output; // storage, general layout
+typedef struct WipeoutOCDlssEvaluate {
+    WipeoutOCDlssImage color;  // sampled
+    WipeoutOCDlssImage depth;  // sampled, hardware depth
+    WipeoutOCDlssImage motion; // sampled, render-resolution pixels, current to previous
+    WipeoutOCDlssImage output; // storage, general layout
     float jitter_x;
     float jitter_y;
     int32_t reset;
     float frame_ms;
     float sharpness; // 0..1; 0 leaves the output unsharpened
-} Gow3DlssEvaluate;
+} WipeoutOCDlssEvaluate;
 
-typedef struct Gow3DlssApi {
+typedef struct WipeoutOCDlssApi {
     uint32_t abi;
     // UTF-16 paths: the directory with nvngx_dlss.dll, and a writable data directory.
     int32_t (*Configure)(const wchar_t* dll_directory, const wchar_t* data_directory,
-                         Gow3DlssLogFn log);
+                         WipeoutOCDlssLogFn log);
     // Vulkan extensions NGX needs. The arrays stay valid until Shutdown.
     int32_t (*InstanceExtensions)(uint32_t* count, const VkExtensionProperties** extensions);
     int32_t (*DeviceExtensions)(VkInstance instance, VkPhysicalDevice physical, uint32_t* count,
@@ -62,14 +62,14 @@ typedef struct Gow3DlssApi {
     int32_t (*Initialize)(VkInstance instance, VkPhysicalDevice physical, VkDevice device,
                           PFN_vkGetInstanceProcAddr get_instance_proc,
                           PFN_vkGetDeviceProcAddr get_device_proc);
-    int32_t (*CreateFeature)(VkCommandBuffer command, const Gow3DlssFeature* feature);
-    int32_t (*Evaluate)(VkCommandBuffer command, const Gow3DlssEvaluate* evaluate);
+    int32_t (*CreateFeature)(VkCommandBuffer command, const WipeoutOCDlssFeature* feature);
+    int32_t (*Evaluate)(VkCommandBuffer command, const WipeoutOCDlssEvaluate* evaluate);
     // The caller must have waited for the GPU work that used the feature.
     void (*ReleaseFeature)(void);
     void (*Shutdown)(void);
-} Gow3DlssApi;
+} WipeoutOCDlssApi;
 
-typedef const Gow3DlssApi* (*Gow3DlssGetApiFn)(void);
+typedef const WipeoutOCDlssApi* (*WipeoutOCDlssGetApiFn)(void);
 
 #ifdef __cplusplus
 }

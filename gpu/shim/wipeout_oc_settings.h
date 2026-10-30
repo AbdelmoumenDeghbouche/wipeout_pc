@@ -10,7 +10,7 @@
 #include <atomic>
 #include <cstdint>
 
-namespace Gow3Settings {
+namespace WipeoutOCSettings {
 
 enum Upscaler : int { UpscalerOff = 0, UpscalerFsr3 = 1, UpscalerFsr4 = 2, UpscalerFsr411 = 3,
                       UpscalerTaa = 4, UpscalerDlss = 5, UpscalerCount };
@@ -97,7 +97,7 @@ struct Values {
     std::atomic<int> engine_fps{120};
     std::atomic<bool> deferred_readback{true};
     std::atomic<bool> stale_readback{true};
-    /// Gow3Graphics::Anisotropies; the samplers read startup_anisotropy.
+    /// WipeoutOCGraphics::Anisotropies; the samplers read startup_anisotropy.
     std::atomic<int> anisotropy{0};
     int startup_anisotropy = 0;
     /// Set before an "Apply and restart"; cleared once the new launch shows the game. run.py
@@ -160,4 +160,4 @@ float PresetScale(int preset);
 const char* PresetName(int preset);
 const char* UpscalerName(int upscaler);
 
-} // namespace Gow3Settings
+} // namespace WipeoutOCSettings

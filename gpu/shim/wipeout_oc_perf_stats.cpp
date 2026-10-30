@@ -14,7 +14,7 @@
 #include <psapi.h>
 #endif
 
-namespace Gow3PerfStats {
+namespace WipeoutOCPerfStats {
 
 namespace {
 
@@ -155,4 +155,4 @@ Sample Latest() {
     return latest;
 }
 
-} // namespace Gow3PerfStats
+} // namespace WipeoutOCPerfStats

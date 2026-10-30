@@ -106,7 +106,7 @@ public:
                                // fault handler before the store, and the draw that uses the
                                // data reaches this thread through the submission queue lock.
                                if (!is_written &&
-                                   !Gow3Toggle::Disabled(Gow3Toggle::LockFreeUploadCheck) &&
+                                   !WipeoutOCToggle::Disabled(WipeoutOCToggle::LockFreeUploadCheck) &&
                                    !manager->template IsRegionModified<Type::CPU>(offset, size)) {
                                    return;
                                }

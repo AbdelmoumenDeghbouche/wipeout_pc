@@ -15,9 +15,9 @@ namespace Vulkan {
 class Instance;
 }
 
-namespace Gow3PerfStats {
+namespace WipeoutOCPerfStats {
 
-/// Overlay items (Gow3Settings::Values::overlay_items).
+/// Overlay items (WipeoutOCSettings::Values::overlay_items).
 enum Item : unsigned {
     Fps = 1u << 0,
     FrameTime = 1u << 1,
@@ -118,4 +118,4 @@ void Start(const Vulkan::Instance& instance);
 /// The latest CPU, RAM, GPU and VRAM values (the caller fills FPS, frametime and upscaler).
 Sample Latest();
 
-} // namespace Gow3PerfStats
+} // namespace WipeoutOCPerfStats

@@ -446,7 +446,7 @@ static int qte_mouse_key(bool fresh) {
     const float dx=SDL_SetAtomicInt(&mouse_motion[0],0)/16.0f, dy=SDL_SetAtomicInt(&mouse_motion[1],0)/16.0f;
     if (fresh) { qte.mouse_x=qte.mouse_y=0; qte.mouse_key=0; return 0; }
     qte.mouse_x+=dx; qte.mouse_y+=dy;
-    const float step=(float)gow3gpu_mouse_prompt_distance();
+    const float step=(float)wipeout_oc_gpu_mouse_prompt_distance();
     if (qte.mouse_x*qte.mouse_x+qte.mouse_y*qte.mouse_y<step*step) return 0;
     const float ax=qte.mouse_x<0 ? -qte.mouse_x : qte.mouse_x, ay=qte.mouse_y<0 ? -qte.mouse_y : qte.mouse_y;
     const int key=ax>=ay ? (qte.mouse_x>0 ? SDL_SCANCODE_D : SDL_SCANCODE_A)
@@ -490,7 +490,7 @@ static void sample_host(PadData *d) {
     neutral(d);
     SDL_Gamepad *g=current_gamepad();
     watch_wheel();
-    if (gow3gpu_overlay_captures_input()) { drop_wheel(); return; } /* settings menu open: neutral input */
+    if (wipeout_oc_gpu_overlay_captures_input()) { drop_wheel(); return; } /* settings menu open: neutral input */
     const bool *k=SDL_WasInit(SDL_INIT_VIDEO) ? SDL_GetKeyboardState(NULL) : NULL;
     load_button_maps();
     read_gamepad(g,d);
@@ -529,7 +529,7 @@ static void read_gamepad(SDL_Gamepad *g, PadData *d) {
         const uint32_t mapped=d->buttons;
         d->left_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTX)); d->left_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFTY));
         d->right_x=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTX)); d->right_y=axis(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHTY));
-        const int deadzone=gow3gpu_stick_deadzone_percent();
+        const int deadzone=wipeout_oc_gpu_stick_deadzone_percent();
         stick_deadzone(&d->left_x,&d->left_y,deadzone); stick_deadzone(&d->right_x,&d->right_y,deadzone);
         d->l2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_LEFT_TRIGGER)); d->r2=trigger(SDL_GetGamepadAxis(g,SDL_GAMEPAD_AXIS_RIGHT_TRIGGER));
         if (d->l2>30) d->buttons|=BTN_L2;
@@ -586,7 +586,7 @@ static void read_inject(void) {
     char token[64];
     while (fscanf(f,"%63s",token)==1) {
         if (!strcmp(token,"replay") && replay_armed!=1) { replay_armed=1; replay_start=0; } /* GOW3_PAD_REPLAY */
-        if (!strcmp(token,"shot")) gow3gpu_request_screenshot();
+        if (!strcmp(token,"shot")) wipeout_oc_gpu_request_screenshot();
         if (!strcmp(token,"p2")) { target=&injected2; injected2_seen=1; }
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!strcmp(token,ps_names[i].name)) target->buttons|=ps_names[i].ps;
         for (int i=0;i<4;++i) if (!strncmp(token,sticks[i],3)) { int v=atoi(token+3); target->stick[i]=v<0 ? 0 : v>255 ? 255 : v; }
@@ -680,8 +680,8 @@ static void apply_mouse_aim(PadData *d) {
     aim.last=d->timestamp;
     if (!(d->buttons & BTN_L2)) { aim.moved=0; aim.held=false; return; }
     if (!aim.held) { aim.held=true; aim.offset_x=aim.offset_y=0; }  /* a new press: the centre is here */
-    const float sensitivity=gow3gpu_mouse_aim_sensitivity()/100.0f;
-    if (gow3gpu_mouse_aim_style()==1) {
+    const float sensitivity=wipeout_oc_gpu_mouse_aim_sensitivity()/100.0f;
+    if (wipeout_oc_gpu_mouse_aim_style()==1) {
         const float radius=AIM_RADIUS_PX/sensitivity;
         aim.offset_x+=dx; aim.offset_y+=dy;
         const float length=sqrtf(aim.offset_x*aim.offset_x+aim.offset_y*aim.offset_y);
@@ -711,7 +711,7 @@ static void apply_mouse_aim(PadData *d) {
 static void note_pause_key(const PadData *d) {
     static bool held;
     const bool pause=(d->buttons & CLICK_RIGHT) && !(d->buttons & BTN_L1);
-    if (pause && !held) gow3gpu_mouse_pause_key();
+    if (pause && !held) wipeout_oc_gpu_mouse_pause_key();
     held=pause;
 }
 
@@ -751,7 +751,7 @@ static void apply_dodge(PadData *d) {
 static int hold_after_capture;
 static void sample(PadData *d) {
     sample_host(d);
-    if (gow3gpu_overlay_captures_input()) { hold_after_capture=1; click.side=-1; reset_dodge(); return; }
+    if (wipeout_oc_gpu_overlay_captures_input()) { hold_after_capture=1; click.side=-1; reset_dodge(); return; }
     record_sample(d); /* the click sources as they are: a replay plays them again */
     read_inject();
     replay_sample(d);
@@ -776,7 +776,7 @@ static void sample_second(PadData *d) {
     read_inject();
     SDL_Gamepad *g=second_gamepad();
     d->connected=g || injected2_seen;
-    if (gow3gpu_overlay_captures_input()) return;
+    if (wipeout_oc_gpu_overlay_captures_input()) return;
     load_button_maps();
     read_gamepad(g,d);
     d->buttons|=injected2.buttons;
@@ -855,7 +855,7 @@ static ABI int32_t pad_vibration(int32_t handle, const uint8_t *param) {
     pthread_mutex_lock(&lock);
     SDL_Gamepad *g=handle==PAD2_HANDLE ? second_gamepad() : current_gamepad();
     /* The menu's vibration strength scales the game's motors (0: off). */
-    const unsigned percent=(unsigned)gow3gpu_vibration_percent();
+    const unsigned percent=(unsigned)wipeout_oc_gpu_vibration_percent();
     if (g) SDL_RumbleGamepad(g,(uint16_t)(param[0]*257u*percent/100u),(uint16_t)(param[1]*257u*percent/100u),1000);
     pthread_mutex_unlock(&lock);
     return 0;

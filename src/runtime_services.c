@@ -350,7 +350,7 @@ static ABI int32_t save_open(const unsigned char *p) {
     }
     uint32_t type; memcpy(&type,p+56,4);
     const char *title=type==1 ? "Save game" : type==2 ? "Load game" : "Delete save";
-    if (!n || !gow3gpu_choice_begin(title,labels,icons,n,0)) {
+    if (!n || !wipeout_oc_gpu_choice_begin(title,labels,icons,n,0)) {
         printf("Runtime: SaveDataDialog list (%s): %s\n",title,n ? "no window, cancelled" : "no saves, cancelled");
         save_dialog.result=SAVE_RESULT_CANCELED;
         dialogs[2].status=DIALOG_FINISHED; dialogs[2].button=0;
@@ -363,7 +363,7 @@ static ABI int32_t save_open(const unsigned char *p) {
 }
 static ABI int32_t save_status(void) {
     if (save_dialog.choosing) {
-        int choice=gow3gpu_choice_poll();
+        int choice=wipeout_oc_gpu_choice_poll();
         if (choice!=-1) {
             save_dialog.choosing=0;
             dialogs[2].status=DIALOG_FINISHED;
@@ -454,14 +454,14 @@ static ABI int32_t ime_init(const ImeParam *param, const void *extended) {
     /* An empty field starts with the user name: a controller alone can accept it (the port
      * has no on-screen keyboard). */
     const char *start=initial[0] ? initial : USER_NAME;
-    if (!gow3gpu_text_input_begin(start,prompt[0] ? prompt : "Text")) ime_complete(0,start);
+    if (!wipeout_oc_gpu_text_input_begin(start,prompt[0] ? prompt : "Text")) ime_complete(0,start);
     else printf("Runtime: ImeDialog opened: shown on screen; keyboard Enter or Cross accepts, Esc or Circle cancels\n");
     return 0;
 }
 static ABI int32_t ime_status(void) {
     if (ime.running) {
         char text[512];
-        int state=gow3gpu_text_input_poll(text,sizeof(text));
+        int state=wipeout_oc_gpu_text_input_poll(text,sizeof(text));
         if (state) ime_complete(state==1 ? 0 : 1,text);
     }
     return ime.running ? 1 : ime.finished ? 2 : 0; /* Running / Finished / None */

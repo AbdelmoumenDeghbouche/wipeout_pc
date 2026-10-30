@@ -21,7 +21,7 @@
 #include <unistd.h>
 #endif
 
-namespace Gow3Settings {
+namespace WipeoutOCSettings {
 
 namespace {
 
@@ -190,11 +190,11 @@ void Set(Values& v, const std::string& key, const std::string& value) {
     } else if (key == "show_fps") {
         v.show_fps = i != 0;
     } else if (key == "display_mode") {
-        v.display_mode = Gow3Graphics::ParseDisplayMode(value);
+        v.display_mode = WipeoutOCGraphics::ParseDisplayMode(value);
     } else if (key == "vsync") {
         v.vsync = i != 0;
     } else if (key == "fps_limit") {
-        v.fps_limit = Gow3Graphics::ParseFpsLimit(i);
+        v.fps_limit = WipeoutOCGraphics::ParseFpsLimit(i);
     } else if (key == "async_shaders") {
         v.async_shaders = i != 0;
     } else if (key == "fsr1") {
@@ -204,19 +204,19 @@ void Set(Values& v, const std::string& key, const std::string& value) {
     } else if (key == "rcas") {
         v.rcas = i != 0;
     } else if (key == "rcas_strength") {
-        v.rcas_strength = Gow3Graphics::ParseRcasStrength(value.empty() ? -1 : i);
+        v.rcas_strength = WipeoutOCGraphics::ParseRcasStrength(value.empty() ? -1 : i);
     } else if (key == "frames_queued") {
-        v.frames_queued = Gow3Graphics::ParseFramesQueued(value.empty() ? -1 : i);
+        v.frames_queued = WipeoutOCGraphics::ParseFramesQueued(value.empty() ? -1 : i);
     } else if (key == "render_resolution") {
-        v.render_resolution = Gow3Graphics::ParseResolution(value);
+        v.render_resolution = WipeoutOCGraphics::ParseResolution(value);
     } else if (key == "engine_fps") {
-        v.engine_fps = Gow3Graphics::ParseEngineFps(i);
+        v.engine_fps = WipeoutOCGraphics::ParseEngineFps(i);
     } else if (key == "deferred_readback") {
         v.deferred_readback = i != 0;
     } else if (key == "stale_readback") {
         v.stale_readback = i != 0;
     } else if (key == "anisotropy") {
-        v.anisotropy = Gow3Graphics::ParseAnisotropy(i);
+        v.anisotropy = WipeoutOCGraphics::ParseAnisotropy(i);
     } else if (key == "vibration") {
         v.vibration = value.empty() ? 100 : std::clamp(i, 0, 100);
     } else if (key == "stick_deadzone") {
@@ -342,7 +342,7 @@ bool Load() {
     v.startup_render_resolution = v.render_resolution;
     v.startup_engine_fps = v.engine_fps;
     const char* applied = wipeout_oc_getenv("WIPEOUT_OC_ENGINE_FPS");
-    v.applied_engine_fps = applied && applied[0] ? Gow3Graphics::ParseEngineFps(std::atoi(applied))
+    v.applied_engine_fps = applied && applied[0] ? WipeoutOCGraphics::ParseEngineFps(std::atoi(applied))
                                                  : v.engine_fps.load();
     v.startup_deferred_readback = v.deferred_readback;
     v.startup_stale_readback = v.stale_readback;
@@ -454,13 +454,13 @@ void Save() {
                  int(v.overlay_items >> 3 & 1), int(v.overlay_items >> 4 & 1), int(v.overlay_items >> 5 & 1),
                  int(v.overlay_items >> 6 & 1), v.overlay_scale.load(), v.overlay_corner.load(),
                  v.overlay_opacity.load(), v.overlay_layout.load(), v.menu_tab.load());
-    const std::vector<std::string> resolution_names = Gow3Graphics::ResolutionNames();
+    const std::vector<std::string> resolution_names = WipeoutOCGraphics::ResolutionNames();
     std::fprintf(file,
                  "display_mode=%s\nvsync=%d\nfps_limit=%d\nasync_shaders=%d\n"
                  "fsr1=%d\nrcas=%d\nrcas_strength=%d\nframes_queued=%d\n"
                  "render_resolution=%s\nengine_fps=%d\ndeferred_readback=%d\nstale_readback=%d\n"
                  "restart_unconfirmed=%d\n",
-                 Gow3Graphics::DisplayModeKeys[std::clamp(v.display_mode.load(), 0, 2)].data(),
+                 WipeoutOCGraphics::DisplayModeKeys[std::clamp(v.display_mode.load(), 0, 2)].data(),
                  int(v.vsync.load()), v.fps_limit.load(), int(v.async_shaders.load()),
                  int(v.fsr1.load()), int(v.rcas.load()), v.rcas_strength.load(), v.frames_queued.load(),
                  resolution_names[std::clamp(v.render_resolution.load(), 0, int(resolution_names.size()) - 1)].c_str(),
@@ -499,4 +499,4 @@ const char* UpscalerName(int upscaler) {
     return names[std::clamp(upscaler, 0, UpscalerCount - 1)];
 }
 
-} // namespace Gow3Settings
+} // namespace WipeoutOCSettings

@@ -8,7 +8,7 @@
 #include "wipeout_oc_settings.h"
 
 int main() {
-    using namespace Gow3Settings;
+    using namespace WipeoutOCSettings;
     char path[] = "/tmp/gow3-upscaler-test-XXXXXX";
     const int fd = mkstemp(path);
     assert(fd >= 0);

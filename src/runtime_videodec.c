@@ -124,7 +124,7 @@ static int32_t picture(Decoder *d, FrameBuffer *buffer, PictureInfo *info) {
     info->codec.avc.colour_primaries=(uint8_t)d->frame->color_primaries;
     info->codec.avc.crop_right=pitch-width;
     info->codec.avc.crop_bottom=rows-height;
-    gow3gpu_movie_picture();
+    wipeout_oc_gpu_movie_picture();
     return 0;
 }
 static int32_t receive(Decoder *d, FrameBuffer *buffer, PictureInfo *info) {

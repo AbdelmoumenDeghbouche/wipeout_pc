@@ -24,7 +24,7 @@ static constexpr u64 COPY_SHADER_HASH = 0xfefebf9f;
 // frame) plus the recording; buffer_multi_copy.comp copies all ranges in one dispatch.
 static bool MultiCopy(Rasterizer& rasterizer, const VideoCore::Buffer* src,
                       const VideoCore::Buffer* dst, std::span<const vk::BufferCopy> copies) {
-    if (copies.size() < 8 || Gow3Toggle::Disabled(Gow3Toggle::MultiCopyShader)) {
+    if (copies.size() < 8 || WipeoutOCToggle::Disabled(WipeoutOCToggle::MultiCopyShader)) {
         return false;
     }
     u64 src_min = ~0ull, src_max = 0, dst_min = ~0ull, dst_max = 0;

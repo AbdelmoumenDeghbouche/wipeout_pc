@@ -22,7 +22,7 @@ constexpr char ProjectId[] = "42359704-c9f3-4806-9fb5-d469000fdb8a";
 constexpr char EngineVersion[] = "gow3-windows";
 
 struct State {
-    Gow3DlssLogFn log{};
+    WipeoutOCDlssLogFn log{};
     std::wstring dll_directory;
     std::wstring data_directory;
     const wchar_t* dll_path{};
@@ -31,7 +31,7 @@ struct State {
     NVSDK_NGX_Parameter* capabilities{};
     NVSDK_NGX_Parameter* parameters{};
     NVSDK_NGX_Handle* feature{};
-    Gow3DlssFeature feature_desc{};
+    WipeoutOCDlssFeature feature_desc{};
     VkDevice device{};
     bool configured{};
     bool initialized{};
@@ -58,7 +58,7 @@ void NVSDK_CONV NgxLog(const char* message, NVSDK_NGX_Logging_Level, NVSDK_NGX_F
     Log(0, "NGX: %s", message ? message : "");
 }
 
-int32_t Configure(const wchar_t* dll_directory, const wchar_t* data_directory, Gow3DlssLogFn log) {
+int32_t Configure(const wchar_t* dll_directory, const wchar_t* data_directory, WipeoutOCDlssLogFn log) {
     state.log = log;
     state.dll_directory = dll_directory ? dll_directory : L".";
     state.data_directory = data_directory ? data_directory : L".";
@@ -152,7 +152,7 @@ void ReleaseFeature() {
     }
 }
 
-int32_t CreateFeature(VkCommandBuffer command, const Gow3DlssFeature* desc) {
+int32_t CreateFeature(VkCommandBuffer command, const WipeoutOCDlssFeature* desc) {
     if (!state.initialized || !state.capabilities || !desc)
         return 0;
     ReleaseFeature();
@@ -193,13 +193,13 @@ int32_t CreateFeature(VkCommandBuffer command, const Gow3DlssFeature* desc) {
     return 1;
 }
 
-NVSDK_NGX_Resource_VK Wrap(const Gow3DlssImage& image, bool writable) {
+NVSDK_NGX_Resource_VK Wrap(const WipeoutOCDlssImage& image, bool writable) {
     return NVSDK_NGX_Create_ImageView_Resource_VK(image.view, image.image, image.range,
                                                   image.format, image.width, image.height,
                                                   writable);
 }
 
-int32_t Evaluate(VkCommandBuffer command, const Gow3DlssEvaluate* evaluate) {
+int32_t Evaluate(VkCommandBuffer command, const WipeoutOCDlssEvaluate* evaluate) {
     if (!state.feature || !state.parameters || !evaluate)
         return 0;
     auto color = Wrap(evaluate->color, false);
@@ -239,12 +239,12 @@ void Shutdown() {
     }
 }
 
-const Gow3DlssApi api{GOW3_DLSS_BRIDGE_ABI, Configure,      InstanceExtensions, DeviceExtensions,
+const WipeoutOCDlssApi api{WIPEOUT_OC_DLSS_BRIDGE_ABI, Configure,      InstanceExtensions, DeviceExtensions,
                     Initialize,             CreateFeature,  Evaluate,           ReleaseFeature,
                     Shutdown};
 
 } // namespace
 
-extern "C" __declspec(dllexport) const Gow3DlssApi* Gow3DlssGetApi() {
+extern "C" __declspec(dllexport) const WipeoutOCDlssApi* WipeoutOCDlssGetApi() {
     return &api;
 }

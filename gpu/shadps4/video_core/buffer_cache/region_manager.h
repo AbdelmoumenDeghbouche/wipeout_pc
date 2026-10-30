@@ -151,7 +151,7 @@ public:
         // always match `writeable` after a change); this runs for every buffer binding, so
         // it is checked before building the range mask.
         if (type == Type::CPU && !bits.AnyInRange(start_page, end_page) &&
-            !Gow3Toggle::Disabled(Gow3Toggle::PageTrackingEarlyExit)) {
+            !WipeoutOCToggle::Disabled(WipeoutOCToggle::PageTrackingEarlyExit)) {
             return;
         }
         RegionBits mask(bits, start_page, end_page);
@@ -230,7 +230,7 @@ private:
             const char* env = wipeout_oc_getenv("WIPEOUT_OC_HOT_PAGES");
             return env && env[0] == '1';
         }();
-        return enabled && !Gow3Toggle::Disabled(Gow3Toggle::HotPages);
+        return enabled && !WipeoutOCToggle::Disabled(WipeoutOCToggle::HotPages);
     }
     // A short period re-protects thousands of pages at once and each faults again before it is
     // hot, a fault storm (a 2 s period gave ~20k faults/s and frame spikes).
@@ -243,7 +243,7 @@ private:
             if (writeable.Get(page)) {
                 continue; // not protected: no fault
             }
-            Gow3Stats::tracker_faults.fetch_add(1, std::memory_order_relaxed);
+            WipeoutOCStats::tracker_faults.fetch_add(1, std::memory_order_relaxed);
             if (!hot_enabled) {
                 continue;
             }
@@ -257,7 +257,7 @@ private:
                 }
                 hot.Set(page);
                 ++num_hot;
-                Gow3Stats::hot_pages.fetch_add(1, std::memory_order_relaxed);
+                WipeoutOCStats::hot_pages.fetch_add(1, std::memory_order_relaxed);
             }
         }
     }
@@ -269,7 +269,7 @@ private:
         if (!HotPagesEnabled() ||
             std::chrono::steady_clock::now() - hot_since > HotPeriod) {
             // Re-protect them (on this upload) and start counting again.
-            Gow3Stats::hot_pages.fetch_sub(num_hot, std::memory_order_relaxed);
+            WipeoutOCStats::hot_pages.fetch_sub(num_hot, std::memory_order_relaxed);
             hot.Clear();
             write_faults.fill(0);
             num_hot = 0;

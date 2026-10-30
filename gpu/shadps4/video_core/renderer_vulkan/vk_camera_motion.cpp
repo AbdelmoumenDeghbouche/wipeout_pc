@@ -359,10 +359,10 @@ void CameraMotion::Overlay(VideoCore::ImageId frame) {
         .size = {float(color.info.size.width), float(color.info.size.height)},
         .jitter = jitter,
         .previous_jitter = previous_jitter,
-        .mode = Gow3Toggle::Disabled(1u << 20)   ? 1u
-                : Gow3Toggle::Disabled(1u << 21) ? 2u
-                : Gow3Toggle::Disabled(1u << 22) ? 3u
-                : Gow3Toggle::Disabled(1u << 23) ? 4u
+        .mode = WipeoutOCToggle::Disabled(1u << 20)   ? 1u
+                : WipeoutOCToggle::Disabled(1u << 21) ? 2u
+                : WipeoutOCToggle::Disabled(1u << 22) ? 3u
+                : WipeoutOCToggle::Disabled(1u << 23) ? 4u
                                                : 0u,
     };
     static u32 log_counter = 0;

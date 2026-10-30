@@ -840,7 +840,7 @@ void Instance::CollectDeviceParameters() {
     const char* no_msaa_env = wipeout_oc_getenv("WIPEOUT_OC_NO_MSAA");
     const bool no_msaa = no_msaa_env && *no_msaa_env
                              ? *no_msaa_env == '1'
-                             : gow3_no_msaa_default(static_cast<VkDriverId>(driver_id)) != 0;
+                             : wipeout_oc_no_msaa_default(static_cast<VkDriverId>(driver_id)) != 0;
     AmdGpu::no_msaa.store(no_msaa, std::memory_order_relaxed);
     std::printf("GPU: guest multisampling %s\n",
                 no_msaa ? "off (single-sampled images; GOW3_NO_MSAA=0 keeps it)" : "on");

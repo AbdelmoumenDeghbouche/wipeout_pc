@@ -117,7 +117,7 @@ void BufferCache::InvalidateMemory(VAddr device_addr, u64 size, bool assume_lock
 // pages marked CPU-modified without being written only cost an upload when bound.
 // Item: context = BufferCache, source = guest address, destination = host pointer, size,
 // extra = the Buffer whose mapping holds the destination (flushed after the copy).
-void BufferCache::RunGuestCopy(const Gow3Copy::Item& item) {
+void BufferCache::RunGuestCopy(const WipeoutOCCopy::Item& item) {
     auto* cache = static_cast<BufferCache*>(item.context);
     auto* dst = reinterpret_cast<u8*>(item.destination);
     cache->memory->CopySparseMemory(item.source, dst, item.size);
@@ -127,12 +127,12 @@ void BufferCache::RunGuestCopy(const Gow3Copy::Item& item) {
 
 // Small guest copies run on the recording thread (it spins for work: no wakeup, and it is
 // idle most of the time); PoolSmallCopies (toggle 524288) batches them for the copy threads.
-void BufferCache::SmallGuestCopy(const Gow3Copy::Item& item) {
-    if (scheduler.IsRecordingDeferred() && !Gow3Toggle::Disabled(Gow3Toggle::PoolSmallCopies)) {
+void BufferCache::SmallGuestCopy(const WipeoutOCCopy::Item& item) {
+    if (scheduler.IsRecordingDeferred() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::PoolSmallCopies)) {
         scheduler.RecordHostCopy([item] { item.run(item); });
         return;
     }
-    Gow3Copy::QueueCopy(item);
+    WipeoutOCCopy::QueueCopy(item);
 }
 
 void BufferCache::ExtendWriteFault(VAddr device_addr) {
@@ -141,7 +141,7 @@ void BufferCache::ExtendWriteFault(VAddr device_addr) {
         const u64 kib = env ? std::strtoull(env, nullptr, 10) : 256;
         return std::bit_ceil(std::clamp<u64>(kib, 4, 1024)) * 1024;
     }();
-    if (window <= TRACKER_BYTES_PER_PAGE || Gow3Toggle::Disabled(Gow3Toggle::FaultWindow)) {
+    if (window <= TRACKER_BYTES_PER_PAGE || WipeoutOCToggle::Disabled(WipeoutOCToggle::FaultWindow)) {
         return;
     }
     memory_tracker->ExtendWriteFault(Common::AlignDown(device_addr, window), window);
@@ -236,7 +236,7 @@ void NoteHotUse(VAddr address, u32 size) {
         return;
     }
     auto& st = Stats();
-    const u64 frame = Gow3Stats::gpu_frames.load(std::memory_order_relaxed);
+    const u64 frame = WipeoutOCStats::gpu_frames.load(std::memory_order_relaxed);
     for (u64 block = address >> 16; block <= (address + size - 1) >> 16; ++block) {
         auto [it, inserted] = st.last_use.try_emplace(block, frame);
         if (!inserted && it->second != frame) {
@@ -313,7 +313,7 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
         // gow3: the guest data is copied on a copy thread, started now; submission and
         // guest-visible fences wait for it (Scheduler::WaitHostCopies).
         if (!stream_buffer.mapped_data.empty() &&
-            !Gow3Toggle::Disabled(Gow3Toggle::DeferredStreamCopies)) {
+            !WipeoutOCToggle::Disabled(WipeoutOCToggle::DeferredStreamCopies)) {
             if (const auto offset = stream_buffer.Reserve(size, instance.UniformMinAlignment())) {
                 SmallGuestCopy({
                     .run = &RunGuestCopy,
@@ -335,14 +335,14 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
     const u64 last_block = (device_addr + size - 1) >> block_shift;
     const auto* arena = GetArena(first_block, last_block);
     EnsureResident(arena, first_block, last_block);
-    const u64 uploaded_before = Gow3Stats::buffer_upload_bytes.load(std::memory_order_relaxed);
+    const u64 uploaded_before = WipeoutOCStats::buffer_upload_bytes.load(std::memory_order_relaxed);
     SynchronizeMemory(arena, device_addr, size, is_written, is_texel_buffer);
     if (stats) {
         auto& region = Stats().regions[RegionKey(device_addr)];
         ++region.arena_count;
         region.arena_bytes += size;
         region.upload_bytes +=
-            Gow3Stats::buffer_upload_bytes.load(std::memory_order_relaxed) - uploaded_before;
+            WipeoutOCStats::buffer_upload_bytes.load(std::memory_order_relaxed) - uploaded_before;
     }
     if (is_written) {
         gpu_modified_ranges.Add(device_addr, size);
@@ -357,12 +357,12 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBufferForImage(VAddr device_add
     }
     const auto staging = staging_pool.Request(size, VideoCore::MemoryType::HostUncached,
                                               instance.StorageMinAlignment());
-    if (!Gow3Toggle::Disabled(Gow3Toggle::DeferredUploads)) {
+    if (!WipeoutOCToggle::Disabled(WipeoutOCToggle::DeferredUploads)) {
         // gow3: texture data is copied on the copy threads (streaming: 100+ MB per frame);
         // the upload reads the staging only after submission, which waits for the copies.
         constexpr u64 Chunk = 1_MB;
         for (u64 offset = 0; offset < staging.size; offset += Chunk) {
-            const Gow3Copy::Item item{
+            const WipeoutOCCopy::Item item{
                 .run = &RunGuestCopy,
                 .context = this,
                 .source = device_addr + offset,
@@ -373,7 +373,7 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBufferForImage(VAddr device_add
             if (staging.size < Chunk) {
                 SmallGuestCopy(item);
             } else {
-                Gow3Copy::Async([item] { item.run(item); });
+                WipeoutOCCopy::Async([item] { item.run(item); });
             }
         }
         return {staging.buffer, staging.offset};
@@ -469,14 +469,14 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
     if (bind_ranges.Empty()) {
         return;
     }
-    Gow3Stats::Timer timer{Gow3Stats::t_resident};
+    WipeoutOCStats::Timer timer{WipeoutOCStats::t_resident};
 
     const vk::MemoryAllocateInfo alloc_info = {
         .allocationSize = resident_blocks << block_shift,
         .memoryTypeIndex = arena_memory_type_index,
     };
     const auto device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
-    Gow3Stats::resident_bytes += static_cast<s64>(alloc_info.allocationSize);
+    WipeoutOCStats::resident_bytes += static_cast<s64>(alloc_info.allocationSize);
 
     boost::container::small_vector<vk::BufferCopy, 8> copies;
     const auto staging =
@@ -547,12 +547,12 @@ const Buffer* BufferCache::UploadCopies(const Buffer* arena, std::span<vk::Buffe
     for (const auto& copy : copies) {
         texture_cache.ResolveReadbacks(copy.dstOffset, copy.size, true, ReadbackSource::BufferUpload);
     }
-    Gow3Stats::buffer_upload_bytes.fetch_add(total_size_bytes, std::memory_order_relaxed);
+    WipeoutOCStats::buffer_upload_bytes.fetch_add(total_size_bytes, std::memory_order_relaxed);
     const auto staging = staging_pool.Request(total_size_bytes, MemoryType::HostUncached);
     // gow3: the guest memory is copied into staging on the copy threads, started now in
     // groups of about 1 MiB; submission and guest-visible fences wait for them
     // (Scheduler::WaitHostCopies).
-    if (!Gow3Toggle::Disabled(Gow3Toggle::DeferredUploads) && total_size_bytes < 1_MB) {
+    if (!WipeoutOCToggle::Disabled(WipeoutOCToggle::DeferredUploads) && total_size_bytes < 1_MB) {
         // Small uploads join the calling thread's batch.
         for (auto& copy : copies) {
             SmallGuestCopy({
@@ -568,7 +568,7 @@ const Buffer* BufferCache::UploadCopies(const Buffer* arena, std::span<vk::Buffe
         }
         return staging.buffer;
     }
-    if (!Gow3Toggle::Disabled(Gow3Toggle::DeferredUploads)) {
+    if (!WipeoutOCToggle::Disabled(WipeoutOCToggle::DeferredUploads)) {
         struct HostCopy {
             VAddr source;
             u8* destination;
@@ -578,7 +578,7 @@ const Buffer* BufferCache::UploadCopies(const Buffer* arena, std::span<vk::Buffe
         auto group = std::make_shared<Group>();
         u64 group_bytes = 0;
         const auto launch = [&] {
-            Gow3Copy::Async([group, memory = memory, staging] {
+            WipeoutOCCopy::Async([group, memory = memory, staging] {
                 for (const auto& copy : *group) {
                     memory->CopySparseMemory(copy.source, copy.destination, copy.size);
                 }
@@ -606,7 +606,7 @@ const Buffer* BufferCache::UploadCopies(const Buffer* arena, std::span<vk::Buffe
                                  copies[i].size);
     };
     if (total_size_bytes >= 2_MB && copies.size() > 1) {
-        Gow3Copy::ParallelFor(copies.size(), copy);
+        WipeoutOCCopy::ParallelFor(copies.size(), copy);
     } else {
         for (std::size_t i = 0; i < copies.size(); ++i) {
             copy(i);
@@ -634,7 +634,7 @@ bool BufferCache::SynchronizeMemoryFromImage(const Buffer* arena, VAddr device_a
     const u64 generation = texture_cache.RegistryGeneration();
     auto& miss = image_miss_cache[((device_addr >> 6) ^ size * 0x9E3779B1u) % image_miss_cache.size()];
     if (miss.address == device_addr && miss.size == size && miss.generation == generation &&
-        !Gow3Toggle::Disabled(Gow3Toggle::TextureBindingMemo)) {
+        !WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureBindingMemo)) {
         return false;
     }
     const ImageId image_id = texture_cache.FindImageFromRange(device_addr, size);

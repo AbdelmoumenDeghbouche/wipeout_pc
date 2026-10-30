@@ -23,19 +23,19 @@ use lib $FindBin::Bin;
 use Fsr4SpirvCrossFixes;
 $src = Fsr4SpirvCrossFixes::signed_unpack($src);
 
-my %slot = (rw_recurrent_0 => ['gow3_rec', 'vec4'], rw_history_color => ['gow3_hist', 'vec4'],
-            rw_mlsr_output_color => ['gow3_out', 'vec4']);
+my %slot = (rw_recurrent_0 => ['wipeout_oc_rec', 'vec4'], rw_history_color => ['wipeout_oc_hist', 'vec4'],
+            rw_mlsr_output_color => ['wipeout_oc_out', 'vec4']);
 for my $image (sort keys %slot) {
     my ($array, $type) = @{$slot{$image}};
-    my $n = ($src =~ s/imageStore\($image, ivec2\((_\d+)\), /$array\[gow3Local($1)\] = $type(/g);
+    my $n = ($src =~ s/imageStore\($image, ivec2\((_\d+)\), /$array\[wipeout_oc_local($1)\] = $type(/g);
     die "expected one store to $image, found $n\n" unless $n == 1;
 }
 my $decl = <<'GLSL';
 // gow3: the workgroup's 16x16 output block, stored in contiguous rows after the loop.
-shared vec4 gow3_rec[256];
-shared vec4 gow3_hist[256];
-shared vec4 gow3_out[256];
-uint gow3Local(uvec2 p)
+shared vec4 wipeout_oc_rec[256];
+shared vec4 wipeout_oc_hist[256];
+shared vec4 wipeout_oc_out[256];
+uint wipeout_oc_local(uvec2 p)
 {
     uvec2 l = p - gl_WorkGroupID.xy * 16u;
     return l.y * 16u + l.x;
@@ -46,14 +46,14 @@ GLSL
 $src =~ s/^void main\(\)\n/$decl/m or die "no main\n";
 my $flush = <<'GLSL';
     barrier();
-    uvec2 gow3Base = gl_WorkGroupID.xy * 16u;
-    for (uint gow3K = 0u; gow3K < 4u; gow3K++)
+    uvec2 wipeout_oc_base = gl_WorkGroupID.xy * 16u;
+    for (uint wipeout_oc_k = 0u; wipeout_oc_k < 4u; wipeout_oc_k++)
     {
-        uint gow3I = gl_LocalInvocationIndex + 64u * gow3K;
-        ivec2 gow3P = ivec2(gow3Base + uvec2(gow3I % 16u, gow3I / 16u));
-        imageStore(rw_recurrent_0, gow3P, gow3_rec[gow3I]);
-        imageStore(rw_history_color, gow3P, gow3_hist[gow3I]);
-        imageStore(rw_mlsr_output_color, gow3P, gow3_out[gow3I]);
+        uint wipeout_oc_i = gl_LocalInvocationIndex + 64u * wipeout_oc_k;
+        ivec2 wipeout_oc_p = ivec2(wipeout_oc_base + uvec2(wipeout_oc_i % 16u, wipeout_oc_i / 16u));
+        imageStore(rw_recurrent_0, wipeout_oc_p, wipeout_oc_rec[wipeout_oc_i]);
+        imageStore(rw_history_color, wipeout_oc_p, wipeout_oc_hist[wipeout_oc_i]);
+        imageStore(rw_mlsr_output_color, wipeout_oc_p, wipeout_oc_out[wipeout_oc_i]);
     }
 }
 GLSL

@@ -133,7 +133,7 @@ bool TextureCache::ResolveReadbacks(VAddr address, u64 size, bool assume_locks,
                 }
             }
         }
-        Gow3Stats::Timer readback_timer{Gow3Stats::t_readback_wait};
+        WipeoutOCStats::Timer readback_timer{WipeoutOCStats::t_readback_wait};
         if (const u64 tick = pending_readbacks.RequiredTick(address, size)) {
             ++readbacks_waited;
             waited = !scheduler.IsFree(tick);
@@ -234,20 +234,20 @@ void TextureCache::ProcessDownloadImages() {
         // gow3: images are queued for download by the thread that runs this (draw recording),
         // so with none queued no page is protected below and there is nothing to wait for.
         bool any_downloads = true;
-        if (!Gow3Toggle::Disabled(Gow3Toggle::EmptyDownloadNoWait)) {
+        if (!WipeoutOCToggle::Disabled(WipeoutOCToggle::EmptyDownloadNoWait)) {
             std::scoped_lock lock{download_images_mutex};
             any_downloads = !download_images.empty();
         }
         // Upload workers must finish reading RAM before these pages become inaccessible.
         if (any_downloads) {
-            Gow3Stats::download_waits.fetch_add(1, std::memory_order_relaxed);
+            WipeoutOCStats::download_waits.fetch_add(1, std::memory_order_relaxed);
             scheduler.WaitHostCopies();
         } else {
-            Gow3Stats::download_waits_skipped.fetch_add(1, std::memory_order_relaxed);
+            WipeoutOCStats::download_waits_skipped.fetch_add(1, std::memory_order_relaxed);
         }
         std::scoped_lock readback_lock{readback_mutex};
         RetireReadbacks();
-        const bool deep_queue = !Gow3Toggle::Disabled(Gow3Toggle::DeepReadbackQueue);
+        const bool deep_queue = !WipeoutOCToggle::Disabled(WipeoutOCToggle::DeepReadbackQueue);
         pending_readbacks.SetMaxEntries(deep_queue ? 512 : 64);
         std::unique_lock lock{download_images_mutex};
         for (const ImageId image_id : download_images) {
@@ -799,7 +799,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             const char* value = wipeout_oc_getenv("WIPEOUT_OC_PARTIAL_HEIGHT_VIEWS");
             return !value || value[0] != '0';
         }();
-        if (partial_views_enabled && !Gow3Toggle::Disabled(Gow3Toggle::PartialHeightViews) &&
+        if (partial_views_enabled && !WipeoutOCToggle::Disabled(WipeoutOCToggle::PartialHeightViews) &&
             (binding == BindingType::Texture || binding == BindingType::Storage) && native_reads &&
             a.pixel_format != b.pixel_format && is_integer(a.pixel_format) &&
             lhs_block_size == rhs_block_size && a.pitch == b.pitch && a.tile_mode == b.tile_mode &&
@@ -1100,7 +1100,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         cached.format == info.pixel_format && cached.type == info.type &&
         cached.exact_fmt == exact_fmt && cached.binding == desc.type &&
         cached.needs_native == desc.needs_native && cached.levels == info.resources.levels && cached.layers == info.resources.layers &&
-        !Gow3Toggle::Disabled(Gow3Toggle::FindImageCache)) {
+        !WipeoutOCToggle::Disabled(WipeoutOCToggle::FindImageCache)) {
         Image& image = slot_images[cached.image_id];
         image.tick_accessed_last = scheduler.CurrentTick();
         TouchImage(image);
@@ -1305,7 +1305,7 @@ ImageView& TextureCache::FindTexture(ImageId image_id, const ImageDesc& desc, Vi
     if (desc.type == BindingType::Storage) {
         PublishAliasWrite(image_id);
     }
-    if (memo && !Gow3Toggle::Disabled(Gow3Toggle::TextureViewMemo)) {
+    if (memo && !WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureViewMemo)) {
         if (memo->image_id == image_id && memo->backing == image.backing && memo->view_id) {
             return slot_image_views[memo->view_id];
         }
@@ -1394,7 +1394,7 @@ void TextureCache::RefreshImage(Image& image) {
     }
     ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,
                      ReadbackSource::ImageRefresh);
-    Gow3Stats::Timer timer{Gow3Stats::t_refresh};
+    WipeoutOCStats::Timer timer{WipeoutOCStats::t_refresh};
 
     RENDERER_TRACE;
     TRACE_HINT(fmt::format("{:x}:{:x}", image.info.guest_address, image.info.guest_size));
@@ -1424,7 +1424,7 @@ void TextureCache::RefreshImage(Image& image) {
     const bool is_gpu_modified = True(image.flags & ImageFlagBits::GpuModified);
     const bool is_gpu_dirty = True(image.flags & ImageFlagBits::GpuDirty);
 
-    Gow3Stats::image_upload_bytes.fetch_add(image.info.guest_size, std::memory_order_relaxed);
+    WipeoutOCStats::image_upload_bytes.fetch_add(image.info.guest_size, std::memory_order_relaxed);
     boost::container::small_vector<vk::BufferImageCopy, 14> image_copies;
     for (u32 m = 0; m < num_mips; m++) {
         const u32 width = std::max(image.info.size.width >> m, 1u);
@@ -1497,7 +1497,7 @@ vk::Sampler TextureCache::GetSampler(const AmdGpu::Sampler& sampler,
 }
 
 void TextureCache::RegisterImage(ImageId image_id) {
-    Gow3Stats::images_registered.fetch_add(1, std::memory_order_relaxed);
+    WipeoutOCStats::images_registered.fetch_add(1, std::memory_order_relaxed);
     Image& image = slot_images[image_id];
     ASSERT_MSG(False(image.flags & ImageFlagBits::Registered),
                "Trying to register an already registered image");
@@ -1665,7 +1665,7 @@ void TextureCache::UntrackImageTail(ImageId image_id) {
 }
 
 void TextureCache::GarbageCollectImages() {
-    Gow3Stats::Timer gc_timer{Gow3Stats::t_gc};
+    WipeoutOCStats::Timer gc_timer{WipeoutOCStats::t_gc};
     if (instance.CanReportMemoryUsage()) {
         total_used_memory = instance.GetDeviceMemoryUsage();
         // gow3: on integrated GPUs (Steam Deck) the usage covers system-memory heaps holding
@@ -1688,7 +1688,7 @@ void TextureCache::GarbageCollectImages() {
         }
     }
     runtime.GetStagingPool().SetLowMemory(total_used_memory >= pressure_gc_memory);
-    if (Gow3Stats::enabled) {
+    if (WipeoutOCStats::enabled) {
         static auto last = std::chrono::steady_clock::now();
         const auto now = std::chrono::steady_clock::now();
         if (now - last >= std::chrono::seconds(1)) {
@@ -1713,13 +1713,13 @@ void TextureCache::GarbageCollectImages() {
                         "download %lld+%lld)\n",
                         (long long)(instance.CanReportMemoryUsage() ? instance.GetDeviceMemoryUsage() >> 20 : 0),
                         (unsigned long long)(pressure_gc_memory >> 20),
-                        (long long)(Gow3Stats::image_bytes.load() >> 20),
-                        (long long)Gow3Stats::image_count.load(),
-                        (long long)(Gow3Stats::resident_bytes.load() >> 20),
-                        (long long)(Gow3Stats::staging_bytes.load() >> 20),
-                        (long long)Gow3Stats::staging_mib[0][0].load(), (long long)Gow3Stats::staging_mib[0][1].load(),
-                        (long long)Gow3Stats::staging_mib[1][0].load(), (long long)Gow3Stats::staging_mib[1][1].load(),
-                        (long long)Gow3Stats::staging_mib[2][0].load(), (long long)Gow3Stats::staging_mib[2][1].load());
+                        (long long)(WipeoutOCStats::image_bytes.load() >> 20),
+                        (long long)WipeoutOCStats::image_count.load(),
+                        (long long)(WipeoutOCStats::resident_bytes.load() >> 20),
+                        (long long)(WipeoutOCStats::staging_bytes.load() >> 20),
+                        (long long)WipeoutOCStats::staging_mib[0][0].load(), (long long)WipeoutOCStats::staging_mib[0][1].load(),
+                        (long long)WipeoutOCStats::staging_mib[1][0].load(), (long long)WipeoutOCStats::staging_mib[1][1].load(),
+                        (long long)WipeoutOCStats::staging_mib[2][0].load(), (long long)WipeoutOCStats::staging_mib[2][1].load());
         }
         // GOW3_IMAGE_CENSUS=1: every 10 s, the images by kind, format and size (4 GB cards, #16).
         static const bool census = wipeout_oc_getenv("WIPEOUT_OC_IMAGE_CENSUS") != nullptr;

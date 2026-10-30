@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace Gow3Graphics {
+namespace WipeoutOCGraphics {
 
 enum DisplayMode : int { Windowed = 0, Borderless = 1, Fullscreen = 2, DisplayModeCount };
 inline constexpr std::array<std::string_view, DisplayModeCount> DisplayModeKeys = {
@@ -166,4 +166,4 @@ inline int PresentLimit(int limit, int engine_fps) {
     return limit == 0 && engine_fps <= 60 ? 0 : EffectiveFps(limit, engine_fps);
 }
 
-} // namespace Gow3Graphics
+} // namespace WipeoutOCGraphics

@@ -81,7 +81,7 @@ void SymbolsResolver::AddSymbol(const char* nid, const char* library, const char
 namespace Core {
 class Emulator {
 public:
-    static void FillElfInfo(const Gow3GpuConfig& config) {
+    static void FillElfInfo(const WipeoutOCGpuConfig& config) {
         auto& info = Common::ElfInfo::Instance();
         info.initialized = true;
         info.game_serial = config.serial ? config.serial : "UNKNOWN";
@@ -127,16 +127,16 @@ static void CopySparseSerial(VAddr source, u8* dest, u64 size) {
 void MemoryManager::CopySparseMemory(VAddr source, u8* dest, u64 size) {
     // gow3: large uploads (streaming) are split across the copy threads.
     constexpr u64 Chunk = 512 * 1024;
-    if (size < 4 * Chunk || !Gow3Copy::Enabled()) {
+    if (size < 4 * Chunk || !WipeoutOCCopy::Enabled()) {
         return CopySparseSerial(source, dest, size);
     }
-    Gow3Copy::ParallelFor((size + Chunk - 1) / Chunk, [&](std::size_t i) {
+    WipeoutOCCopy::ParallelFor((size + Chunk - 1) / Chunk, [&](std::size_t i) {
         const u64 offset = i * Chunk;
         CopySparseSerial(source + offset, dest + offset, std::min(Chunk, size - offset));
     });
 }
 bool MemoryManager::TryWriteBacking(void* address, const void* data, u64 size) {
-    Gow3WriteLog::Note(reinterpret_cast<uintptr_t>(address), data, size, Gow3WriteLog::Backing);
+    WipeoutOCWriteLog::Note(reinterpret_cast<uintptr_t>(address), data, size, WipeoutOCWriteLog::Backing);
     const bool written = runtime_memory_write_backing(reinterpret_cast<uintptr_t>(address), data, size) != 0;
     // The write skipped page tracking: textures over it must reload (#138).
     // ponytail: fence and label writes (<= 8 bytes) never hold texels, so they are left out;
@@ -147,13 +147,13 @@ bool MemoryManager::TryWriteBacking(void* address, const void* data, u64 size) {
     return written;
 }
 void AddressSpace::Protect(VAddr virtual_addr, u64 size, MemoryPermission perms) {
-    Gow3Stats::Timer timer{Gow3Stats::t_protect};
+    WipeoutOCStats::Timer timer{WipeoutOCStats::t_protect};
     const u64 pages = (size + 4095) / 4096;
-    Gow3Stats::protect_calls.fetch_add(1, std::memory_order_relaxed);
-    Gow3Stats::protect_pages.fetch_add(pages, std::memory_order_relaxed);
+    WipeoutOCStats::protect_calls.fetch_add(1, std::memory_order_relaxed);
+    WipeoutOCStats::protect_pages.fetch_add(pages, std::memory_order_relaxed);
     if (!True(perms & MemoryPermission::Write)) {
-        Gow3Stats::protect_revoke_calls.fetch_add(1, std::memory_order_relaxed);
-        Gow3Stats::protect_revoke_pages.fetch_add(pages, std::memory_order_relaxed);
+        WipeoutOCStats::protect_revoke_calls.fetch_add(1, std::memory_order_relaxed);
+        WipeoutOCStats::protect_revoke_pages.fetch_add(pages, std::memory_order_relaxed);
     }
     runtime_memory_gpu_protect(virtual_addr, size, True(perms & MemoryPermission::Read),
                                True(perms & MemoryPermission::Write));
@@ -198,7 +198,7 @@ std::condition_variable g_window_cv;
 bool g_window_ready;
 } // namespace
 
-double Gow3DisplayRefreshRate() {
+double WipeoutOCDisplayRefreshRate() {
     static const double rate = [] {
         const SDL_DisplayMode* mode = SDL_GetCurrentDisplayMode(SDL_GetPrimaryDisplay());
         if (!mode || mode->refresh_rate <= 0) {
@@ -212,16 +212,16 @@ double Gow3DisplayRefreshRate() {
     return rate;
 }
 
-u32 Gow3DisplayRefreshHz() {
+u32 WipeoutOCDisplayRefreshHz() {
     static const u32 hz = [] {
-        const u32 rate = u32(Gow3DisplayRefreshRate() + 0.5);
+        const u32 rate = u32(WipeoutOCDisplayRefreshRate() + 0.5);
         std::printf("GPU: vblank follows the display refresh rate, %u Hz\n", rate);
         return std::max<u32>(rate, 60);
     }();
     return hz;
 }
 
-#ifdef GOW3_PGO_GENERATE
+#ifdef WIPEOUT_OC_PGO_GENERATE
 extern "C" void __gcov_dump(void);
 extern "C" void __gcov_reset(void);
 // Instrumented build (GOW3_PGO=generate): the game often ends through _exit (watchdog, guest
@@ -240,9 +240,9 @@ static void StartProfileWriter() {
 }
 #endif
 
-extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
-    if (!Gow3Settings::Load()) return 1;
-#ifdef GOW3_PGO_GENERATE
+extern "C" int wipeout_oc_gpu_init(const WipeoutOCGpuConfig* config) {
+    if (!WipeoutOCSettings::Load()) return 1;
+#ifdef WIPEOUT_OC_PGO_GENERATE
     StartProfileWriter();
 #endif
     g_sdk_version = config->sdk_version;
@@ -284,14 +284,14 @@ extern "C" int gow3gpu_init(const Gow3GpuConfig* config) {
 }
 
 namespace Libraries::Kernel { void StartKernelService(); }
-extern "C" void gow3gpu_register_kernel(void) {
+extern "C" void wipeout_oc_gpu_register_kernel(void) {
     Libraries::Kernel::StartKernelService();
     Core::Loader::SymbolsResolver resolver;
     Libraries::Kernel::RegisterEventQueue(&resolver);
     Libraries::AvPlayer::RegisterLib(&resolver);
 }
 
-extern "C" uintptr_t gow3gpu_resolve(const char* scoped_nid) {
+extern "C" uintptr_t wipeout_oc_gpu_resolve(const char* scoped_nid) {
     const char* hash = std::strchr(scoped_nid, '#');
     const size_t length = hash ? size_t(hash - scoped_nid) : std::strlen(scoped_nid);
     for (const auto& symbol : g_symbols) {
@@ -302,31 +302,31 @@ extern "C" uintptr_t gow3gpu_resolve(const char* scoped_nid) {
     return 0;
 }
 
-extern "C" void gow3gpu_frame_threads(unsigned long* game_thread, unsigned long* gpu_thread,
+extern "C" void wipeout_oc_gpu_frame_threads(unsigned long* game_thread, unsigned long* gpu_thread,
                                       uint64_t* frames) {
-    *game_thread = Gow3PerfStats::game_thread_id.load();
-    *gpu_thread = Gow3Stats::gpu_thread_id.load();
-    *frames = Gow3PerfStats::game_frames.load();
+    *game_thread = WipeoutOCPerfStats::game_thread_id.load();
+    *gpu_thread = WipeoutOCStats::gpu_thread_id.load();
+    *frames = WipeoutOCPerfStats::game_frames.load();
 }
 
-extern "C" void gow3gpu_draw_rec_thread(unsigned long* thread, uint64_t* drain_cycles,
+extern "C" void wipeout_oc_gpu_draw_rec_thread(unsigned long* thread, uint64_t* drain_cycles,
                                         unsigned long* vk_recorder) {
-    *thread = Gow3Stats::draw_rec_thread_id.load();
-    *vk_recorder = Gow3Stats::vk_recorder_thread_id.load();
-    *drain_cycles = Gow3Stats::pipe_drain_cycles.load();
+    *thread = WipeoutOCStats::draw_rec_thread_id.load();
+    *vk_recorder = WipeoutOCStats::vk_recorder_thread_id.load();
+    *drain_cycles = WipeoutOCStats::pipe_drain_cycles.load();
 }
 
-extern "C" void gow3gpu_draw_counts(uint64_t* draws, uint64_t* dispatches, uint64_t* submissions) {
-    *draws = Gow3Stats::draws.load();
-    *dispatches = Gow3Stats::dispatches.load();
-    *submissions = Gow3Stats::submissions.load();
+extern "C" void wipeout_oc_gpu_draw_counts(uint64_t* draws, uint64_t* dispatches, uint64_t* submissions) {
+    *draws = WipeoutOCStats::draws.load();
+    *dispatches = WipeoutOCStats::dispatches.load();
+    *submissions = WipeoutOCStats::submissions.load();
 }
 
-extern "C" int gow3gpu_handle_fault(void* ucontext, void* address) {
+extern "C" int wipeout_oc_gpu_handle_fault(void* ucontext, void* address) {
     return Core::Signals::Instance()->DispatchAccessViolation(ucontext, address) ? 1 : 0;
 }
 
-extern "C" unsigned gow3gpu_symbol_count(void) {
+extern "C" unsigned wipeout_oc_gpu_symbol_count(void) {
     return unsigned(g_symbols.size());
 }
 
@@ -405,88 +405,88 @@ ScreenshotRequests ConsumeScreenshotRequests() {
 }
 } // namespace VideoCore
 
-extern "C" int gow3gpu_stick_deadzone_percent(void) {
-    return Gow3Settings::Get().stick_deadzone.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_stick_deadzone_percent(void) {
+    return WipeoutOCSettings::Get().stick_deadzone.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_vibration_percent(void) {
-    return Gow3Settings::Get().vibration.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_vibration_percent(void) {
+    return WipeoutOCSettings::Get().vibration.load(std::memory_order_relaxed);
 }
 
-extern "C" void gow3gpu_movie_picture(void) {
+extern "C" void wipeout_oc_gpu_movie_picture(void) {
     Vulkan::MovieBars::Cutscenes().NotePicture(Vulkan::MovieBars::NowMs());
 }
 
-extern "C" void gow3gpu_request_screenshot(void) {
+extern "C" void wipeout_oc_gpu_request_screenshot(void) {
     VideoCore::RequestScreenshot(VideoCore::ScreenshotRequest::GameOnly);
 }
 
-extern "C" void gow3gpu_notice(const char* utf8) {
-    Gow3Overlay::ShowNotice(utf8, 5000);
+extern "C" void wipeout_oc_gpu_notice(const char* utf8) {
+    WipeoutOCOverlay::ShowNotice(utf8, 5000);
 }
 
-extern "C" int gow3gpu_music_on(void) {
-    return Gow3Settings::Get().music.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_music_on(void) {
+    return WipeoutOCSettings::Get().music.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_music_shuffle(void) {
-    return Gow3Settings::Get().music_shuffle.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_music_shuffle(void) {
+    return WipeoutOCSettings::Get().music_shuffle.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_music_continue(void) {
-    return Gow3Settings::Get().music_continue.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_music_continue(void) {
+    return WipeoutOCSettings::Get().music_continue.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_music_volume(void) {
-    return Gow3Settings::Get().music_volume.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_music_volume(void) {
+    return WipeoutOCSettings::Get().music_volume.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_mouse_prompt_distance(void) {
-    return Gow3Settings::Get().mouse_prompt_distance.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_mouse_prompt_distance(void) {
+    return WipeoutOCSettings::Get().mouse_prompt_distance.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_mouse_aim_style(void) {
-    return Gow3Settings::Get().mouse_aim_style.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_mouse_aim_style(void) {
+    return WipeoutOCSettings::Get().mouse_aim_style.load(std::memory_order_relaxed);
 }
 
-extern "C" int gow3gpu_mouse_aim_sensitivity(void) {
-    return Gow3Settings::Get().mouse_aim_sensitivity.load(std::memory_order_relaxed);
+extern "C" int wipeout_oc_gpu_mouse_aim_sensitivity(void) {
+    return WipeoutOCSettings::Get().mouse_aim_sensitivity.load(std::memory_order_relaxed);
 }
 
-extern "C" void gow3gpu_mouse_pause_key(void) {
+extern "C" void wipeout_oc_gpu_mouse_pause_key(void) {
     Frontend::ToggleMousePause();
 }
 
-extern "C" int gow3gpu_overlay_captures_input(void) {
-    return Gow3Overlay::CapturesInput() ? 1 : 0;
+extern "C" int wipeout_oc_gpu_overlay_captures_input(void) {
+    return WipeoutOCOverlay::CapturesInput() ? 1 : 0;
 }
 
-extern "C" int gow3gpu_text_input_begin(const char* initial, const char* prompt) {
+extern "C" int wipeout_oc_gpu_text_input_begin(const char* initial, const char* prompt) {
     if (!g_window) return 0;
     g_window->BeginTextInput(initial ? initial : "", prompt ? prompt : "Text");
     return 1;
 }
 
-extern "C" int gow3gpu_choice_begin(const char* title, const char* const* items, const char* const* images,
+extern "C" int wipeout_oc_gpu_choice_begin(const char* title, const char* const* items, const char* const* images,
                                     int count, int focus) {
     if (!g_window || count <= 0) return 0;
     // Pictures are decoded here, on the game's thread, before the list is shown.
-    std::vector<Gow3Png::Image> pictures(count);
+    std::vector<WipeoutOCPng::Image> pictures(count);
     for (int i = 0; images && i < count; ++i) {
-        if (images[i] && !Gow3Png::LoadRgba(images[i], pictures[i])) {
+        if (images[i] && !WipeoutOCPng::LoadRgba(images[i], pictures[i])) {
             LOG_WARNING(Lib_SaveDataDialog, "save list: no picture from {}", images[i]);
         }
     }
-    Gow3Overlay::BeginChoice(title ? title : "", std::vector<std::string>(items, items + count),
+    WipeoutOCOverlay::BeginChoice(title ? title : "", std::vector<std::string>(items, items + count),
                              std::move(pictures), focus);
     return 1;
 }
 
-extern "C" int gow3gpu_choice_poll(void) {
-    return Gow3Overlay::PollChoice();
+extern "C" int wipeout_oc_gpu_choice_poll(void) {
+    return WipeoutOCOverlay::PollChoice();
 }
 
-extern "C" int gow3gpu_text_input_poll(char* out, uint64_t size) {
+extern "C" int wipeout_oc_gpu_text_input_poll(char* out, uint64_t size) {
     if (!g_window) return 2;
     std::string text;
     const int state = g_window->PollTextInput(text);

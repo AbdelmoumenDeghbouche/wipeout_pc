@@ -131,12 +131,12 @@ int main(int argc, char** argv) {
 #else
     setenv("GOW3_CONFIG", path, 1);
 #endif
-    auto& v = Gow3Settings::Get();
-    Gow3Settings::Load();
+    auto& v = WipeoutOCSettings::Get();
+    WipeoutOCSettings::Load();
     assert(v.damage_dealt == 2.5f && v.damage_taken == 0.5f && v.green_orb_multiplier == 3.0f);
     assert(v.blue_orb_multiplier == 100.0f && v.gold_orb_multiplier == 0.1f);
     v.gold_orb_multiplier = 4.0f;
-    Gow3Settings::Save();
+    WipeoutOCSettings::Save();
     const std::string saved = Read(path);
     for (const char* line : {"damage_dealt=2.500\n", "damage_taken=0.500\n", "green_orb_multiplier=3.000\n",
                              "blue_orb_multiplier=100.000\n", "gold_orb_multiplier=4.000\n"}) {

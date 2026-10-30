@@ -825,12 +825,12 @@ void Runtime::AccessBuffer(const VideoCore::Buffer* handle, u64 offset, u64 size
     // at a new offset every draw; rounded, they land in ranges already present and the
     // insert returns early instead of growing the tree until the next barrier flush.
     // Wider read ranges only add barriers, never drop one.
-    if (!(src_access & WRITE_MASK) && !Gow3Toggle::Disabled(Gow3Toggle::CoarseReadTracking)) {
+    if (!(src_access & WRITE_MASK) && !WipeoutOCToggle::Disabled(WipeoutOCToggle::CoarseReadTracking)) {
         range.range_start &= ~u64{0xFFF};
         range.range_end |= 0xFFF;
     }
     const auto insert = [&](Access access) {
-        if (Gow3Toggle::Disabled(Gow3Toggle::AccessMemo)) {
+        if (WipeoutOCToggle::Disabled(WipeoutOCToggle::AccessMemo)) {
             barrier_tracker.InsertRange(range, access);
             return;
         }

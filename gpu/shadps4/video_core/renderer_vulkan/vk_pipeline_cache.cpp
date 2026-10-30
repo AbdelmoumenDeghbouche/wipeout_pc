@@ -397,10 +397,10 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
                vk::to_string(cache_result));
     pipeline_cache = std::move(cache);
     // gow3: the compiler threads always exist; the in-game menu switches async compilation live
-    // (Gow3Settings::async_shaders, GOW3_ASYNC_SHADERS at start).
+    // (WipeoutOCSettings::async_shaders, GOW3_ASYNC_SHADERS at start).
     {
-        const auto count = std::clamp(Gow3Threads::Available() / 2, 1u, 6u);
-        const auto capture_count = std::min(2u, std::max(1u, Gow3Threads::Available() / 4));
+        const auto count = std::clamp(WipeoutOCThreads::Available() / 2, 1u, 6u);
+        const auto capture_count = std::min(2u, std::max(1u, WipeoutOCThreads::Available() / 4));
         for (unsigned i = 0; i < count; ++i) {
             auto [result, worker_cache] = instance.GetDevice().createPipelineCacheUnique({});
             ASSERT_MSG(result == vk::Result::eSuccess, "Failed to create compiler pipeline cache");
@@ -637,7 +637,7 @@ void PipelineCache::FinishCompilations() {
 }
 
 bool PipelineCache::AsyncCompilation() const {
-    return compiler && Gow3Settings::Get().async_shaders.load(std::memory_order_relaxed);
+    return compiler && WipeoutOCSettings::Get().async_shaders.load(std::memory_order_relaxed);
 }
 
 void PipelineCache::SeedWorkerCaches() {

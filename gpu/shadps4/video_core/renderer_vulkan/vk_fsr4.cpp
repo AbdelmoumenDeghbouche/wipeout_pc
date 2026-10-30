@@ -277,7 +277,7 @@ struct Fsr4Upscaler::Impl {
     }
 
     bool Record(const Frame& f) {
-        if (Gow3Settings::Get().upscaler == Gow3Settings::UpscalerFsr411) {
+        if (WipeoutOCSettings::Get().upscaler == WipeoutOCSettings::UpscalerFsr411) {
             return Record411(f);
         }
         if (fatal) {

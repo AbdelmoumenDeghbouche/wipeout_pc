@@ -211,7 +211,7 @@ void StagingBufferPool::TrimLarge(std::vector<LargeBuffer>& cache) {
 
 void StagingBufferPool::PublishStats() const {
     using namespace Core::Devtools::Widget;
-    if (Gow3Stats::enabled) {
+    if (WipeoutOCStats::enabled) {
         u64 bytes = 0;
         for (size_t i = 0; i < NUM_TYPES; ++i) {
             u64 ring_bytes = 0, large_bytes = 0;
@@ -221,11 +221,11 @@ void StagingBufferPool::PublishStats() const {
             for (const LargeBuffer& entry : large_caches[i]) {
                 large_bytes += entry.buffer->SizeBytes();
             }
-            Gow3Stats::staging_mib[i][0] = static_cast<s64>(ring_bytes >> 20);
-            Gow3Stats::staging_mib[i][1] = static_cast<s64>(large_bytes >> 20);
+            WipeoutOCStats::staging_mib[i][0] = static_cast<s64>(ring_bytes >> 20);
+            WipeoutOCStats::staging_mib[i][1] = static_cast<s64>(large_bytes >> 20);
             bytes += ring_bytes + large_bytes;
         }
-        Gow3Stats::staging_bytes = static_cast<s64>(bytes);
+        WipeoutOCStats::staging_bytes = static_cast<s64>(bytes);
     }
     if (!GpuMemoryViewer::IsEnabled()) {
         return;

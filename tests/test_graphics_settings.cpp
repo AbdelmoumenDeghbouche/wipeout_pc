@@ -8,7 +8,7 @@
 #include "wipeout_oc_graphics.h"
 #include "wipeout_oc_settings.h"
 
-namespace G = Gow3Graphics;
+namespace G = WipeoutOCGraphics;
 
 static std::string Read(const char* path) {
     std::ifstream in(path);
@@ -53,29 +53,29 @@ int main() {
     }
     _putenv_s("GOW3_CONFIG", path);
     _putenv_s("GOW3_ASYNC_SHADERS", "");
-    auto& v = Gow3Settings::Get();
-    Gow3Settings::Load();
+    auto& v = WipeoutOCSettings::Get();
+    WipeoutOCSettings::Load();
     assert(v.display_mode == G::Borderless && !v.vsync && v.fps_limit == 240 && !v.async_shaders);
     assert(v.render_resolution == 4 && v.engine_fps == 240 && !v.deferred_readback && v.stale_readback);
     // FSR 1 left the menus in 2.2.0: a saved fsr1=1 (or GOW3_FSR1) no longer turns it on.
     assert(!v.fsr1 && !v.rcas && v.rcas_strength == 40 && v.frames_queued == 2);
     _putenv_s("GOW3_FSR1", "1");
-    Gow3Settings::Load();
+    WipeoutOCSettings::Load();
     assert(!v.fsr1);
     _putenv_s("GOW3_FSR1", "");
-    assert(!Gow3Settings::GraphicsNeedRestart());
+    assert(!WipeoutOCSettings::GraphicsNeedRestart());
     assert(v.applied_engine_fps == 240);  // no GOW3_ENGINE_FPS: the configured rate
     _putenv_s("GOW3_ENGINE_FPS", "60");    // run.py: the frame rate patch did not apply
-    Gow3Settings::Load();
-    assert(v.engine_fps == 240 && v.applied_engine_fps == 60 && !Gow3Settings::GraphicsNeedRestart());
+    WipeoutOCSettings::Load();
+    assert(v.engine_fps == 240 && v.applied_engine_fps == 60 && !WipeoutOCSettings::GraphicsNeedRestart());
     _putenv_s("GOW3_ENGINE_FPS", "");
     v.engine_fps = 120;
-    assert(Gow3Settings::GraphicsNeedRestart());
+    assert(WipeoutOCSettings::GraphicsNeedRestart());
     v.fps_limit = 60;  // live: no restart because of it
     v.engine_fps = 240;
-    assert(!Gow3Settings::GraphicsNeedRestart());
+    assert(!WipeoutOCSettings::GraphicsNeedRestart());
 
-    Gow3Settings::Save();
+    WipeoutOCSettings::Save();
     const std::string saved = Read(path);
     for (const char* line : {"display_mode=borderless\n", "vsync=0\n", "fps_limit=60\n", "async_shaders=0\n",
                              "render_resolution=1440p\n", "engine_fps=240\n", "deferred_readback=0\n",
@@ -94,12 +94,12 @@ int main() {
             std::ofstream out(path);
             out << "render_resolution=2880x1200\n";
         }
-        Gow3Settings::Load();
+        WipeoutOCSettings::Load();
         assert(v.render_resolution == 23);
-        Gow3Settings::Save();
+        WipeoutOCSettings::Save();
         assert(Read(path).find("render_resolution=2880x1200\n") != std::string::npos);
         _putenv_s("GOW3_EXTRA_RESOLUTIONS", "");  // the mod is off: its resolution is unknown, so native
-        Gow3Settings::Load();
+        WipeoutOCSettings::Load();
         assert(v.render_resolution == 0 && G::ResolutionNames().size() == 22);
     }
 
@@ -128,7 +128,7 @@ int main() {
     }
     _putenv_s("GOW3_ASYNC_SHADERS", "1");  // the environment still wins at start
     v.async_shaders = false;
-    Gow3Settings::Load();
+    WipeoutOCSettings::Load();
     assert(v.display_mode == G::Windowed && v.fps_limit == 0 && v.render_resolution == 0 && v.engine_fps == 120);
     assert(v.rcas_strength == 75 && v.frames_queued == 1);
     assert(v.async_shaders);
@@ -136,8 +136,8 @@ int main() {
         std::ofstream out(path);
         out << "cheat_double_jumps=1\ncheat_very_hard=1\n";
     }
-    Gow3Settings::Load();
-    Gow3Settings::Save();
+    WipeoutOCSettings::Load();
+    WipeoutOCSettings::Save();
     const std::string cheats = Read(path);
     assert(cheats.find("cheat_double_jumps=1\n") != std::string::npos);
     assert(cheats.find("cheat_very_hard=1\n") != std::string::npos);

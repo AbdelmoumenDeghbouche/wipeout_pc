@@ -327,15 +327,15 @@ void VideoOutDriver::Flip(const Request& req) {
         // Stall diagnostics: what happened during a long frame.
         static u64 last_gpu_ns, last_images, last_image_bytes, last_buffer_bytes;
         static u64 last_t[6], last_minflt, last_sigf, last_pc, last_pp, last_rc, last_rp;
-        const u64 pc = Gow3Stats::protect_calls.load(), pp = Gow3Stats::protect_pages.load(),
-                  rc = Gow3Stats::protect_revoke_calls.load(), rp = Gow3Stats::protect_revoke_pages.load();
-        const u64 minflt = Gow3Stats::gpu_minor_faults.load(), sigf = Gow3Stats::gpu_signal_faults.load();
+        const u64 pc = WipeoutOCStats::protect_calls.load(), pp = WipeoutOCStats::protect_pages.load(),
+                  rc = WipeoutOCStats::protect_revoke_calls.load(), rp = WipeoutOCStats::protect_revoke_pages.load();
+        const u64 minflt = WipeoutOCStats::gpu_minor_faults.load(), sigf = WipeoutOCStats::gpu_signal_faults.load();
         static u64 last_copy_cpu, last_copy_sys, last_copy_flt;
-        const u64 copy_cpu = Gow3Stats::t_copy_cpu.load(), copy_sys = Gow3Stats::copy_sys_us.load(),
-                  copy_flt = Gow3Stats::copy_minflt.load();
+        const u64 copy_cpu = WipeoutOCStats::t_copy_cpu.load(), copy_sys = WipeoutOCStats::copy_sys_us.load(),
+                  copy_flt = WipeoutOCStats::copy_minflt.load();
         static u64 last_proc_flt, last_copy_ns, last_copy_bytes, last_rf, last_trf, last_twf;
-        const u64 rf = Gow3Stats::read_faults.load(), trf = Gow3Stats::t_read_faults.load(),
-                  twf = Gow3Stats::t_write_faults.load();
+        const u64 rf = WipeoutOCStats::read_faults.load(), trf = WipeoutOCStats::t_read_faults.load(),
+                  twf = WipeoutOCStats::t_write_faults.load();
         // gow3: every frame over 40 ms (GOW3_STALL_MS) after the first, at most 10 per 5 s window.
         static const double stall_ms = [] {
             const char* value = wipeout_oc_getenv("WIPEOUT_OC_STALL_MS");
@@ -349,10 +349,10 @@ void VideoOutDriver::Flip(const Request& req) {
         // Waits and work inside the long frame (window counters are reset every 5 s, so the
         // previous values are reset with them).
         static u64 last_wait[7];
-        const u64 wait_now[7] = {Gow3Stats::t_readback_wait.load(), Gow3Stats::tick_wait_ns.load(),
-                                 Gow3Stats::sync_recording_ns.load(), Gow3Stats::host_copies_wait_ns.load(),
+        const u64 wait_now[7] = {WipeoutOCStats::t_readback_wait.load(), WipeoutOCStats::tick_wait_ns.load(),
+                                 WipeoutOCStats::sync_recording_ns.load(), WipeoutOCStats::host_copies_wait_ns.load(),
                                  u64(Vulkan::g_gow3_compile_ns.load()), u64(Vulkan::g_gow3_compiles.load()),
-                                 Gow3Stats::t_gc.load()};
+                                 WipeoutOCStats::t_gc.load()};
         if (stall) {
             std::printf("Stall: %.1f ms frame; waits: readback %.1f ms, GPU ticks %.1f ms, "
                         "recorder %.1f ms, host copies %.1f ms; %llu compiles %.1f ms; GC %.1f ms\n",
@@ -370,27 +370,27 @@ void VideoOutDriver::Flip(const Request& req) {
         last_rf = rf;
         last_trf = trf;
         last_twf = twf;
-        const u64 copy_ns = Gow3Stats::t_copy.load(), copy_bytes = Gow3Stats::copy_bytes.load();
+        const u64 copy_ns = WipeoutOCStats::t_copy.load(), copy_bytes = WipeoutOCStats::copy_bytes.load();
         u64 proc_flt = 0;
 #ifndef _WIN32
         if (rusage usage{}; getrusage(RUSAGE_SELF, &usage) == 0) {
             proc_flt = usage.ru_minflt;
         }
 #endif
-        const u64 t_now[6] = {Gow3Stats::t_resident.load(), Gow3Stats::t_protect.load(),
-                              Gow3Stats::t_image_create.load(), Gow3Stats::t_refresh.load(),
-                              Gow3Stats::t_staging.load(), Gow3Stats::t_host_wait.load()};
+        const u64 t_now[6] = {WipeoutOCStats::t_resident.load(), WipeoutOCStats::t_protect.load(),
+                              WipeoutOCStats::t_image_create.load(), WipeoutOCStats::t_refresh.load(),
+                              WipeoutOCStats::t_staging.load(), WipeoutOCStats::t_host_wait.load()};
         static u64 last_draws, last_dispatches, last_subs, last_sys, last_user, last_invol, last_vol;
-        const u64 draws = Gow3Stats::draws.load(), dispatches = Gow3Stats::dispatches.load(),
-                  subs = Gow3Stats::submissions.load(), sys_us = Gow3Stats::gpu_sys_us.load(),
-                  user_us = Gow3Stats::gpu_user_us.load(), invol = Gow3Stats::gpu_invol_switches.load(),
-                  vol = Gow3Stats::gpu_vol_switches.load();
+        const u64 draws = WipeoutOCStats::draws.load(), dispatches = WipeoutOCStats::dispatches.load(),
+                  subs = WipeoutOCStats::submissions.load(), sys_us = WipeoutOCStats::gpu_sys_us.load(),
+                  user_us = WipeoutOCStats::gpu_user_us.load(), invol = WipeoutOCStats::gpu_invol_switches.load(),
+                  vol = WipeoutOCStats::gpu_vol_switches.load();
         u64 gpu_ns = 0;
 #ifdef _WIN32
         // gow3: Windows has no per-thread clock id; the thread's user + kernel time instead.
         static HANDLE gpu_thread = nullptr;
         if (!gpu_thread) {
-            if (const unsigned long id = Gow3Stats::gpu_thread_id.load()) {
+            if (const unsigned long id = WipeoutOCStats::gpu_thread_id.load()) {
                 gpu_thread = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, id);
             }
         }
@@ -402,15 +402,15 @@ void VideoOutDriver::Flip(const Request& req) {
             gpu_ns = ns(kernel) + ns(user);
         }
 #else
-        if (const int clock = Gow3Stats::gpu_thread_clock.load(); clock != -1) {
+        if (const int clock = WipeoutOCStats::gpu_thread_clock.load(); clock != -1) {
             timespec ts{};
             clock_gettime(static_cast<clockid_t>(clock), &ts);
             gpu_ns = u64(ts.tv_sec) * 1000000000ull + u64(ts.tv_nsec);
         }
 #endif
-        const u64 images = Gow3Stats::images_registered.load();
-        const u64 image_bytes = Gow3Stats::image_upload_bytes.load();
-        const u64 buffer_bytes = Gow3Stats::buffer_upload_bytes.load();
+        const u64 images = WipeoutOCStats::images_registered.load();
+        const u64 image_bytes = WipeoutOCStats::image_upload_bytes.load();
+        const u64 buffer_bytes = WipeoutOCStats::buffer_upload_bytes.load();
         if (stall) {
             std::printf("       GPU thread on CPU %.1f ms; %llu images registered, "
                         "%.1f MB image uploads, %.1f MB buffer uploads\n",
@@ -486,12 +486,12 @@ void VideoOutDriver::Flip(const Request& req) {
             const double guest_wait_ms = Vulkan::g_gow3_guest_wait_ns.exchange(0) / 1e6;
             const u32 pending_draws = Vulkan::g_gow3_pending_draws.exchange(0);
             const u64 direct = Vulkan::Scheduler::direct_recordings.exchange(0);
-            const u64 faults = Gow3Stats::tracker_faults.exchange(0);
+            const u64 faults = WipeoutOCStats::tracker_faults.exchange(0);
             // GPU command thread CPU time per draw: comparable between builds even when the scene
             // (and so the frame rate) differs a little.
             static u64 window_draws = 0, window_gpu_us = 0;
-            const u64 all_draws = Gow3Stats::draws.load();
-            const u64 gpu_us = Gow3Stats::gpu_user_us.load() + Gow3Stats::gpu_sys_us.load();
+            const u64 all_draws = WipeoutOCStats::draws.load();
+            const u64 gpu_us = WipeoutOCStats::gpu_user_us.load() + WipeoutOCStats::gpu_sys_us.load();
             const double us_per_draw = all_draws > window_draws
                                            ? double(gpu_us - window_gpu_us) / (all_draws - window_draws)
                                            : 0.0;
@@ -510,25 +510,25 @@ void VideoOutDriver::Flip(const Request& req) {
                         compile_ns / 1e6, capture_ms, async_ms, wait_ms, snapshot_ms, guest_wait_ms,
                         pending_draws,
                         static_cast<unsigned long long>(direct),
-                        faults / window, static_cast<long long>(Gow3Stats::hot_pages.load()),
+                        faults / window, static_cast<long long>(WipeoutOCStats::hot_pages.load()),
                         us_per_draw, draws_per_frame,
-                        Gow3Stats::gpu_idle_ns.exchange(0) / (window * 1e7),
-                        Gow3Stats::sync_recording_ns.exchange(0) / (window * 1e7),
-                        Gow3Stats::host_copies_wait_ns.exchange(0) / (window * 1e7),
-                        frames ? double(Gow3Stats::host_copy_waits.exchange(0)) / frames : 0.0,
-                        Gow3Stats::copy_threads_wait_ns.exchange(0) / (window * 1e7),
-                        Gow3Stats::tick_wait_ns.exchange(0) / (window * 1e7),
-                        frames ? double(Gow3Stats::reduced_draws.exchange(0)) / frames : 0.0,
-                        frames ? double(Gow3Stats::scene_draws.exchange(0)) / frames : 0.0);
+                        WipeoutOCStats::gpu_idle_ns.exchange(0) / (window * 1e7),
+                        WipeoutOCStats::sync_recording_ns.exchange(0) / (window * 1e7),
+                        WipeoutOCStats::host_copies_wait_ns.exchange(0) / (window * 1e7),
+                        frames ? double(WipeoutOCStats::host_copy_waits.exchange(0)) / frames : 0.0,
+                        WipeoutOCStats::copy_threads_wait_ns.exchange(0) / (window * 1e7),
+                        WipeoutOCStats::tick_wait_ns.exchange(0) / (window * 1e7),
+                        frames ? double(WipeoutOCStats::reduced_draws.exchange(0)) / frames : 0.0,
+                        frames ? double(WipeoutOCStats::scene_draws.exchange(0)) / frames : 0.0);
             if (frames) {
                 std::printf("Fence waits: per frame %.1f EOS handed to the recording thread, %.1f "
                             "waited, %.1f GDS stores; downloads %.1f waited, %.1f skipped (none "
                             "queued)\n",
-                            double(Gow3Stats::eos_deferred.exchange(0)) / frames,
-                            double(Gow3Stats::eos_waited.exchange(0)) / frames,
-                            double(Gow3Stats::eos_gds.exchange(0)) / frames,
-                            double(Gow3Stats::download_waits.exchange(0)) / frames,
-                            double(Gow3Stats::download_waits_skipped.exchange(0)) / frames);
+                            double(WipeoutOCStats::eos_deferred.exchange(0)) / frames,
+                            double(WipeoutOCStats::eos_waited.exchange(0)) / frames,
+                            double(WipeoutOCStats::eos_gds.exchange(0)) / frames,
+                            double(WipeoutOCStats::download_waits.exchange(0)) / frames,
+                            double(WipeoutOCStats::download_waits_skipped.exchange(0)) / frames);
             }
             presenter->GetRasterizer().GetPipelineCache().ReportCompilerStats();
             Vulkan::WaitDiagnostics::Report();
@@ -629,7 +629,7 @@ bool VideoOutDriver::SubmitFlip(VideoOutPort* port, s32 index, s64 flip_arg,
     }
 
     // gow3 (GOW3_CPU_PROFILE): the game's frames, per flip.
-    Gow3PerfStats::game_frames.fetch_add(1, std::memory_order_relaxed);
+    WipeoutOCPerfStats::game_frames.fetch_add(1, std::memory_order_relaxed);
     if (!is_eop) {
         // Non EOP flips can arrive from any thread so ask GPU thread to perform them
         liverpool->SendCommand([=, this]() { SubmitFlipInternal(port, index, flip_arg, is_eop); });
@@ -674,19 +674,19 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
 
     // gow3: frame limit (see EmulatorSettings::GetFrameLimit). A request waits in the queue
     // until its slot; slots advance by one period (no drift) but never lag behind by more.
-    // gow3: the in-game menu changes the limit live (Gow3Settings::fps_limit); GOW3_FPS_LIMIT
+    // gow3: the in-game menu changes the limit live (WipeoutOCSettings::fps_limit); GOW3_FPS_LIMIT
     // and the uncapped presets keep their fixed limit.
     const bool fixed_limit = wipeout_oc_getenv("WIPEOUT_OC_FPS_LIMIT") || EmulatorSettings.GetVblankFrequency() == 480;
     const auto current_limit = [&] {
-        const auto& s = Gow3Settings::Get();
+        const auto& s = WipeoutOCSettings::Get();
         return fixed_limit ? EmulatorSettings.GetFrameLimit()
-                           : u32(Gow3Graphics::PresentLimit(s.fps_limit, s.applied_engine_fps));
+                           : u32(WipeoutOCGraphics::PresentLimit(s.fps_limit, s.applied_engine_fps));
     };
     // gow3: a limit just above the display's rate (60 on a 59.94 Hz monitor, 120 on 119.88)
     // spaces the flips by the display's refresh: at an exact 60 FPS VSync fell a frame behind
     // every ~17 s, then every flip waited for the display and frames alternated one and two
     // refreshes (felt like 30-35 FPS while the counter said 60).
-    const double display_hz = Gow3DisplayRefreshRate();
+    const double display_hz = WipeoutOCDisplayRefreshRate();
     const auto limit_period = [display_hz](u32 limit) {
         if (!limit) {
             return std::chrono::nanoseconds(0);

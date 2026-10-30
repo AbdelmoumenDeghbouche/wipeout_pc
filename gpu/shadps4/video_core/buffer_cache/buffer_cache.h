@@ -135,9 +135,9 @@ private:
     bool SynchronizeMemory(const Buffer* arena, VAddr device_addr, u32 size, bool is_written,
                            bool is_texel_buffer);
 
-    /// gow3: batched small copies on the copy threads (Gow3Copy::QueueCopy).
-    static void RunGuestCopy(const Gow3Copy::Item& item);
-    void SmallGuestCopy(const Gow3Copy::Item& item);
+    /// gow3: batched small copies on the copy threads (WipeoutOCCopy::QueueCopy).
+    static void RunGuestCopy(const WipeoutOCCopy::Item& item);
+    void SmallGuestCopy(const WipeoutOCCopy::Item& item);
 
     const Buffer* UploadCopies(const Buffer* arena, std::span<vk::BufferCopy> copies,
                                size_t total_size_bytes);

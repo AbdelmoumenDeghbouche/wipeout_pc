@@ -181,7 +181,7 @@ public:
         // Every texture binding comes here; the mutex (shared with the fault handlers of the
         // guest threads) was ~3% of the GPU thread. Flags are read atomically: an invalidation
         // racing with this check races the same way with the locked path.
-        if (!Gow3Toggle::Disabled(Gow3Toggle::UpdateImageFastPath)) {
+        if (!WipeoutOCToggle::Disabled(WipeoutOCToggle::UpdateImageFastPath)) {
             const Image& image = slot_images[image_id];
             const u32 flags = std::atomic_ref<u32>(const_cast<u32&>(reinterpret_cast<const u32&>(image.flags)))
                                   .load(std::memory_order_acquire);
@@ -516,7 +516,7 @@ private:
     u64 images_created = 0;
     std::chrono::steady_clock::time_point create_report = std::chrono::steady_clock::now();
     void ReportImageCreates();
-    /// gow3 (GOW3_PERF_DIAG): requests answered by Gow3Toggle::PartialHeightViews.
+    /// gow3 (GOW3_PERF_DIAG): requests answered by WipeoutOCToggle::PartialHeightViews.
     struct PartialViewStat {
         VAddr address;
         vk::Format format, used_format;

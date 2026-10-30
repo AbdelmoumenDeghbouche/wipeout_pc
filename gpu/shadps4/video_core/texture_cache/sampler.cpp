@@ -16,7 +16,7 @@ Sampler::Sampler(const Vulkan::Instance& instance, const AmdGpu::Sampler& sample
                                  AmdGpu::IsAnisoFilter(sampler.xy_min_filter);
     // gow3: the menu's anisotropic filtering, on filtered and mipmapped textures (not on
     // point-sampled lookups, unmipmapped render targets or depth compares).
-    const int forced = Gow3Settings::Get().startup_anisotropy;
+    const int forced = WipeoutOCSettings::Get().startup_anisotropy;
     const bool force_anisotropy = forced > 1 && !is_depth &&
                                   sampler.xy_min_filter != AmdGpu::Filter::Point &&
                                   sampler.mip_filter != AmdGpu::MipFilter::None;

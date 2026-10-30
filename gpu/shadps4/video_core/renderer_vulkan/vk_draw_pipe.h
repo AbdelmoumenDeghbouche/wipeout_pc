@@ -123,7 +123,7 @@ public:
             }
         }
         const u64 waited = __rdtsc() - start;
-        Gow3Stats::pipe_drain_cycles.fetch_add(waited, std::memory_order_relaxed);
+        WipeoutOCStats::pipe_drain_cycles.fetch_add(waited, std::memory_order_relaxed);
         drain_cycles += waited;
         cycles_by_reason[slot] += waited;
     }
@@ -167,7 +167,7 @@ private:
         on_stage_b = true;
         stage_b_tid.store(static_cast<u32>(gettid()), std::memory_order_release);
 #ifdef _WIN32
-        Gow3Stats::draw_rec_thread_id.store(GetCurrentThreadId());
+        WipeoutOCStats::draw_rec_thread_id.store(GetCurrentThreadId());
 #endif
         u64 at = 0;
         while (true) {
@@ -181,7 +181,7 @@ private:
                     if (const char* env = wipeout_oc_getenv("WIPEOUT_OC_PIPE_SPIN_US")) {
                         return std::max(0, std::atoi(env));
                     }
-                    return Gow3Threads::Available() >= 12 ? 200 : 50;
+                    return WipeoutOCThreads::Available() >= 12 ? 200 : 50;
                 }());
                 const auto spin_until = std::chrono::steady_clock::now() + spin_time;
                 for (u32 spins = 1; available == at; ++spins) {

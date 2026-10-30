@@ -265,7 +265,7 @@ void CaptureScreenshot(const Instance& instance, Scheduler& scheduler, vk::Comma
         vmaDestroyBuffer(allocator, buffer, allocation);
         if (!converted) {
             LOG_ERROR(Render_Vulkan, "Screenshot: unsupported format {}", vk::to_string(format));
-            Gow3Overlay::ShowNotice("Screenshot failed: unsupported image format");
+            WipeoutOCOverlay::ShowNotice("Screenshot failed: unsupported image format");
             return;
         }
         size_t png_size = 0;
@@ -286,10 +286,10 @@ void CaptureScreenshot(const Instance& instance, Scheduler& scheduler, vk::Comma
         }
         if (saved) {
             std::printf("Screenshot: %s (%ux%u)\n", Common::FS::PathToUTF8String(path).c_str(), width, height);
-            Gow3Overlay::ShowNotice("Screenshot saved: " + Common::FS::PathToUTF8String(path.filename()));
+            WipeoutOCOverlay::ShowNotice("Screenshot saved: " + Common::FS::PathToUTF8String(path.filename()));
         } else {
             LOG_ERROR(Render_Vulkan, "Screenshot: cannot write {}", Common::FS::PathToUTF8String(path));
-            Gow3Overlay::ShowNotice("Screenshot failed: cannot write the file");
+            WipeoutOCOverlay::ShowNotice("Screenshot failed: cannot write the file");
         }
     });
 }
@@ -320,7 +320,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
 
     fsr_pass.Create(device, instance.GetAllocator(), num_images);
     pp_pass.Create(device, swapchain.GetSurfaceFormat().format);
-    Gow3Overlay::Init(instance, swapchain.GetSurfaceFormat().format, num_images);
+    WipeoutOCOverlay::Init(instance, swapchain.GetSurfaceFormat().format, num_images);
 
     const bool binary_cache = EmulatorSettingsImpl::Flag("GOW3_PIPELINE_BINARIES", true) &&
                               EmulatorSettings.IsPipelineCacheEnabled();
@@ -340,7 +340,7 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
         rasterizer->GetPipelineCache().StartBackgroundWarmUp()) {
         return;
     }
-    Gow3Overlay::SetLoading(true, 0, 0);
+    WipeoutOCOverlay::SetLoading(true, 0, 0);
     PresentLoadingFrame();
     auto last = std::chrono::steady_clock::now();
     rasterizer->GetPipelineCache().WarmUp([&](u32 done, u32 total) {
@@ -349,10 +349,10 @@ Presenter::Presenter(Frontend::WindowSDL& window_, AmdGpu::Liverpool* liverpool_
             return;
         }
         last = now;
-        Gow3Overlay::SetLoading(true, done, total);
+        WipeoutOCOverlay::SetLoading(true, done, total);
         PresentLoadingFrame();
     });
-    Gow3Overlay::SetLoading(false, 0, 0);
+    WipeoutOCOverlay::SetLoading(false, 0, 0);
 
 }
 
@@ -654,17 +654,17 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     expected_ratio = static_cast<float>(image_size.width) / static_cast<float>(image_size.height);
 
     // gow3: FSR 1, RCAS and its strength come from the in-game menu, every frame.
-    const auto& graphics = Gow3Settings::Get();
+    const auto& graphics = WipeoutOCSettings::Get();
     fsr_settings.enable = graphics.fsr1;
     fsr_settings.use_rcas = graphics.rcas;
-    fsr_settings.rcas_attenuation = Gow3Graphics::RcasAttenuation(graphics.rcas_strength);
-    Gow3Settings::Get().image_width = int(image_size.width);
-    Gow3Settings::Get().image_height = int(image_size.height);
-    Gow3Settings::Get().window_width = int(frame->width);
-    Gow3Settings::Get().window_height = int(frame->height);
-    Gow3Settings::Get().rcas_applied =
+    fsr_settings.rcas_attenuation = WipeoutOCGraphics::RcasAttenuation(graphics.rcas_strength);
+    WipeoutOCSettings::Get().image_width = int(image_size.width);
+    WipeoutOCSettings::Get().image_height = int(image_size.height);
+    WipeoutOCSettings::Get().window_width = int(frame->width);
+    WipeoutOCSettings::Get().window_height = int(frame->height);
+    WipeoutOCSettings::Get().rcas_applied =
         fsr_settings.use_rcas &&
-        Gow3Graphics::FsrPassRuns(fsr_settings.enable, true, int(image_size.width), int(image_size.height),
+        WipeoutOCGraphics::FsrPassRuns(fsr_settings.enable, true, int(image_size.width), int(image_size.height),
                                   int(frame->width), int(frame->height));
     image_view = fsr_pass.Render(cmdbuf, image_view, image_size, {frame->width, frame->height},
                                  fsr_settings, frame->is_hdr);
@@ -700,8 +700,8 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // bottleneck it finishes frames at an even rate; without this bound the command thread ran
     // ahead and then blocked wherever a resource ran out, so flips (and the guest's frame
     // timing) came in bursts: 12.5/25 ms alternation at 80 FPS. 0 turns it off.
-    // The in-game menu changes it live (Gow3Settings::frames_queued; GOW3_FRAMES_AHEAD at start).
-    const u32 frames_ahead = u32(std::max(0, Gow3Settings::Get().frames_queued.load()));
+    // The in-game menu changes it live (WipeoutOCSettings::frames_queued; GOW3_FRAMES_AHEAD at start).
+    const u32 frames_ahead = u32(std::max(0, WipeoutOCSettings::Get().frames_queued.load()));
     if (!frames_ahead) {
         recent_frame_ticks.clear();
     } else {
@@ -831,7 +831,7 @@ void Presenter::PresentLoadingFrame() {
                            range);
     barrier(vk::ImageLayout::eTransferDstOptimal, vk::ImageLayout::eColorAttachmentOptimal,
             vk::AccessFlagBits::eTransferWrite, vk::AccessFlagBits::eColorAttachmentWrite);
-    Gow3Overlay::Render(cmdbuf, swapchain.ImageView(), extent);
+    WipeoutOCOverlay::Render(cmdbuf, swapchain.ImageView(), extent);
     barrier(vk::ImageLayout::eColorAttachmentOptimal, vk::ImageLayout::ePresentSrcKHR,
             vk::AccessFlagBits::eColorAttachmentWrite, {});
     SubmitInfo info{};
@@ -949,7 +949,7 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
             CaptureScreenshot(instance, scheduler, cmdbuf, *frame);
         }
         // gow3: the settings menu / FPS counter over the frame, at display resolution.
-        const bool overlay = Gow3Overlay::Visible();
+        const bool overlay = WipeoutOCOverlay::Visible();
         const std::array post_barriers{
             vk::ImageMemoryBarrier{
                 .srcAccessMask = vk::AccessFlagBits::eTransferWrite,
@@ -979,7 +979,7 @@ void Presenter::Present(Frame* frame, bool is_reusing_frame, bool is_game_frame)
                                vk::PipelineStageFlagBits::eAllCommands,
                                vk::DependencyFlagBits::eByRegion, {}, {}, post_barriers);
         if (overlay) {
-            Gow3Overlay::Render(cmdbuf, swapchain.ImageView(), extent);
+            WipeoutOCOverlay::Render(cmdbuf, swapchain.ImageView(), extent);
             const vk::ImageMemoryBarrier to_present{
                 .srcAccessMask = vk::AccessFlagBits::eColorAttachmentWrite,
                 .dstAccessMask = vk::AccessFlagBits::eNone,

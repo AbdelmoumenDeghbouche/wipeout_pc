@@ -202,7 +202,7 @@ void Swapchain::FindPresentMode() {
 
     // gow3: VSync on is Fifo (no tearing, waits for the display); off is Mailbox when the
     // driver has it, else Immediate (tearing allowed), else Fifo.
-    vsync = Gow3Settings::Get().vsync;
+    vsync = WipeoutOCSettings::Get().vsync;
     const auto has = [&](vk::PresentModeKHR mode) { return std::ranges::find(modes, mode) != modes.cend(); };
     present_mode = vsync ? vk::PresentModeKHR::eFifo
                    : has(vk::PresentModeKHR::eMailbox) ? vk::PresentModeKHR::eMailbox
@@ -212,7 +212,7 @@ void Swapchain::FindPresentMode() {
 }
 
 void Swapchain::UpdateVsync() {
-    if (Gow3Settings::Get().vsync == vsync) {
+    if (WipeoutOCSettings::Get().vsync == vsync) {
         return;
     }
     if (const auto result = instance.GetDevice().waitIdle(); result != vk::Result::eSuccess) {

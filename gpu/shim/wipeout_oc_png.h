@@ -6,7 +6,7 @@
 #include <cstddef>
 #include <vector>
 
-namespace Gow3Png {
+namespace WipeoutOCPng {
 
 struct Image {
     int width = 0, height = 0;
@@ -18,4 +18,4 @@ bool DecodeRgba(const unsigned char* data, size_t size, Image& out);
 /// Reads the file and decodes it; false when it is missing or bad.
 bool LoadRgba(const char* path, Image& out);
 
-} // namespace Gow3Png
+} // namespace WipeoutOCPng

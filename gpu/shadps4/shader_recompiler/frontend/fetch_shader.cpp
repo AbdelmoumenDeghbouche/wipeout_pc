@@ -111,7 +111,7 @@ std::optional<FetchShaderData> ParseFetchShader(const Shader::Info& info) {
     };
     thread_local std::unordered_map<const u32*, CachedParse> cache;
     if (const auto it = cache.find(code);
-        !Gow3Toggle::Disabled(Gow3Toggle::FetchShaderCache) && it != cache.end() &&
+        !WipeoutOCToggle::Disabled(WipeoutOCToggle::FetchShaderCache) && it != cache.end() &&
         std::memcmp(code, it->second.code.data(), it->second.code.size() * sizeof(u32)) == 0) {
         return it->second.data;
     }

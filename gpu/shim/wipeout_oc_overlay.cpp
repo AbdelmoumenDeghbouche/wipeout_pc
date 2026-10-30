@@ -44,28 +44,28 @@ void runtime_music_step(int direction);
 #ifdef _WIN32
 asm(".section .rdata,\"dr\"\n"
     ".balign 16\n"
-    ".global gow3_font_ttf\n"
-    "gow3_font_ttf:\n"
-    ".incbin \"" GOW3_FONT_PATH "\"\n"
-    ".global gow3_font_ttf_end\n"
-    "gow3_font_ttf_end:\n"
+    ".global wipeout_oc_font_ttf\n"
+    "wipeout_oc_font_ttf:\n"
+    ".incbin \"" WIPEOUT_OC_FONT_PATH "\"\n"
+    ".global wipeout_oc_font_ttf_end\n"
+    "wipeout_oc_font_ttf_end:\n"
     ".text\n");
 #else
 asm(".section .rodata\n"
     ".balign 16\n"
-    ".hidden gow3_font_ttf\n"
-    ".global gow3_font_ttf\n"
-    "gow3_font_ttf:\n"
-    ".incbin \"" GOW3_FONT_PATH "\"\n"
-    ".hidden gow3_font_ttf_end\n"
-    ".global gow3_font_ttf_end\n"
-    "gow3_font_ttf_end:\n"
+    ".hidden wipeout_oc_font_ttf\n"
+    ".global wipeout_oc_font_ttf\n"
+    "wipeout_oc_font_ttf:\n"
+    ".incbin \"" WIPEOUT_OC_FONT_PATH "\"\n"
+    ".hidden wipeout_oc_font_ttf_end\n"
+    ".global wipeout_oc_font_ttf_end\n"
+    "wipeout_oc_font_ttf_end:\n"
     ".previous\n");
 #endif
-extern "C" const unsigned char gow3_font_ttf[];
-extern "C" const unsigned char gow3_font_ttf_end[];
+extern "C" const unsigned char wipeout_oc_font_ttf[];
+extern "C" const unsigned char wipeout_oc_font_ttf_end[];
 
-namespace Gow3Overlay {
+namespace WipeoutOCOverlay {
 
 namespace {
 
@@ -93,7 +93,7 @@ int choice_index = 0;
 std::atomic<int> choice_result{-1}; // -1 open, -2 cancelled, else the chosen index
 // Save pictures: decoded by BeginChoice, made textures on the present thread (null = none).
 // Closed lists' textures wait in choice_retired until the backend has destroyed them.
-std::vector<Gow3Png::Image> choice_pictures;
+std::vector<WipeoutOCPng::Image> choice_pictures;
 std::vector<ImTextureData*> choice_textures, choice_retired;
 std::atomic<bool> choice_retiring{false};
 float base_scale = 1.0f;
@@ -108,11 +108,11 @@ void SetOpen(bool value) {
     }
     ImGui::GetIO().MouseDrawCursor = value;
     if (value) {
-        requested_tab = Gow3Settings::Get().menu_tab;
+        requested_tab = WipeoutOCSettings::Get().menu_tab;
     }
     if (!value && dirty) {
         dirty = false;
-        Gow3Settings::Save();
+        WipeoutOCSettings::Save();
     }
 }
 
@@ -287,13 +287,13 @@ void SliderRow(const char* label, std::atomic<int>& value, int lo, int hi, const
 
 const char* UpscalerLabel(int upscaler) {
     switch (upscaler) {
-    case Gow3Settings::UpscalerFsr3: return "FSR 3.1";
-    case Gow3Settings::UpscalerFsr4: return "FSR 4";
-    case Gow3Settings::UpscalerFsr411: return "FSR 4.1.1";
-    case Gow3Settings::UpscalerTaa: return "TAA";
+    case WipeoutOCSettings::UpscalerFsr3: return "FSR 3.1";
+    case WipeoutOCSettings::UpscalerFsr4: return "FSR 4";
+    case WipeoutOCSettings::UpscalerFsr411: return "FSR 4.1.1";
+    case WipeoutOCSettings::UpscalerTaa: return "TAA";
     // At native size (DLSS quality 0, and before the first DLSS frame) it is DLAA: anti-aliasing,
     // no upscaling.
-    case Gow3Settings::UpscalerDlss: return Gow3Settings::Get().dlss_quality > 0 ? "DLSS" : "DLAA";
+    case WipeoutOCSettings::UpscalerDlss: return WipeoutOCSettings::Get().dlss_quality > 0 ? "DLSS" : "DLAA";
     default: return "";
     }
 }
@@ -302,8 +302,8 @@ const Vulkan::Instance* overlay_instance = nullptr; // for the overlay's measure
 
 // The performance overlay's text with the current settings (also the menu's preview).
 std::string OverlayText() {
-    namespace P = Gow3PerfStats;
-    const auto& s = Gow3Settings::Get();
+    namespace P = WipeoutOCPerfStats;
+    const auto& s = WipeoutOCSettings::Get();
     const unsigned items = s.overlay_items;
     if ((items & (P::Gpu | P::Cpu | P::Ram | P::Vram)) && overlay_instance) {
         P::Start(*overlay_instance);
@@ -320,13 +320,13 @@ constexpr const char* Unsupported = "Unavailable: game version or code signature
 // gow3: the cheats, multipliers, enemy health bar and mouse aiming are God of War III's; a game
 // whose code has none of their hooks (WipEout) does not show them.
 bool GowHooks() {
-    const auto& s = Gow3Settings::Get();
+    const auto& s = WipeoutOCSettings::Get();
     return s.cheats_supported.load() || s.red_orbs_supported.load() || s.orb_pickup_supported.load() ||
            s.damage_supported.load() || s.actor_watch_supported.load();
 }
 
 void GameTab() {
-    auto& s = Gow3Settings::Get();
+    auto& s = WipeoutOCSettings::Get();
     const bool gow = GowHooks();
     if (gow) {
         ImGui::SeparatorText("Cheats");
@@ -430,8 +430,8 @@ bool SessionHasUpscaler() {
 }
 
 void ImageTab() {
-    namespace G = Gow3Graphics;
-    auto& s = Gow3Settings::Get();
+    namespace G = WipeoutOCGraphics;
+    auto& s = WipeoutOCSettings::Get();
     ImGui::SeparatorText("Display");
     if (BeginRows("##display")) {
         ChoiceRow("Display mode", s.display_mode, G::DisplayModeNames.data(), nullptr, G::DisplayModeCount,
@@ -445,8 +445,8 @@ void ImageTab() {
     } else if (BeginRows("##aa")) {
         // Live, as F10. The game's multisampling is off in these sessions, so Off has no anti-aliasing.
         static const char* const aa_labels[] = {"Off", "FSR 3.1", "DLAA (NVIDIA RTX)"};
-        static const int aa_values[] = {Gow3Settings::UpscalerOff, Gow3Settings::UpscalerFsr3,
-                                        Gow3Settings::UpscalerDlss};
+        static const int aa_values[] = {WipeoutOCSettings::UpscalerOff, WipeoutOCSettings::UpscalerFsr3,
+                                        WipeoutOCSettings::UpscalerDlss};
         const bool dlss = s.dlss_supported;
         const char* problem = s.dlss_problem.load();
         ChoiceRow("Method", s.upscaler, aa_labels, aa_values, dlss ? 3 : 2,
@@ -493,8 +493,8 @@ void ImageTab() {
 }
 
 void PerformanceTab() {
-    namespace G = Gow3Graphics;
-    auto& s = Gow3Settings::Get();
+    namespace G = WipeoutOCGraphics;
+    auto& s = WipeoutOCSettings::Get();
     ImGui::SeparatorText("Live");
     if (BeginRows("##live")) {
         static const char* const fps_labels[] = {"30", "40", "60", "100", "120", "240", "Unlimited"};
@@ -538,8 +538,8 @@ void PerformanceTab() {
 }
 
 void OverlayTab() {
-    namespace P = Gow3PerfStats;
-    auto& s = Gow3Settings::Get();
+    namespace P = WipeoutOCPerfStats;
+    auto& s = WipeoutOCSettings::Get();
     if (BeginRows("##overlay_on")) {
         CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen.");
         ImGui::EndTable();
@@ -613,7 +613,7 @@ void OverlayTab() {
 
 // The custom soundtrack: on/off, shuffle, skip, and the songs of the music folder (click one to play it).
 void MusicTab() {
-    auto& s = Gow3Settings::Get();
+    auto& s = WipeoutOCSettings::Get();
     if (BeginRows("##music")) {
         CheckRow("Play my music", s.music, "Your songs instead of the game's music. Off: the game's music.");
         CheckRow("Shuffle", s.music_shuffle, "Random order. Off: the songs play in the order of the list.");
@@ -674,14 +674,14 @@ void MusicTab() {
 
 // Startup options changed since this launch (applied by "Apply and restart").
 int RestartChanges() {
-    const auto& s = Gow3Settings::Get();
+    const auto& s = WipeoutOCSettings::Get();
     return (s.render_resolution != s.startup_render_resolution) + (s.engine_fps != s.startup_engine_fps) +
            (s.deferred_readback != s.startup_deferred_readback) + (s.stale_readback != s.startup_stale_readback) +
            (s.anisotropy != s.startup_anisotropy);
 }
 
 void Menu() {
-    auto& s = Gow3Settings::Get();
+    auto& s = WipeoutOCSettings::Get();
     const ImGuiViewport* viewport = ImGui::GetMainViewport();
     ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
                                    viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
@@ -756,7 +756,7 @@ void Menu() {
             // The new launch confirms the options once the game shows; run.py restores the
             // previous ones if it never does (restart_unconfirmed).
             s.restart_unconfirmed = true;
-            Gow3Settings::Save();
+            WipeoutOCSettings::Save();
             runtime_restart();
         }
         ImGui::EndDisabled();
@@ -782,7 +782,7 @@ void HealthDisplay() {
         std::chrono::steady_clock::time_point at{};
     };
     static Seen seen[2];
-    const auto& s = Gow3Settings::Get();
+    const auto& s = WipeoutOCSettings::Get();
     if (!s.actor_watch_supported.load()) {
         return;
     }
@@ -925,7 +925,7 @@ void LoadingScreen() {
 }
 
 void FpsCounter() {
-    const auto& s = Gow3Settings::Get();
+    const auto& s = WipeoutOCSettings::Get();
     const std::string text = OverlayText();
     if (text.empty()) {
         return;
@@ -1025,8 +1025,8 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
 
     ImFontConfig font_config;
     font_config.FontDataOwnedByAtlas = false;
-    io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(gow3_font_ttf),
-                                   int(gow3_font_ttf_end - gow3_font_ttf), 18.0f, &font_config);
+    io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(wipeout_oc_font_ttf),
+                                   int(wipeout_oc_font_ttf_end - wipeout_oc_font_ttf), 18.0f, &font_config);
 
     const vk::Instance vk_instance = instance.GetInstance();
     ImGui_ImplVulkan_LoadFunctions(
@@ -1098,7 +1098,7 @@ void UpdateChoiceTextures() {
     if (!choice_pictures.empty()) {
         choice_textures.assign(choice_pictures.size(), nullptr);
         for (size_t i = 0; i < choice_pictures.size(); ++i) {
-            const Gow3Png::Image& picture = choice_pictures[i];
+            const WipeoutOCPng::Image& picture = choice_pictures[i];
             if (picture.rgba.empty()) {
                 continue;
             }
@@ -1189,14 +1189,14 @@ bool HandleEvent(const SDL_Event& event) {
             return env && *env == '1' && SessionHasUpscaler();
         }();
         if (down && !event.key.repeat && upscaler_key && event.key.key == SDLK_F10) {
-            auto& s = Gow3Settings::Get();
+            auto& s = WipeoutOCSettings::Get();
             const int now = s.upscaler.load();
-            const int next = now == Gow3Settings::UpscalerOff ? Gow3Settings::UpscalerFsr3
-                             : now == Gow3Settings::UpscalerFsr3 && s.dlss_supported
-                                 ? Gow3Settings::UpscalerDlss
-                                 : Gow3Settings::UpscalerOff;
+            const int next = now == WipeoutOCSettings::UpscalerOff ? WipeoutOCSettings::UpscalerFsr3
+                             : now == WipeoutOCSettings::UpscalerFsr3 && s.dlss_supported
+                                 ? WipeoutOCSettings::UpscalerDlss
+                                 : WipeoutOCSettings::UpscalerOff;
             s.upscaler.store(next);
-            std::printf("Upscaler: %s (F10)\n", next == Gow3Settings::UpscalerOff ? "off"
+            std::printf("Upscaler: %s (F10)\n", next == WipeoutOCSettings::UpscalerOff ? "off"
                                                                                   : UpscalerLabel(next));
             return true;
         }
@@ -1294,12 +1294,12 @@ bool HandleEvent(const SDL_Event& event) {
 // seconds of frames after loading (run.py restores the previous ones otherwise).
 void ConfirmRestart() {
     static u32 frames = 0;
-    auto& s = Gow3Settings::Get();
+    auto& s = WipeoutOCSettings::Get();
     if (!s.restart_unconfirmed || loading || ++frames < 600) {
         return;
     }
     s.restart_unconfirmed = false;
-    Gow3Settings::Save();
+    WipeoutOCSettings::Save();
     std::puts("Settings: graphics options confirmed after restart");
 }
 
@@ -1315,7 +1315,7 @@ void SetLoading(bool active, u32 done, u32 total) {
 }
 
 bool Visible() {
-    const auto& s = Gow3Settings::Get();
+    const auto& s = WipeoutOCSettings::Get();
     return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
                            choice_retiring || s.show_fps || NoticeActive() ||
                            (s.actor_watch_supported && s.enemy_health_bar));
@@ -1326,7 +1326,7 @@ bool CapturesInput() {
 }
 
 void BeginChoice(const std::string& title, const std::vector<std::string>& items,
-                 std::vector<Gow3Png::Image> pictures, int focus) {
+                 std::vector<WipeoutOCPng::Image> pictures, int focus) {
     std::scoped_lock lock{imgui_mutex};
     RetireChoiceTextures();
     choice_pictures = std::move(pictures);
@@ -1383,7 +1383,7 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     if (menu_open) {
         Menu();
     }
-    if (Gow3Settings::Get().show_fps && !menu_open) {
+    if (WipeoutOCSettings::Get().show_fps && !menu_open) {
         FpsCounter();
     }
     if (NoticeActive()) {
@@ -1423,4 +1423,4 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     cmdbuf.endRendering();
 }
 
-} // namespace Gow3Overlay
+} // namespace WipeoutOCOverlay

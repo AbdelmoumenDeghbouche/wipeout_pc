@@ -639,7 +639,7 @@ private:
     /// it back from that core. Requesting ownership a few lines ahead overlaps those
     /// transfers instead of stalling on each (RecordPrefetch).
     void PrefetchAhead() const {
-        if (!Gow3Toggle::Disabled(Gow3Toggle::RecordPrefetch)) {
+        if (!WipeoutOCToggle::Disabled(WipeoutOCToggle::RecordPrefetch)) {
             __builtin_prefetch(storage + used + 384, 1, 3);
             __builtin_prefetch(storage + used + 448, 1, 3);
         }
@@ -746,7 +746,7 @@ public:
             func(current_cmdbuf);
             return;
         }
-        if (Gow3Toggle::Disabled(Gow3Toggle::ThreadedRecording)) {
+        if (WipeoutOCToggle::Disabled(WipeoutOCToggle::ThreadedRecording)) {
             SyncRecording();
             direct_mode = true;
             func(current_cmdbuf);
@@ -763,7 +763,7 @@ public:
     /// True when Record() defers commands (and RecordData() copies into chunks).
     [[nodiscard]] bool IsRecordingDeferred() const noexcept {
         return recording_threaded && !direct_mode &&
-               !Gow3Toggle::Disabled(Gow3Toggle::ThreadedRecording);
+               !WipeoutOCToggle::Disabled(WipeoutOCToggle::ThreadedRecording);
     }
 
     /// Makes room for `bytes` of RecordData() plus the command that uses them in the current
@@ -802,7 +802,7 @@ public:
     void SyncRecording();
 
     /// gow3: guest memory copies on the recording thread (small ones, RecordHostCopy) or the
-    /// copy threads (Gow3Copy::Async) must be done before the guest learns the GPU is past them
+    /// copy threads (WipeoutOCCopy::Async) must be done before the guest learns the GPU is past them
     /// (it may then rewrite the memory, e.g. UI vertices: flickering) and before the
     /// submission that reads them. Waits for all.
     void WaitHostCopies();
@@ -820,7 +820,7 @@ public:
 
     /// gow3: runs `signal` once the guest memory copies issued so far are done, without
     /// waiting here: the recording thread reaches it after the copies queued before it and hands
-    /// it to the copy threads' completion (Gow3Copy::AfterCopies).
+    /// it to the copy threads' completion (WipeoutOCCopy::AfterCopies).
     void SignalAfterHostCopies(std::function<void()> signal);
 
     /// gow3: before a guest-visible write that is not deferred (WriteData, end-of-shader

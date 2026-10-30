@@ -107,10 +107,10 @@ void Liverpool::Process(std::stop_token stoken) {
     Common::SetCurrentThreadName("shadPS4:GpuCommandProcessor");
 #ifndef _WIN32
     if (clockid_t clock; pthread_getcpuclockid(pthread_self(), &clock) == 0) {
-        Gow3Stats::gpu_thread_clock.store(static_cast<int>(clock));
+        WipeoutOCStats::gpu_thread_clock.store(static_cast<int>(clock));
     }
 #else
-    Gow3Stats::gpu_thread_id.store(GetCurrentThreadId());
+    WipeoutOCStats::gpu_thread_id.store(GetCurrentThreadId());
 #endif
     gpu_id = std::this_thread::get_id();
 #if defined(__linux__) || defined(_WIN32)
@@ -123,7 +123,7 @@ void Liverpool::Process(std::stop_token stoken) {
             std::unique_lock lk{submit_mutex};
             Common::CondvarWait(submit_cv, lk, stoken,
                                 [this] { return num_commands || num_submits || submit_done; });
-            Gow3Stats::gpu_idle_ns.fetch_add(
+            WipeoutOCStats::gpu_idle_ns.fetch_add(
                 std::chrono::duration_cast<std::chrono::nanoseconds>(
                     std::chrono::steady_clock::now() - idle_start).count(),
                 std::memory_order_relaxed);
@@ -249,7 +249,7 @@ void SignalEop(const PM4CmdEventWriteEop& eop) {
     eop.SignalFence(
         [](void* address, u64 data, u32 num_bytes) {
             auto* memory = Core::Memory::Instance();
-            Gow3WriteLog::Note(reinterpret_cast<u64>(address), &data, num_bytes, Gow3WriteLog::Fence);
+            WipeoutOCWriteLog::Note(reinterpret_cast<u64>(address), &data, num_bytes, WipeoutOCWriteLog::Fence);
             if (!memory->TryWriteBacking(address, &data, num_bytes)) {
                 memcpy(address, &data, num_bytes);
             }
@@ -270,9 +270,9 @@ void RunEventWriteEop(Vulkan::Rasterizer& rasterizer, const u8* data) {
         const char* env = wipeout_oc_getenv("WIPEOUT_OC_ASYNC_FENCES");
         return env && env[0] == '1';
     }();
-    if (async_fences && !Gow3Toggle::Disabled(Gow3Toggle::AsyncFences)) {
-        Gow3Copy::AfterCopies([eop] { SignalEop(eop); });
-    } else if (Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences)) {
+    if (async_fences && !WipeoutOCToggle::Disabled(WipeoutOCToggle::AsyncFences)) {
+        WipeoutOCCopy::AfterCopies([eop] { SignalEop(eop); });
+    } else if (Vulkan::DrawPipe::OnStageB() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::RecorderFences)) {
         // The draw recording thread does not wait: the Vulkan recording thread signals the
         // fence after the copies queued before it.
         rasterizer.SignalAfterHostCopies([eop] { SignalEop(eop); });
@@ -330,8 +330,8 @@ void RunWriteData(Vulkan::Rasterizer& rasterizer, const u8* data) {
     // precede writes the guest sees.
     rasterizer.WaitHostCopies();
     rasterizer.WaitDeferredSignals();
-    Gow3WriteLog::Note(write_data->Address<u64>(), write_data->data,
-                     (header->type3.count.Value() - 2) * sizeof(u32), Gow3WriteLog::WriteData);
+    WipeoutOCWriteLog::Note(write_data->Address<u64>(), write_data->data,
+                     (header->type3.count.Value() - 2) * sizeof(u32), WipeoutOCWriteLog::WriteData);
     std::memcpy(write_data->Address<u64*>(), write_data->data,
                 (header->type3.count.Value() - 2) * sizeof(u32));
 }
@@ -339,7 +339,7 @@ void RunWriteData(Vulkan::Rasterizer& rasterizer, const u8* data) {
 void SignalEos(const PM4CmdEventWriteEos& event_eos) {
     event_eos.SignalFence([](void* address, u64 value, u32 num_bytes) {
         auto* memory = Core::Memory::Instance();
-        Gow3WriteLog::Note(reinterpret_cast<u64>(address), &value, num_bytes, Gow3WriteLog::Fence);
+        WipeoutOCWriteLog::Note(reinterpret_cast<u64>(address), &value, num_bytes, WipeoutOCWriteLog::Fence);
         if (!memory->TryWriteBacking(address, &value, num_bytes)) {
             memcpy(address, &value, num_bytes);
         }
@@ -352,15 +352,15 @@ void RunEventWriteEos(Vulkan::Rasterizer& rasterizer, const u8* data) {
     // recording thread writes the label after the copies queued before it. A GDS store
     // reads a GPU result and still waits.
     if (event_eos.command != PM4CmdEventWriteEos::Command::GdsStore &&
-        Vulkan::DrawPipe::OnStageB() && !Gow3Toggle::Disabled(Gow3Toggle::RecorderFences) &&
-        !Gow3Toggle::Disabled(Gow3Toggle::RecorderEos)) {
+        Vulkan::DrawPipe::OnStageB() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::RecorderFences) &&
+        !WipeoutOCToggle::Disabled(WipeoutOCToggle::RecorderEos)) {
         rasterizer.ProcessDownloadImages();
         rasterizer.SignalAfterHostCopies([event_eos] { SignalEos(event_eos); });
-        Gow3Stats::eos_deferred.fetch_add(1, std::memory_order_relaxed);
+        WipeoutOCStats::eos_deferred.fetch_add(1, std::memory_order_relaxed);
         return;
     }
-    (event_eos.command == PM4CmdEventWriteEos::Command::GdsStore ? Gow3Stats::eos_gds
-                                                                 : Gow3Stats::eos_waited)
+    (event_eos.command == PM4CmdEventWriteEos::Command::GdsStore ? WipeoutOCStats::eos_gds
+                                                                 : WipeoutOCStats::eos_waited)
         .fetch_add(1, std::memory_order_relaxed);
     // Copies deferred to the recording thread precede writes the guest sees.
     rasterizer.WaitHostCopies();
@@ -383,8 +383,8 @@ void Liverpool::NotePendingFences(const auto& event) {
     }
     constexpr bool is_eop = requires { event.SignalFence([](void*, u64, u32) {}, [] {}); };
     const auto note = [&](void* address, u64 data, u32 num_bytes) {
-        Gow3WriteLog::NoteIntent(reinterpret_cast<u64>(address), &data, num_bytes,
-                               is_eop ? Gow3WriteLog::FenceIntent : Gow3WriteLog::EosIntent);
+        WipeoutOCWriteLog::NoteIntent(reinterpret_cast<u64>(address), &data, num_bytes,
+                               is_eop ? WipeoutOCWriteLog::FenceIntent : WipeoutOCWriteLog::EosIntent);
         pending_fences.push_back({reinterpret_cast<VAddr>(address), data, num_bytes, position});
         rasterizer->NotePendingGpuWrite(reinterpret_cast<VAddr>(address), num_bytes);
     };
@@ -798,7 +798,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     // may still be queued on the draw recording thread).
                     if (rasterizer) {
                         rasterizer->RunInOrder(&SignalFlip, header, sizeof(u32),
-                                               Gow3Toggle::PipelinedMemoryWrites);
+                                               WipeoutOCToggle::PipelinedMemoryWrites);
                     } else {
                         Platform::IrqC::Instance()->Signal(Platform::InterruptId::GfxFlip);
                     }
@@ -1178,7 +1178,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                     break;
                 }
                 if (rasterizer->RunInOrder(&RunDmaData, dma_data, sizeof(PM4DmaData),
-                                           Gow3Toggle::PipelinedMemoryWrites) &&
+                                           WipeoutOCToggle::PipelinedMemoryWrites) &&
                     (dma_data->dst_sel == DmaDataDst::Memory ||
                      dma_data->dst_sel == DmaDataDst::MemoryUsingL2)) {
                     rasterizer->NotePendingGpuWrite(dma_data->DstAddress<VAddr>(),
@@ -1192,11 +1192,11 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 ASSERT(!write_data->wr_one_addr.Value());
                 if (rasterizer) {
                     // In order with the draws (on the draw recording thread when in use).
-                    Gow3WriteLog::NoteIntent(write_data->Address<u64>(), write_data->data,
+                    WipeoutOCWriteLog::NoteIntent(write_data->Address<u64>(), write_data->data,
                                            (count - 2) * sizeof(u32),
-                                           Gow3WriteLog::WriteDataIntent);
+                                           WipeoutOCWriteLog::WriteDataIntent);
                     if (rasterizer->RunInOrder(&RunWriteData, header, (count + 1) * sizeof(u32),
-                                               Gow3Toggle::PipelinedMemoryWrites)) {
+                                               WipeoutOCToggle::PipelinedMemoryWrites)) {
                         NotePendingWrite(*write_data, (count - 2) * sizeof(u32));
                         rasterizer->NotePendingGpuWrite(write_data->Address<VAddr>(),
                                                         (count - 2) * sizeof(u32));
@@ -1262,7 +1262,7 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 // thread runs everything in stream order.
                 if (u32 value; wait_reg_mem->mem_space.Value() ==
                                    PM4CmdWaitRegMem::MemSpace::Memory &&
-                               !Gow3Toggle::Disabled(Gow3Toggle::PendingFenceWaits) &&
+                               !WipeoutOCToggle::Disabled(WipeoutOCToggle::PendingFenceWaits) &&
                                PendingFenceValue(wait_reg_mem->Address<VAddr>(), value) &&
                                wait_reg_mem->TestValue(value)) {
                     break;
@@ -1355,17 +1355,17 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
     if (draw_prep) {
         draw_prep->EndSubmission();
     }
-    if (seq != NoSeq && Gow3Stats::enabled) {
-        Gow3Stats::submissions.fetch_add(1, std::memory_order_relaxed);
+    if (seq != NoSeq && WipeoutOCStats::enabled) {
+        WipeoutOCStats::submissions.fetch_add(1, std::memory_order_relaxed);
 #ifndef _WIN32 // gow3: per-thread rusage statistics are Linux-only
         if (rusage usage{}; getrusage(RUSAGE_THREAD, &usage) == 0) {
-            Gow3Stats::gpu_user_us.store(u64(usage.ru_utime.tv_sec) * 1000000 + usage.ru_utime.tv_usec,
+            WipeoutOCStats::gpu_user_us.store(u64(usage.ru_utime.tv_sec) * 1000000 + usage.ru_utime.tv_usec,
                                        std::memory_order_relaxed);
-            Gow3Stats::gpu_sys_us.store(u64(usage.ru_stime.tv_sec) * 1000000 + usage.ru_stime.tv_usec,
+            WipeoutOCStats::gpu_sys_us.store(u64(usage.ru_stime.tv_sec) * 1000000 + usage.ru_stime.tv_usec,
                                       std::memory_order_relaxed);
-            Gow3Stats::gpu_invol_switches.store(usage.ru_nivcsw, std::memory_order_relaxed);
-            Gow3Stats::gpu_vol_switches.store(usage.ru_nvcsw, std::memory_order_relaxed);
-            Gow3Stats::gpu_minor_faults.store(usage.ru_minflt, std::memory_order_relaxed);
+            WipeoutOCStats::gpu_invol_switches.store(usage.ru_nivcsw, std::memory_order_relaxed);
+            WipeoutOCStats::gpu_vol_switches.store(usage.ru_nvcsw, std::memory_order_relaxed);
+            WipeoutOCStats::gpu_minor_faults.store(usage.ru_minflt, std::memory_order_relaxed);
         }
 #endif
     }

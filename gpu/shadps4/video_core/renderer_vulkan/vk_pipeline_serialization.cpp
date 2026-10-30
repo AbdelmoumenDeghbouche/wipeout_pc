@@ -1246,7 +1246,7 @@ void PipelineCache::PumpWarmUp() {
     warm.last_batch = now;
     ++warm.batches;
     const u32 done = warm.done + warm.pool->failed;
-    Gow3Overlay::SetBackgroundLoading(done, std::max(warm.total.load(), done));
+    WipeoutOCOverlay::SetBackgroundLoading(done, std::max(warm.total.load(), done));
 
     static const std::array<Shader::RuntimeInfo, MaxShaderStages> no_runtime_infos{};
     for (auto& entry : warm.read.Take(32)) {
@@ -1346,7 +1346,7 @@ void PipelineCache::PumpWarmUp() {
                 g_gow3_pipeline_total_ns / 1e9);
     // The idle threads stay parked (StopWarmUp).
     warm.finished = true;
-    Gow3Overlay::SetBackgroundLoading(0, 0);
+    WipeoutOCOverlay::SetBackgroundLoading(0, 0);
     Storage::DataBase::Instance().FinishPreload();
 }
 
@@ -1360,7 +1360,7 @@ void PipelineCache::StopWarmUp() {
     // while the game ran crashed in ntdll (RtlWakeAllConditionVariable). Join them once the
     // cause is known.
     background = nullptr;
-    Gow3Overlay::SetBackgroundLoading(0, 0);
+    WipeoutOCOverlay::SetBackgroundLoading(0, 0);
 }
 
 void PipelineCache::Sync() {

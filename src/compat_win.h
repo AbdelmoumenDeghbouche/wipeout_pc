@@ -2,8 +2,8 @@
  * runtime uses. Included through runtime.h after the C library headers, so the macros below
  * only replace calls in this project's own sources. Paths are UTF-8: the executable's
  * manifest selects the UTF-8 code page (packaging/windows/wipeout_oc_probe.manifest). */
-#ifndef GOW3_COMPAT_WIN_H
-#define GOW3_COMPAT_WIN_H
+#ifndef WIPEOUT_OC_COMPAT_WIN_H
+#define WIPEOUT_OC_COMPAT_WIN_H
 #ifdef _WIN32
 #include <stdint.h>
 #include <stddef.h>
@@ -77,10 +77,10 @@ int compat_errno_from_win32(unsigned long error);
 int compat_cpu_times(int who, int64_t *user_us, int64_t *kernel_us);
 /* setjmp/longjmp without SEH unwinding (guest frames have no unwind data) that saves every
  * Win64 callee-saved register, xmm6-15 included. clang's __builtin_longjmp restores a wrong
- * frame pointer on Win64. gow3_longjmp may also be entered from the exception handler. */
-typedef unsigned long long gow3_jmp_buf[32];
-__attribute__((returns_twice)) int gow3_setjmp(gow3_jmp_buf buffer);
-__attribute__((noreturn)) void gow3_longjmp(gow3_jmp_buf buffer, int value);
+ * frame pointer on Win64. wipeout_oc_longjmp may also be entered from the exception handler. */
+typedef unsigned long long wipeout_oc_jmp_buf[32];
+__attribute__((returns_twice)) int wipeout_oc_setjmp(wipeout_oc_jmp_buf buffer);
+__attribute__((noreturn)) void wipeout_oc_longjmp(wipeout_oc_jmp_buf buffer, int value);
 #ifdef __cplusplus
 }
 #endif

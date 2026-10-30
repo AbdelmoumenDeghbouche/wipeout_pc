@@ -34,7 +34,7 @@ public:
         vk::CommandBuffer cmdbuf;
         Image color, depth, motion, output;
         u32 render_width, render_height;
-        int preset; ///< Gow3Settings::Preset
+        int preset; ///< WipeoutOCSettings::Preset
         std::array<float, 2> jitter;
         float frame_ms, near_plane, far_plane, vertical_fov;
         float sharpness;

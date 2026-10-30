@@ -9,17 +9,17 @@
 #include <cstdlib>
 #ifdef _WIN32
 // gow3 (Windows): no signals. The loader's exception handler resumes the faulting thread
-// in gow3_longjmp (src/compat_win.c: no unwinding through the faulting frames).
+// in wipeout_oc_longjmp (src/compat_win.c: no unwinding through the faulting frames).
 typedef unsigned long long sigjmp_buf[32];
-extern "C" __attribute__((returns_twice)) int gow3_setjmp(sigjmp_buf buffer);
-#define sigsetjmp(buffer, save) gow3_setjmp(buffer)
+extern "C" __attribute__((returns_twice)) int wipeout_oc_setjmp(sigjmp_buf buffer);
+#define sigsetjmp(buffer, save) wipeout_oc_setjmp(buffer)
 #endif
 
 extern "C" std::uint64_t runtime_disabled_optimizations;
 /// Recovery point for speculative guest memory reads on this thread (runtime_memory.c).
 extern "C" __thread sigjmp_buf* runtime_fault_recover;
 
-namespace Gow3Toggle {
+namespace WipeoutOCToggle {
 enum : std::uint64_t {
     RegionCache = 1,
     FetchShaderCache = 2,
@@ -87,9 +87,9 @@ enum : std::uint64_t {
 inline bool Disabled(std::uint64_t bit) {
     return (__atomic_load_n(&runtime_disabled_optimizations, __ATOMIC_RELAXED) & bit) != 0;
 }
-} // namespace Gow3Toggle
+} // namespace WipeoutOCToggle
 
-namespace Gow3Stats {
+namespace WipeoutOCStats {
 /// Guest writes caught by page protection, and pages currently left unprotected as hot.
 inline std::atomic<std::uint64_t> tracker_faults{0};
 inline std::atomic<std::int64_t> hot_pages{0};
@@ -165,4 +165,4 @@ inline std::atomic<std::uint64_t> gpu_signal_faults{0};
 /// Protection changes: calls and pages, those removing write access (TLB shootdowns) apart.
 inline std::atomic<std::uint64_t> protect_calls{0}, protect_pages{0}, protect_revoke_calls{0},
     protect_revoke_pages{0};
-} // namespace Gow3Stats
+} // namespace WipeoutOCStats

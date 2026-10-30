@@ -72,7 +72,7 @@ bool CollectExtensions(const VkExtensionProperties* required, u32 count,
 
 struct Dlss::Impl {
     HMODULE module{};
-    const Gow3DlssApi* api{};
+    const WipeoutOCDlssApi* api{};
     std::vector<std::string> instance_extensions, device_extensions;
     std::optional<FeatureDesc> feature;
     std::string problem;
@@ -117,10 +117,10 @@ Dlss::Dlss() : impl{std::make_unique<Impl>()} {
     const auto directory = ExecutableDirectory();
     impl->module = LoadLibraryW((directory / BridgeName).c_str());
     const auto get_api =
-        impl->module ? reinterpret_cast<Gow3DlssGetApiFn>(GetProcAddress(impl->module, "Gow3DlssGetApi"))
+        impl->module ? reinterpret_cast<WipeoutOCDlssGetApiFn>(GetProcAddress(impl->module, "WipeoutOCDlssGetApi"))
                      : nullptr;
     impl->api = get_api ? get_api() : nullptr;
-    if (!impl->api || impl->api->abi != GOW3_DLSS_BRIDGE_ABI) {
+    if (!impl->api || impl->api->abi != WIPEOUT_OC_DLSS_BRIDGE_ABI) {
         impl->Disable("wipeout_oc_dlss.dll is missing or from another version");
         return;
     }
@@ -218,7 +218,7 @@ bool Dlss::CreateFeature(vk::CommandBuffer command, const FeatureDesc& desc) {
         std::printf("DLSS: ready\n");
     }
     impl->feature.reset();
-    const Gow3DlssFeature feature{desc.input_width,  desc.input_height, desc.output_width,
+    const WipeoutOCDlssFeature feature{desc.input_width,  desc.input_height, desc.output_width,
                                 desc.output_height, desc.quality,      0,
                                 desc.preset,        desc.hdr ? 1 : 0};
     if (!impl->api->CreateFeature(command, &feature)) {
@@ -234,14 +234,14 @@ bool Dlss::Evaluate(vk::CommandBuffer command, const Frame& frame) {
     }
     const auto image = [](const Resource& r) {
         const vk::ImageSubresourceRange range{r.aspect, 0, 1, 0, 1};
-        return Gow3DlssImage{r.image,
+        return WipeoutOCDlssImage{r.image,
                            r.view,
                            static_cast<VkImageSubresourceRange>(range),
                            static_cast<VkFormat>(r.format),
                            r.width,
                            r.height};
     };
-    const Gow3DlssEvaluate parameters{image(frame.color),  image(frame.depth), image(frame.motion),
+    const WipeoutOCDlssEvaluate parameters{image(frame.color),  image(frame.depth), image(frame.motion),
                                     image(frame.output), frame.jitter_x,     frame.jitter_y,
                                     frame.reset ? 1 : 0, frame.frame_ms,     frame.sharpness};
     return impl->api->Evaluate(command, &parameters) != 0;

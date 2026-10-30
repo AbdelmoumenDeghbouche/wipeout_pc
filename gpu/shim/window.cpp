@@ -26,9 +26,9 @@ void ToggleMousePause() {
 // size shrunk to fit. The picture is scaled to the window either way. True when shrunk.
 static bool StartSize(s32& width, s32& height) {
     constexpr int title_room = 48;
-    const std::vector<std::string> names = Gow3Graphics::ResolutionNames();
-    const int index = std::clamp(Gow3Settings::Get().render_resolution.load(), 0, int(names.size()) - 1);
-    const auto [w, h] = Gow3Graphics::ResolutionSize(names[index]);
+    const std::vector<std::string> names = WipeoutOCGraphics::ResolutionNames();
+    const int index = std::clamp(WipeoutOCSettings::Get().render_resolution.load(), 0, int(names.size()) - 1);
+    const auto [w, h] = WipeoutOCGraphics::ResolutionSize(names[index]);
     double scale = 1.0;
     SDL_Rect usable{};
     if (SDL_GetDisplayUsableBounds(SDL_GetPrimaryDisplay(), &usable) && usable.w > 0 && usable.h > title_room) {
@@ -87,12 +87,12 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     }
     // gow3: GOW3_FULLSCREEN=1 (older launchers) still asks for fullscreen.
     if (const char* fullscreen = wipeout_oc_getenv("WIPEOUT_OC_FULLSCREEN"); fullscreen && fullscreen[0] == '1' &&
-        Gow3Settings::Get().display_mode == Gow3Graphics::Windowed) {
-        Gow3Settings::Get().display_mode = Gow3Graphics::Borderless;
+        WipeoutOCSettings::Get().display_mode == WipeoutOCGraphics::Windowed) {
+        WipeoutOCSettings::Get().display_mode = WipeoutOCGraphics::Borderless;
     }
-    ApplyDisplayMode(Gow3Settings::Get().display_mode);
+    ApplyDisplayMode(WipeoutOCSettings::Get().display_mode);
     window_info.hdr_enabled = SDL_GetBooleanProperty(wp, SDL_PROP_WINDOW_HDR_ENABLED_BOOLEAN, false);
-    // gow3: the game has no mouse; the in-game menu draws its own cursor (Gow3Overlay::SetOpen).
+    // gow3: the game has no mouse; the in-game menu draws its own cursor (WipeoutOCOverlay::SetOpen).
     SDL_HideCursor();
     int w = 0, h = 0;
     SDL_GetWindowSizeInPixels(window, &w, &h);
@@ -105,18 +105,18 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
 // mode. Window thread only (SDL). The swapchain follows the size events.
 void WindowSDL::ApplyDisplayMode(int mode) {
     display_mode = mode;
-    if (mode == Gow3Graphics::Windowed) {
+    if (mode == WipeoutOCGraphics::Windowed) {
         SDL_SetWindowFullscreen(window, false);
     } else {
         const SDL_DisplayMode* desktop = SDL_GetDesktopDisplayMode(SDL_GetDisplayForWindow(window));
-        const bool exclusive = mode == Gow3Graphics::Fullscreen && desktop;
+        const bool exclusive = mode == WipeoutOCGraphics::Fullscreen && desktop;
         if (!SDL_SetWindowFullscreenMode(window, exclusive ? desktop : nullptr)) {
             LOG_WARNING(Frontend, "Fullscreen mode: {}", SDL_GetError());
         }
         SDL_SetWindowFullscreen(window, true);
     }
     SDL_SyncWindow(window);
-    std::printf("Window: %s\n", Gow3Graphics::DisplayModeNames[mode]);
+    std::printf("Window: %s\n", WipeoutOCGraphics::DisplayModeNames[mode]);
 }
 
 WindowSDL::~WindowSDL() {
@@ -141,7 +141,7 @@ void WindowSDL::UpdateTextTitle() {
     const std::string title = text_active ? base_title + " \u2014 " + text_prompt + ": " + text + "_  (Enter = OK, Esc = cancel)"
                                           : base_title;
     SDL_SetWindowTitle(window, title.c_str());
-    Gow3Overlay::SetTextEntry(text_active, text_prompt, text);
+    WipeoutOCOverlay::SetTextEntry(text_active, text_prompt, text);
 }
 
 bool WindowSDL::PollEvents() {
@@ -155,9 +155,9 @@ bool WindowSDL::PollEvents() {
         }
     }
     if (!text_active) {
-        Gow3Overlay::UpdateTextInput(window);
+        WipeoutOCOverlay::UpdateTextInput(window);
     }
-    if (const int mode = Gow3Settings::Get().display_mode; mode != display_mode) {
+    if (const int mode = WipeoutOCSettings::Get().display_mode; mode != display_mode) {
         ApplyDisplayMode(mode);
     }
     SDL_Event event;
@@ -189,7 +189,7 @@ bool WindowSDL::PollEvents() {
             UpdateTextTitle();
             continue;
         }
-        if (Gow3Overlay::HandleEvent(event)) {
+        if (WipeoutOCOverlay::HandleEvent(event)) {
             continue;
         }
         switch (event.type) {
@@ -217,8 +217,8 @@ bool WindowSDL::PollEvents() {
     // another window or the game's pause menu (the pause key) get it back. Taken back, it starts
     // at the window's centre; let go by the pause key, the system cursor shows.
     const bool paused = mouse_paused.load(std::memory_order_relaxed);
-    const bool lock = Gow3Settings::Get().mouse_lock.load(std::memory_order_relaxed) && !text_active && !paused &&
-                      !Gow3Overlay::CapturesInput() && (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+    const bool lock = WipeoutOCSettings::Get().mouse_lock.load(std::memory_order_relaxed) && !text_active && !paused &&
+                      !WipeoutOCOverlay::CapturesInput() && (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
     if (lock != mouse_locked) {
         if (lock) SDL_WarpMouseInWindow(window, width / 2.0f, height / 2.0f);
         if (SDL_SetWindowRelativeMouseMode(window, lock)) mouse_locked = lock;

@@ -17,8 +17,8 @@ MINGW*|MSYS*)
         git submodule update --init --recursive
     fi
     bash scripts/apply_fsr_patches.sh
-    cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE="${WIPEOUT_OC_BUILD_TYPE:-RelWithDebInfo}" -DGOW3_PGO=off \
-        -DGOW3_LTO="${WIPEOUT_OC_LTO:-OFF}" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ >/dev/null
+    cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE="${WIPEOUT_OC_BUILD_TYPE:-RelWithDebInfo}" -DWIPEOUT_OC_PGO=off \
+        -DWIPEOUT_OC_LTO="${WIPEOUT_OC_LTO:-OFF}" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ >/dev/null
     echo "GPU library and loader: LTO ${WIPEOUT_OC_LTO:-OFF}"
     if ! ninja -C out/gpu wipeout_oc-probe wipeout_oc-gpu-capabilities wipeout_oc-play > out/gpu-build.log 2>&1; then
         grep -v '^\[' out/gpu-build.log | tail -40 >&2
@@ -62,8 +62,8 @@ if [[ ! -f gpu/third_party/fsr-vulkan/CMakeLists.txt || ! -f gpu/third_party/img
     git submodule update --init --recursive
 fi
 bash scripts/apply_fsr_patches.sh
-cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DGOW3_PGO="$pgo" \
-    -DGOW3_LTO="${WIPEOUT_OC_LTO:-ON}" -DGOW3_PGO_DIR="$PWD/pgo" >/dev/null
+cmake -S gpu -B out/gpu -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWIPEOUT_OC_PGO="$pgo" \
+    -DWIPEOUT_OC_LTO="${WIPEOUT_OC_LTO:-ON}" -DWIPEOUT_OC_PGO_DIR="$PWD/pgo" >/dev/null
 echo "GPU library: PGO $pgo, LTO ${WIPEOUT_OC_LTO:-ON}"
 # A failed GPU build must stop here: an older libwipeout_oc_gpu.so would otherwise be used silently.
 if ! ninja -C out/gpu wipeout_oc_gpu > out/gpu-build.log 2>&1; then

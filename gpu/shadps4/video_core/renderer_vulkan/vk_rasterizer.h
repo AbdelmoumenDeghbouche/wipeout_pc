@@ -102,7 +102,7 @@ public:
     using OrderedTask = void (*)(Rasterizer& rasterizer, const u8* data);
     /// Returns true when the task was handed to the recording thread (not run yet).
     bool RunInOrder(OrderedTask task, const void* data, u32 size,
-                    u64 toggle = Gow3Toggle::PipelinedTasks);
+                    u64 toggle = WipeoutOCToggle::PipelinedTasks);
     /// Stage A: the draw pipe position after the last handed-over packet, and whether the
     /// recording thread has run everything before a position.
     [[nodiscard]] u64 DrawPipeHead() const {
@@ -292,7 +292,7 @@ private:
     static void RunTextureTask(void* rasterizer);
     static void JoinBindHelper(void* rasterizer);
 
-    /// Display pass: counts the frame (Gow3Stats::gpu_frames) and, with GOW3_BUFFER_STATS, the lag.
+    /// Display pass: counts the frame (WipeoutOCStats::gpu_frames) and, with GOW3_BUFFER_STATS, the lag.
     void NoteFrameStart();
     /// Without an upscaler: the display buffer of the last NoteFrameStart (HUD draws go there too).
     VAddr last_display_buffer = 0;

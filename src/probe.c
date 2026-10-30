@@ -333,10 +333,10 @@ static DWORD WINAPI cpu_profiler_thread(LPVOID unused) {
     for (unsigned window=1;;++window) {
         unsigned long ids[THREADS]={0,0,0,0};
         uint64_t frames_start=0, frames_end=0, drain_start=0, drain_end=0;
-        gow3gpu_frame_threads(&ids[0],&ids[1],&frames_start);
-        gow3gpu_draw_rec_thread(&ids[2],&drain_start,&ids[3]);
+        wipeout_oc_gpu_frame_threads(&ids[0],&ids[1],&frames_start);
+        wipeout_oc_gpu_draw_rec_thread(&ids[2],&drain_start,&ids[3]);
         uint64_t counts_start[3], counts_end[3];
-        gow3gpu_draw_counts(&counts_start[0],&counts_start[1],&counts_start[2]);
+        wipeout_oc_gpu_draw_counts(&counts_start[0],&counts_start[1],&counts_start[2]);
         const uint64_t tsc_start=__rdtsc();
         QueryPerformanceCounter(&start);
         for (int t=0;t<THREADS;++t) {
@@ -386,9 +386,9 @@ static DWORD WINAPI cpu_profiler_thread(LPVOID unused) {
             }
             QueryPerformanceCounter(&now);
         } while (now.QuadPart-start.QuadPart<frequency.QuadPart);
-        gow3gpu_frame_threads(&ids[0],&ids[1],&frames_end);
-        gow3gpu_draw_rec_thread(&ids[2],&drain_end,&ids[3]);
-        gow3gpu_draw_counts(&counts_end[0],&counts_end[1],&counts_end[2]);
+        wipeout_oc_gpu_frame_threads(&ids[0],&ids[1],&frames_end);
+        wipeout_oc_gpu_draw_rec_thread(&ids[2],&drain_end,&ids[3]);
+        wipeout_oc_gpu_draw_counts(&counts_end[0],&counts_end[1],&counts_end[2]);
         const uint64_t frames=frames_end-frames_start, tsc=__rdtsc()-tsc_start;
         const double wall_ms=1000.0*(double)(now.QuadPart-start.QuadPart)/(double)frequency.QuadPart;
         const double drain_ms=tsc ? (double)(drain_end-drain_start)*wall_ms/(double)tsc : 0.0;
@@ -438,7 +438,7 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"Fault: exception 0x%08lx at %s (thread %lu)\n",record->ExceptionCode,where,GetCurrentThreadId());
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
-    if (gpu_enabled) gow3gpu_dump_guest_writes(info);
+    if (gpu_enabled) wipeout_oc_gpu_dump_guest_writes(info);
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;
     for (int depth=0; depth<24 && rbp; ++depth) {
@@ -477,20 +477,20 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     }
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
         /* GPU page tracking (write-protected guest pages) is resolved first. */
-        if (gpu_enabled && gow3gpu_handle_fault(info,(void *)record->ExceptionInformation[1])) {
+        if (gpu_enabled && wipeout_oc_gpu_handle_fault(info,(void *)record->ExceptionInformation[1])) {
             if (profiling) profile_fault_site((uintptr_t)info->ContextRecord->Rip);
             return EXCEPTION_CONTINUE_EXECUTION;
         }
         if (runtime_fault_recover) {
             /* A speculative guest memory read (GPU draw preparation) faulted: the thread resumes
-             * in gow3_longjmp, outside the exception dispatcher, back at its recovery point. */
+             * in wipeout_oc_longjmp, outside the exception dispatcher, back at its recovery point. */
             unsigned long long *buffer=*runtime_fault_recover;
             runtime_fault_recover=NULL;
             CONTEXT *c=info->ContextRecord;
             c->Rsp=((c->Rsp-128)&~(DWORD64)15)-40;
             c->Rcx=(DWORD64)(uintptr_t)buffer;
             c->Rdx=1;
-            c->Rip=(DWORD64)(uintptr_t)gow3_longjmp;
+            c->Rip=(DWORD64)(uintptr_t)wipeout_oc_longjmp;
             return EXCEPTION_CONTINUE_EXECUTION;
         }
     }
@@ -546,7 +546,7 @@ static void fault(int sig, siginfo_t *info, void *context) {
         }
     }
     /* GPU page tracking (write-protected guest pages) is resolved first. */
-    if (gpu_enabled && sig == SIGSEGV && gow3gpu_handle_fault(context, info->si_addr)) return;
+    if (gpu_enabled && sig == SIGSEGV && wipeout_oc_gpu_handle_fault(context, info->si_addr)) return;
     /* A speculative guest memory read (runtime_memory.c) failed: resume its recovery point. */
     if ((sig == SIGSEGV || sig == SIGBUS) && runtime_fault_recover) {
         sigjmp_buf *recover = runtime_fault_recover;
@@ -576,7 +576,7 @@ static void fault(int sig, siginfo_t *info, void *context) {
     else
         snprintf(line, sizeof(line), "Fault (signal %d) at RIP %p, address %p\n", sig, (void *)rip, info->si_addr);
     { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
-    if (gpu_enabled) gow3gpu_dump_guest_writes(context);
+    if (gpu_enabled) wipeout_oc_gpu_dump_guest_writes(context);
     /* Host call chain (frames with unwind info; guest frames end it). */
     void *frames[32];
     int depth = backtrace(frames, 32);
@@ -1082,7 +1082,7 @@ int main(int argc, char **argv) {
         if (sfo_value(sfo,"INSTALL_DIR_SAVEDATA",id,sizeof(id),NULL) || sfo_value(sfo,"TITLE_ID",id,sizeof(id),NULL))
             runtime_savedata_configure(id);
     }
-    gow3gpu_register_kernel();
+    wipeout_oc_gpu_register_kernel();
 #ifdef _WIN32
     SYSTEM_INFO system_info; GetSystemInfo(&system_info); page_size = system_info.dwPageSize;
     AddVectoredExceptionHandler(1, vectored_fault);
@@ -1229,10 +1229,10 @@ int main(int argc, char **argv) {
         sfo_value(sfo,"ATTRIBUTE",NULL,0,&attributes);
         uint64_t sdk=0;
         if (procparam) memcpy(&sdk,image+procparam+16,8); /* procparam: size, magic, count, sdk_version */
-        Gow3GpuConfig gpu={title,serial,user_dir ? user_dir : "user",(uint32_t)sdk,attributes,1920,1080};
+        WipeoutOCGpuConfig gpu={title,serial,user_dir ? user_dir : "user",(uint32_t)sdk,attributes,1920,1080};
         gpu_enabled=1; /* page tracking starts while the rasterizer registers guest memory */
-        if (gow3gpu_init(&gpu)) fail("GPU initialization failed");
-        printf("GPU: window and Vulkan presenter ready; SDK 0x%08x, %u HLE symbols\n",(unsigned)sdk,gow3gpu_symbol_count());
+        if (wipeout_oc_gpu_init(&gpu)) fail("GPU initialization failed");
+        printf("GPU: window and Vulkan presenter ready; SDK 0x%08x, %u HLE symbols\n",(unsigned)sdk,wipeout_oc_gpu_symbol_count());
     }
     unsigned char *traps = allocate(round_page((import_count + 1) * 32));
     unsigned char *data_traps = allocate((import_count + 1) * page_size);

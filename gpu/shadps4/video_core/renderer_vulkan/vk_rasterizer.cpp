@@ -179,7 +179,7 @@ VideoCore::ImageId Rasterizer::FindTargetMemoized(VideoCore::TextureCache::Image
     };
     (append(parts), ...);
     const u64 generation = texture_cache.RegistryGeneration();
-    const bool memo_enabled = !Gow3Toggle::Disabled(Gow3Toggle::TextureBindingMemo);
+    const bool memo_enabled = !WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureBindingMemo);
     if (memo_enabled && last.generation == generation && last.key_size == key_size &&
         std::memcmp(last.key.data(), key.data(), key_size) == 0) {
         texture_cache.MarkFound(last.image_id);
@@ -431,11 +431,11 @@ bool Rasterizer::DrawPipeWanted() {
     }
     // Stage B spins while draws flow. Measured ahead with 16 threads (+19%) and with 4 cores /
     // 8 threads (taskset, Steam Deck-like: +18%).
-    return Gow3Threads::Available() >= 8;
+    return WipeoutOCThreads::Available() >= 8;
 }
 
 bool Rasterizer::UseDrawPipe() const {
-    return draw_pipe && !host_markers_enabled && !Gow3Toggle::Disabled(Gow3Toggle::DrawPipeline);
+    return draw_pipe && !host_markers_enabled && !WipeoutOCToggle::Disabled(WipeoutOCToggle::DrawPipeline);
 }
 
 bool Rasterizer::OnStageA() const {
@@ -534,7 +534,7 @@ bool Rasterizer::PendingWriteOverlaps(VAddr address, u64 size) {
 void Rasterizer::CollectRingBindings(const Shader::Info& stage, const PreparedDraw* prepared,
                            boost::container::static_vector<RingBinding, Shader::NUM_BUFFERS>& out) {
     const PreparedStage* prepared_stage = nullptr;
-    if (prepared && !Gow3Toggle::Disabled(Gow3Toggle::PreparedResources)) {
+    if (prepared && !WipeoutOCToggle::Disabled(WipeoutOCToggle::PreparedResources)) {
         for (u32 i = 0; i < prepared->num_stages; ++i) {
             const auto& candidate = prepared->stages[i];
             if (&candidate.program->info == &stage &&
@@ -617,7 +617,7 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
         if (stage) {
             auto& ring = rings[num_stages];
             ring.clear();
-            if (constant_ring && !Gow3Toggle::Disabled(Gow3Toggle::ConstantRing)) {
+            if (constant_ring && !WipeoutOCToggle::Disabled(WipeoutOCToggle::ConstantRing)) {
                 CollectRingBindings(*stage, used_prepared, ring);
             }
             ++num_stages;
@@ -718,7 +718,7 @@ void Rasterizer::RetireSubmission() {
 }
 
 bool Rasterizer::RunInOrder(OrderedTask task, const void* data, u32 size, u64 toggle) {
-    if (!UseDrawPipe() || Gow3Toggle::Disabled(toggle)) {
+    if (!UseDrawPipe() || WipeoutOCToggle::Disabled(toggle)) {
         DrainDrawPipe(DrawPipe::ReasonRasterizer);
         task(*this, static_cast<const u8*>(data));
         return false;
@@ -945,13 +945,13 @@ bool Rasterizer::FilterDrawPasses() const {
 
 void Rasterizer::Draw(bool is_indexed, u32 index_offset, const PreparedDraw* prepared) {
     RENDERER_TRACE;
-    Gow3Stats::draws.fetch_add(1, std::memory_order_relaxed);
+    WipeoutOCStats::draws.fetch_add(1, std::memory_order_relaxed);
 
     // gow3: with the draw pipeline this thread only selects the pipeline and hands the draw
     // to the recording thread (DrawRecord there); draws FilterDraw handles itself run here.
     const bool pipelined = UseDrawPipe();
     if (pipelined && !FilterDrawPasses() &&
-        !Gow3Toggle::Disabled(Gow3Toggle::PipelinedMemoryWrites)) {
+        !WipeoutOCToggle::Disabled(WipeoutOCToggle::PipelinedMemoryWrites)) {
         PostDraw(nullptr, nullptr, false, 0);
         return;
     }
@@ -1236,7 +1236,7 @@ void Rasterizer::DrawIndirect(bool is_indexed, VAddr arg_address, u32 offset, u3
     // gow3: like direct draws, handed to the recording thread after the pipeline selection
     // (else the GPU thread waited here for a whole frame of queued draws).
     const bool pipelined = UseDrawPipe() && FilterDrawPasses() &&
-                           !Gow3Toggle::Disabled(Gow3Toggle::PipelinedIndirectDraws);
+                           !WipeoutOCToggle::Disabled(WipeoutOCToggle::PipelinedIndirectDraws);
     if (!pipelined) {
         DrainDrawPipe();
         scheduler.PopPendingOperations();
@@ -1356,9 +1356,9 @@ void Rasterizer::DrawIndirectRecord(const GraphicsPipeline* pipeline, bool is_in
 
 void Rasterizer::DispatchDirect() {
     RENDERER_TRACE;
-    Gow3Stats::dispatches.fetch_add(1, std::memory_order_relaxed);
+    WipeoutOCStats::dispatches.fetch_add(1, std::memory_order_relaxed);
     // gow3: like draws, handed to the draw recording thread after the pipeline selection.
-    const bool pipelined = UseDrawPipe() && !Gow3Toggle::Disabled(Gow3Toggle::PipelinedDispatch);
+    const bool pipelined = UseDrawPipe() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::PipelinedDispatch);
     if (!pipelined) {
         DrainDrawPipe();
     }
@@ -1450,7 +1450,7 @@ void Rasterizer::DispatchRecord(const ComputePipeline* pipeline) {
 void Rasterizer::DispatchIndirect(VAddr address, u32 offset, u32 size) {
     RENDERER_TRACE;
     // gow3: handed to the recording thread like direct dispatches.
-    const bool pipelined = UseDrawPipe() && !Gow3Toggle::Disabled(Gow3Toggle::PipelinedIndirectDraws);
+    const bool pipelined = UseDrawPipe() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::PipelinedIndirectDraws);
     if (!pipelined) {
         DrainDrawPipe();
     }
@@ -1530,7 +1530,7 @@ void Rasterizer::OnSubmit() {
 
 const PreparedStage* Rasterizer::FindPreparedStage(const Shader::Info& stage) const {
     // Sharps a draw-preparation worker read from the same flattened user data.
-    if (!bind_prepared || Gow3Toggle::Disabled(Gow3Toggle::PreparedResources)) {
+    if (!bind_prepared || WipeoutOCToggle::Disabled(WipeoutOCToggle::PreparedResources)) {
         return nullptr;
     }
     for (u32 i = 0; i < bind_prepared->num_stages; ++i) {
@@ -1557,9 +1557,9 @@ bool Rasterizer::BindHelperWanted() {
 
 bool Rasterizer::HelperEligible(const Pipeline* pipeline) const {
     if (pipeline->IsCompute() || !bind_helper.Available() || FrameCapture::Active() ||
-        Gow3Toggle::Disabled(Gow3Toggle::TextureBindHelper) ||
-        Gow3Toggle::Disabled(Gow3Toggle::TextureBindingMemo) ||
-        Gow3Toggle::Disabled(Gow3Toggle::UpdateImageFastPath)) {
+        WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureBindHelper) ||
+        WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureBindingMemo) ||
+        WipeoutOCToggle::Disabled(WipeoutOCToggle::UpdateImageFastPath)) {
         return false;
     }
     for (const auto* stage : pipeline->GetStages()) {
@@ -1655,7 +1655,7 @@ bool Rasterizer::BindResources(const Pipeline* pipeline) {
     // size; the temporal upscaler restores the detail of the output's mip level (FSR guide:
     // log2(render / output)). Shadows, post-processing and UI keep the guest's bias.
     sampler_lod_bias = 0.0f;
-    if (!pipeline->IsCompute() && !Gow3Toggle::Disabled(Gow3Toggle::SceneMipBias) &&
+    if (!pipeline->IsCompute() && !WipeoutOCToggle::Disabled(WipeoutOCToggle::SceneMipBias) &&
         std::popcount(static_cast<const GraphicsPipeline*>(pipeline)->GetGraphicsKey().mrt_mask &
                       0xff) >= 5) {
         sampler_lod_bias = upscaler->SceneMipBias();
@@ -1746,7 +1746,7 @@ bool Rasterizer::BindResources(const Pipeline* pipeline) {
             auto& stage = buffer_stages[i];
             BindBuffers(*stage.info, stage.prepared, stage.binding, push_data, stage.write_index);
         }
-        if (draw_inputs.pending && !Gow3Toggle::Disabled(Gow3Toggle::EarlyDrawInputs)) {
+        if (draw_inputs.pending && !WipeoutOCToggle::Disabled(WipeoutOCToggle::EarlyDrawInputs)) {
             ResolveVertexBuffers(draw_inputs.pipeline, draw_inputs.prepared);
             if (draw_inputs.is_indexed) {
                 ResolveIndexBuffer(draw_inputs.index_offset);
@@ -1834,7 +1834,7 @@ void Rasterizer::ResolveVertexBuffers(const GraphicsPipeline* pipeline,
     const PreparedVertexInputs* ready =
         prepared && prepared->vertex.valid && instance.IsVertexInputDynamicState() && fetch &&
                 fetch->attributes.size() == prepared->vertex.count && !FrameCapture::Active() &&
-                !Gow3Toggle::Disabled(Gow3Toggle::PreparedResources)
+                !WipeoutOCToggle::Disabled(WipeoutOCToggle::PreparedResources)
             ? &prepared->vertex
             : nullptr;
     if (ready) {
@@ -2302,7 +2302,7 @@ Rasterizer::ImageDescCacheEntry& Rasterizer::CachedImageDescEntry(const AmdGpu::
     const auto matches = [&](const ImageDescCacheEntry& e) {
         return e.flags == flags && e.sharp == key;
     };
-    const bool disabled = Gow3Toggle::Disabled(Gow3Toggle::ImageDescCache);
+    const bool disabled = WipeoutOCToggle::Disabled(WipeoutOCToggle::ImageDescCache);
     ImageDescCacheEntry* slot = nullptr;
     if (!disabled && matches(set[0])) {
         slot = &set[0];
@@ -2321,7 +2321,7 @@ Rasterizer::ImageDescCacheEntry& Rasterizer::CachedImageDescEntry(const AmdGpu::
     slot->last_use = ++desc_use_counter;
     auto& entry = *slot;
     if (entry.flags != flags || entry.sharp != key ||
-        Gow3Toggle::Disabled(Gow3Toggle::ImageDescCache)) {
+        WipeoutOCToggle::Disabled(WipeoutOCToggle::ImageDescCache)) {
         entry.desc = VideoCore::TextureCache::ImageDesc{sharp, res};
         entry.sharp = key;
         entry.flags = flags;
@@ -2363,7 +2363,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
     // SampleSceneProxies: bindings that may read a reduced scene proxy instead of the native
     // image (normalized sampling only; see Shader::ImageResource::needs_native).
     boost::container::small_vector<bool, 16> binding_proxy_ok;
-    const bool sample_proxies = !Gow3Toggle::Disabled(Gow3Toggle::SampleSceneProxies) &&
+    const bool sample_proxies = !WipeoutOCToggle::Disabled(WipeoutOCToggle::SampleSceneProxies) &&
                                 !on_helper && scene_targets->Reduced();
 
     for (u32 image_index = 0; image_index < stage.images.size(); ++image_index) {
@@ -2429,7 +2429,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             // while no image was registered or unregistered.
             if (mip_fallback_mode == Shader::MipStorageFallbackMode::None &&
                 desc_entry.found_generation == texture_cache.RegistryGeneration() &&
-                !Gow3Toggle::Disabled(Gow3Toggle::TextureBindingMemo)) {
+                !WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureBindingMemo)) {
                 desc_entry.pinned = bind_epoch;
                 auto& [image_id, _] =
                     image_bindings.emplace_back(desc_entry.found_id, &desc_entry.found_desc);
@@ -2665,7 +2665,7 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
                                      u32 first_image_idx, bool& barrier, TextureSet*& slot) {
     const u32 count = static_cast<u32>(stage.images.size());
     if (!prepared || count == 0 || count > TextureSet::MaxImages ||
-        Gow3Toggle::Disabled(Gow3Toggle::TextureSetMemo) || FrameCapture::Active()) {
+        WipeoutOCToggle::Disabled(WipeoutOCToggle::TextureSetMemo) || FrameCapture::Active()) {
         return false;
     }
     for (const auto& image : stage.images) {
@@ -2703,7 +2703,7 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
         const auto& image = texture_cache.GetImage(entry.id);
         // Proxy entries need a current proxy; native entries of a proxied image go through
         // BindTextures, which may sample the proxy instead.
-        const bool proxies_on = !Gow3Toggle::Disabled(Gow3Toggle::SampleSceneProxies);
+        const bool proxies_on = !WipeoutOCToggle::Disabled(WipeoutOCToggle::SampleSceneProxies);
         if (image.backing != entry.backing || image.binding.needs_rebind ||
             image.binding.is_target || !texture_cache.IsUpToDate(entry.id) ||
             (entry.proxy ? !proxies_on ||
@@ -2749,8 +2749,8 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
 
 RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
     // gow3: RenderStateMemo (see BeginMemo).
-    const bool memo_on = !Gow3Toggle::Disabled(Gow3Toggle::RenderStateMemo) && !FrameCapture::Active();
-    if (Gow3Stats::enabled && ((begin_memo_hits + begin_memo_misses) & 0x3FFFF) == 0x3FFFF) {
+    const bool memo_on = !WipeoutOCToggle::Disabled(WipeoutOCToggle::RenderStateMemo) && !FrameCapture::Active();
+    if (WipeoutOCStats::enabled && ((begin_memo_hits + begin_memo_misses) & 0x3FFFF) == 0x3FFFF) {
         std::printf("Render state memo: %llu hits, %llu misses; texture sets: %llu hits, %llu "
                     "misses\n",
                     static_cast<unsigned long long>(begin_memo_hits),
@@ -2838,7 +2838,7 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
     }
     // Only this pass's attachments: slots past the mask's width keep earlier passes' targets,
     // often the G-buffer images the lighting passes sample (bound), which kept those native.
-    const u32 num_attachments = Gow3Toggle::Disabled(Gow3Toggle::SceneAttachmentsOnly)
+    const u32 num_attachments = WipeoutOCToggle::Disabled(WipeoutOCToggle::SceneAttachmentsOnly)
                                     ? u32(cb_descs.size())
                                     : u32(std::bit_width(key.mrt_mask));
     // All attachments of a reduced pass share one proxy size (scene or half resolution).
@@ -2880,9 +2880,9 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         std::printf("Scene pass: reduced %d %s\n", reduced, why.c_str());
     }
     push_data.scene_size = reduced ? SceneResolution::Pack(scene_targets->Size()) : 0;
-    if (Gow3Stats::enabled) {
-        Gow3Stats::reduced_draws.fetch_add(reduced, std::memory_order_relaxed);
-        Gow3Stats::scene_draws.fetch_add(scene_started, std::memory_order_relaxed);
+    if (WipeoutOCStats::enabled) {
+        WipeoutOCStats::reduced_draws.fetch_add(reduced, std::memory_order_relaxed);
+        WipeoutOCStats::scene_draws.fetch_add(scene_started, std::memory_order_relaxed);
     }
     RenderState state;
     state.width = instance.GetMaxFramebufferWidth();
@@ -3763,7 +3763,7 @@ void Rasterizer::NoteFrameStart() {
     if (auto* profiler = GpuProfiler::Get()) {
         profiler->BeginFrame();
     }
-    const u64 frame = Gow3Stats::gpu_frames.fetch_add(1, std::memory_order_relaxed) + 1;
+    const u64 frame = WipeoutOCStats::gpu_frames.fetch_add(1, std::memory_order_relaxed) + 1;
     // GOW3_BUFFER_STATS=1: how many earlier frames the GPU has not finished when the GPU thread
     // starts a frame — the lag that decides whether guest memory can be read in place.
     static const bool stats = [] {

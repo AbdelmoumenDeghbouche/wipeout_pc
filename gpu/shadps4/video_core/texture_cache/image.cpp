@@ -94,8 +94,8 @@ void UniqueImage::Destroy() {
         vmaDestroyImage(allocator, image, allocation);
         image = vk::Image{};
         allocation = {};
-        Gow3Stats::image_bytes -= static_cast<s64>(size_bytes);
-        --Gow3Stats::image_count;
+        WipeoutOCStats::image_bytes -= static_cast<s64>(size_bytes);
+        --WipeoutOCStats::image_count;
     }
 }
 
@@ -137,15 +137,15 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
                vk::to_string(vk::Result{result}));
     image = vk::Image{unsafe_image};
     size_bytes = alloc_info.size;
-    Gow3Stats::image_bytes += static_cast<s64>(size_bytes);
-    ++Gow3Stats::image_count;
+    WipeoutOCStats::image_bytes += static_cast<s64>(size_bytes);
+    ++WipeoutOCStats::image_count;
 }
 
 Image::Image(const Vulkan::Instance& instance, Vulkan::Runtime& runtime_,
              Common::SlotVector<ImageView>& slot_image_views_, const ImageInfo& info_)
     : guest_begin{info_.guest_address}, guest_end{info_.guest_address + info_.guest_size},
       info{info_}, runtime{&runtime_}, slot_image_views{&slot_image_views_} {
-    Gow3Stats::Timer timer{Gow3Stats::t_image_create};
+    WipeoutOCStats::Timer timer{WipeoutOCStats::t_image_create};
     if (info.pixel_format == vk::Format::eUndefined) {
         return;
     }

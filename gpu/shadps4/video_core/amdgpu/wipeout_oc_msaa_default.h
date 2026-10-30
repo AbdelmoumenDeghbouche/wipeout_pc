@@ -11,6 +11,6 @@
 
 #include <vulkan/vulkan_core.h>
 
-static inline int gow3_no_msaa_default(VkDriverId driver) {
+static inline int wipeout_oc_no_msaa_default(VkDriverId driver) {
     return driver == VK_DRIVER_ID_AMD_PROPRIETARY || driver == VK_DRIVER_ID_INTEL_PROPRIETARY_WINDOWS;
 }

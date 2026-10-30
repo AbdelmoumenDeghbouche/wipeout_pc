@@ -53,8 +53,8 @@ ObjectMotion::ObjectMotion(const Instance& instance_, Scheduler& scheduler_)
     : instance{instance_}, scheduler{scheduler_} {
     // Pipeline selection limits the extra attachment and vertex stores to likely
     // animated draws. A setting or environment override can still disable the path.
-    if (!Gow3Settings::Get().object_motion ||
-        Gow3Settings::Get().upscaler == Gow3Settings::UpscalerOff) {
+    if (!WipeoutOCSettings::Get().object_motion ||
+        WipeoutOCSettings::Get().upscaler == WipeoutOCSettings::UpscalerOff) {
         std::puts("Object motion: off (enable in menu or GOW3_OBJECT_MOTION=1)");
         return;
     }
@@ -95,7 +95,7 @@ void ObjectMotion::OnFrameStart() {
     if (!enabled) {
         return;
     }
-    if (Gow3Stats::enabled && (frame % 600) == 0 && history.stats.draws) {
+    if (WipeoutOCStats::enabled && (frame % 600) == 0 && history.stats.draws) {
         const auto& s = history.stats;
         std::printf("Object motion: %llu draws, %llu stored, %llu with history, %llu unmatched, "
                     "%llu capacity skips, %llu invalid, %llu still (600 frames); last frame %u/%u vertices; "
@@ -138,7 +138,7 @@ void ObjectMotion::OnFrameStart() {
 }
 
 u32 ObjectMotion::PrepareDraw(const DrawInfo& draw) {
-    if (!enabled || Gow3Toggle::Disabled(1u << 29) || params_used >= ParamsPerFrame) {
+    if (!enabled || WipeoutOCToggle::Disabled(1u << 29) || params_used >= ParamsPerFrame) {
         return 0;
     }
     const auto allocation = history.Prepare(draw);

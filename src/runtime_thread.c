@@ -48,7 +48,7 @@ typedef struct GuestThread {
     char name[32];
     int detached, finished, joined, host_owned;
 #ifdef _WIN32
-    gow3_jmp_buf exit_jump; /* no SEH unwinding through guest frames */
+    wipeout_oc_jmp_buf exit_jump; /* no SEH unwinding through guest frames */
 #else
     jmp_buf exit_jump;
 #endif
@@ -269,8 +269,8 @@ static void set_host_name(const char *name) {
     pthread_setname_np(pthread_self(),host);
 }
 #ifdef _WIN32
-#define exit_setjmp(t) gow3_setjmp((t)->exit_jump)
-#define exit_longjmp(t) gow3_longjmp((t)->exit_jump,1)
+#define exit_setjmp(t) wipeout_oc_setjmp((t)->exit_jump)
+#define exit_longjmp(t) wipeout_oc_longjmp((t)->exit_jump,1)
 #else
 #define exit_setjmp(t) setjmp((t)->exit_jump)
 #define exit_longjmp(t) longjmp((t)->exit_jump,1)

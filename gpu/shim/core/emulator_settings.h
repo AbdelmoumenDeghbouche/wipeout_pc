@@ -7,8 +7,8 @@
 #include <string>
 #include "common/types.h"
 
-u32 Gow3DisplayRefreshHz(); // wipeout_oc_gpu.cpp: primary display refresh rate, 60 when unknown
-double Gow3DisplayRefreshRate(); // wipeout_oc_gpu.cpp: the same, unrounded (59.94 stays 59.94)
+u32 WipeoutOCDisplayRefreshHz(); // wipeout_oc_gpu.cpp: primary display refresh rate, 60 when unknown
+double WipeoutOCDisplayRefreshRate(); // wipeout_oc_gpu.cpp: the same, unrounded (59.94 stays 59.94)
 
 enum GpuReadbacksMode : int { Disabled, Relaxed, Precise };
 
@@ -50,7 +50,7 @@ public:
     u64 GetVblankPeriodNs() {
         static const u64 value = [this] {
             const u32 hz = GetVblankFrequency();
-            const double display = hz == 60 ? Gow3DisplayRefreshRate() : 0.0;
+            const double display = hz == 60 ? WipeoutOCDisplayRefreshRate() : 0.0;
             const double rate = display > 59.5 && display < 60.5 ? display : double(hz);
             return u64(1e9 / rate + 0.5);
         }();
@@ -61,7 +61,7 @@ public:
         static const u32 value = [] {
             const long limit = Number("WIPEOUT_OC_FPS_LIMIT", -1);
             if (limit >= 0) return u32(limit);
-            return Number("WIPEOUT_OC_VBLANK_HZ", 60) > 0 ? 0u : std::min<u32>(Gow3DisplayRefreshHz(), 120);
+            return Number("WIPEOUT_OC_VBLANK_HZ", 60) > 0 ? 0u : std::min<u32>(WipeoutOCDisplayRefreshHz(), 120);
         }();
         return value;
     }

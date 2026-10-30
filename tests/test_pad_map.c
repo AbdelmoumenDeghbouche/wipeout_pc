@@ -3,16 +3,16 @@
 #include <assert.h>
 #include "../src/runtime_pad.c"
 
-int gow3gpu_overlay_captures_input(void) { return 0; }
-int gow3gpu_vibration_percent(void) { return 100; }
-int gow3gpu_mouse_prompt_distance(void) { return 48; }
-void gow3gpu_request_screenshot(void) {}
+int wipeout_oc_gpu_overlay_captures_input(void) { return 0; }
+int wipeout_oc_gpu_vibration_percent(void) { return 100; }
+int wipeout_oc_gpu_mouse_prompt_distance(void) { return 48; }
+void wipeout_oc_gpu_request_screenshot(void) {}
 static int pause_keys;
-void gow3gpu_mouse_pause_key(void) { ++pause_keys; }
+void wipeout_oc_gpu_mouse_pause_key(void) { ++pause_keys; }
 static int aim_style;
-int gow3gpu_mouse_aim_style(void) { return aim_style; }
+int wipeout_oc_gpu_mouse_aim_style(void) { return aim_style; }
 static int aim_sensitivity=100;
-int gow3gpu_mouse_aim_sensitivity(void) { return aim_sensitivity; }
+int wipeout_oc_gpu_mouse_aim_sensitivity(void) { return aim_sensitivity; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
     (void)table; (void)count; (void)name;
     return 0;

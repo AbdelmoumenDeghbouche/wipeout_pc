@@ -11,5 +11,5 @@ extern "C" uintptr_t gow3_actor_slots_address(void) {
 }
 
 extern "C" void gow3_actor_status(int supported) {
-    Gow3Settings::Get().actor_watch_supported = supported != 0;
+    WipeoutOCSettings::Get().actor_watch_supported = supported != 0;
 }

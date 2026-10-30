@@ -83,7 +83,7 @@ the whole frame, mostly in the kernel, uploading 50–400 MB of textures and buf
 Findings, in the order they were fixed:
 
 1. Guest-to-staging copies ran on one thread (the recording thread, textures on the GPU
-   thread). They now start at once on copy threads (`Gow3Copy::Async`, `wipeout_oc_copy.cpp`);
+   thread). They now start at once on copy threads (`WipeoutOCCopy::Async`, `wipeout_oc_copy.cpp`);
    small copies are batched per thread (one wakeup per ~512 KiB — one per copy cost 25% FPS).
    Guest-visible fences and queue submission wait for them (`Scheduler::WaitHostCopies`),
    which keeps the fix for UI flicker (the guest reused buffers before deferred copies ran).
@@ -265,7 +265,7 @@ barrier structures (`slot_images[id]`, image descriptions, backing state, set wr
 waits for guest submissions 0.5%. About 9% is blocked in `Scheduler::WaitHostCopies`: ~130
 times per frame (EOP/EOS events, `WriteData`, submissions) it waits for the small guest
 copies queued in the recording stream, i.e. until the recording thread has recorded every
-command before them, plus ~4% for the copy threads (`Gow3Copy::WaitAsync`). The recording thread
+command before them, plus ~4% for the copy threads (`WipeoutOCCopy::WaitAsync`). The recording thread
 itself works ~40% (the rest is its spin); it is not the limit.
 
 ### Texture binding on a helper thread (opt-in: `GOW3_TEXTURE_HELPER=1`, toggle 1 << 22)

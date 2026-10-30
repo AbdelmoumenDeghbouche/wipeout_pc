@@ -259,7 +259,7 @@ uintptr_t runtime_resolve(const char *name, int is_data) {
     if (extra) return extra;
     uintptr_t json = runtime_json_resolve(name);
     if (json) return json;
-    return gow3gpu_resolve(name);
+    return wipeout_oc_gpu_resolve(name);
 }
 static const struct { const char *nid, *symbol; } import_names[]={
 #include "import_names.inc"

@@ -70,7 +70,7 @@ int main(int argc, char** argv) {
     std::array<unsigned char, 0x200> player{};
     balance = 100;
     std::memcpy(player.data() + 0x1e8, &balance, 4);
-    auto& settings = Gow3Settings::Get();
+    auto& settings = WipeoutOCSettings::Get();
     settings.red_orb_multiplier = 2;
     hook(player.data(), 110);
     std::memcpy(&balance, player.data() + 0x1e8, 4);
@@ -102,11 +102,11 @@ int main(int argc, char** argv) {
     settings.red_orb_multiplier = 0.125f;
     settings.cheats[0] = true;
     settings.cheats[2] = true;
-    Gow3Settings::Save();
+    WipeoutOCSettings::Save();
     settings.red_orb_multiplier = 1;
     settings.cheats[0] = false;
     settings.cheats[2] = false;
-    Gow3Settings::Load();
+    WipeoutOCSettings::Load();
     assert(settings.red_orb_multiplier == 0.125f);
     assert(settings.cheats[0] && settings.cheats[2] && !settings.cheats[1] && !settings.cheats[4]);
     assert(std::filesystem::remove(config));

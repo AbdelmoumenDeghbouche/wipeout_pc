@@ -16,7 +16,7 @@
 #endif
 #include <x86intrin.h>
 
-namespace Gow3WriteLog {
+namespace WipeoutOCWriteLog {
 namespace {
 struct Entry {
     std::uint64_t address, size, first, tsc;
@@ -83,10 +83,10 @@ void Record(std::uint64_t address, const void* data, std::uint64_t size, Source 
         }
     }
 }
-} // namespace Gow3WriteLog
+} // namespace WipeoutOCWriteLog
 
-extern "C" void gow3gpu_dump_guest_writes(void* ucontext) {
-    using namespace Gow3WriteLog;
+extern "C" void wipeout_oc_gpu_dump_guest_writes(void* ucontext) {
+    using namespace WipeoutOCWriteLog;
     if (Mode() == 0) {
         return;
     }

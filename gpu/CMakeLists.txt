@@ -11,32 +11,32 @@ endif()
 # Frame pointers keep the loader's thread dumps (watchdog, SIGUSR2 sampling) walkable.
 add_compile_options(-fno-omit-frame-pointer)
 
-# gow3: link-time optimization (GOW3_LTO, default on) and profile-guided optimization
-# (GOW3_PGO: off, generate = instrumented build writing into GOW3_PGO_DIR, use = build with that
+# gow3: link-time optimization (WIPEOUT_OC_LTO, default on) and profile-guided optimization
+# (WIPEOUT_OC_PGO: off, generate = instrumented build writing into WIPEOUT_OC_PGO_DIR, use = build with that
 # profile). Covers wipeout_oc_gpu and the static libraries linked into it. No -march: the same build
 # runs on the Steam Deck.
-option(GOW3_LTO "Link-time optimization of wipeout_oc_gpu" ON)
-set(GOW3_PGO "off" CACHE STRING "Profile-guided optimization: off, generate, use")
-set(GOW3_PGO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../pgo" CACHE PATH "Profile directory")
-if (GOW3_LTO)
+option(WIPEOUT_OC_LTO "Link-time optimization of wipeout_oc_gpu" ON)
+set(WIPEOUT_OC_PGO "off" CACHE STRING "Profile-guided optimization: off, generate, use")
+set(WIPEOUT_OC_PGO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../pgo" CACHE PATH "Profile directory")
+if (WIPEOUT_OC_LTO)
     include(CheckIPOSupported)
-    check_ipo_supported(RESULT gow3_ipo_ok OUTPUT gow3_ipo_error)
-    if (gow3_ipo_ok)
+    check_ipo_supported(RESULT wipeout_oc_ipo_ok OUTPUT wipeout_oc_ipo_error)
+    if (wipeout_oc_ipo_ok)
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
     else()
-        message(WARNING "LTO unavailable: ${gow3_ipo_error}")
+        message(WARNING "LTO unavailable: ${wipeout_oc_ipo_error}")
     endif()
 endif()
-if (GOW3_PGO STREQUAL "generate")
+if (WIPEOUT_OC_PGO STREQUAL "generate")
     # Atomic counters: the GPU, recording, preparation and copy threads run the same code.
-    add_compile_options(-fprofile-generate=${GOW3_PGO_DIR} -fprofile-update=atomic)
-    add_link_options(-fprofile-generate=${GOW3_PGO_DIR})
-    add_compile_definitions(GOW3_PGO_GENERATE)
-elseif (GOW3_PGO STREQUAL "use")
+    add_compile_options(-fprofile-generate=${WIPEOUT_OC_PGO_DIR} -fprofile-update=atomic)
+    add_link_options(-fprofile-generate=${WIPEOUT_OC_PGO_DIR})
+    add_compile_definitions(WIPEOUT_OC_PGO_GENERATE)
+elseif (WIPEOUT_OC_PGO STREQUAL "use")
     # Partial training keeps unprofiled code optimized normally; counters from concurrent
     # threads can be slightly inconsistent (correction). Functions changed since the profile
-    # (or built differently for it, gow3gpu_init) are compiled without it.
-    add_compile_options(-fprofile-use=${GOW3_PGO_DIR} -fprofile-partial-training
+    # (or built differently for it, wipeout_oc_gpu_init) are compiled without it.
+    add_compile_options(-fprofile-use=${WIPEOUT_OC_PGO_DIR} -fprofile-partial-training
                         -fprofile-correction -Wno-missing-profile -Wno-coverage-mismatch)
 endif()
 
@@ -148,11 +148,11 @@ file(GLOB SHIM_SOURCES CONFIGURE_DEPENDS shim/*.cpp shim/*/*.cpp)
 # Windows: a DLL cannot leave the runtime_* symbols for wipeout_oc-probe.exe to resolve, so the
 # library is static there and linked into the executable.
 if (WIN32)
-    set(GOW3GPU_KIND STATIC)
+    set(WIPEOUT_OC_GPU_KIND STATIC)
 else()
-    set(GOW3GPU_KIND SHARED)
+    set(WIPEOUT_OC_GPU_KIND SHARED)
 endif()
-add_library(wipeout_oc_gpu ${GOW3GPU_KIND} ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
+add_library(wipeout_oc_gpu ${WIPEOUT_OC_GPU_KIND} ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
     shadps4/core/libraries/gnmdriver/gnmdriver.cpp
     shadps4/core/libraries/videoout/driver.cpp shadps4/core/libraries/videoout/video_out.cpp
     shadps4/core/libraries/kernel/equeue.cpp ${AVPLAYER}
@@ -165,7 +165,7 @@ target_sources(wipeout_oc_gpu PRIVATE third_party/imgui/imgui.cpp third_party/im
     third_party/imgui/backends/imgui_impl_vulkan.cpp)
 target_include_directories(wipeout_oc_gpu PRIVATE third_party/imgui third_party/imgui/backends)
 target_compile_definitions(wipeout_oc_gpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
-    GOW3_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
+    WIPEOUT_OC_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
 set_source_files_properties(shim/wipeout_oc_overlay.cpp PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf)
 target_include_directories(wipeout_oc_gpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include)
@@ -193,12 +193,12 @@ endif()
 # linked here, where CMake knows its dependencies (build.sh builds them with ninja).
 if (WIN32)
     enable_language(RC)
-    file(GLOB GOW3_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
-    file(GLOB GOW3_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
-    add_library(atrac9 STATIC ${GOW3_ATRAC9})
+    file(GLOB WIPEOUT_OC_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
+    file(GLOB WIPEOUT_OC_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
+    add_library(atrac9 STATIC ${WIPEOUT_OC_ATRAC9})
     target_compile_options(atrac9 PRIVATE -w)
     set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
-    add_executable(wipeout_oc-probe ../src/probe.c ${GOW3_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
+    add_executable(wipeout_oc-probe ../src/probe.c ${WIPEOUT_OC_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
         ../src/isa_rewrite.c ../src/isa_emulate.c ../src/redzone.cpp
         ../packaging/windows/wipeout_oc_probe.rc)
     # redzone.cpp: Zydis decodes the game's functions, xbyak writes the trampolines.
@@ -283,7 +283,7 @@ target_link_libraries(pipeline-binary-cache-test PRIVATE wipeout_oc_gpu)
 target_compile_options(pipeline-binary-cache-test PRIVATE -fPIC)
 if (WIN32)
     target_sources(pipeline-binary-cache-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pipeline-binary-cache-test PRIVATE sigjmp_buf=gow3_jmp_buf)
+    target_compile_definitions(pipeline-binary-cache-test PRIVATE sigjmp_buf=wipeout_oc_jmp_buf)
     target_compile_options(pipeline-binary-cache-test PRIVATE
         -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
     target_link_libraries(pipeline-binary-cache-test PRIVATE onecore)
@@ -296,7 +296,7 @@ target_link_libraries(pipeline-binary-initialization-test PRIVATE wipeout_oc_gpu
 target_compile_options(pipeline-binary-initialization-test PRIVATE -fPIC)
 if (WIN32)
     target_sources(pipeline-binary-initialization-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pipeline-binary-initialization-test PRIVATE sigjmp_buf=gow3_jmp_buf)
+    target_compile_definitions(pipeline-binary-initialization-test PRIVATE sigjmp_buf=wipeout_oc_jmp_buf)
     target_compile_options(pipeline-binary-initialization-test PRIVATE
         -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
     target_link_libraries(pipeline-binary-initialization-test PRIVATE onecore)
@@ -322,7 +322,7 @@ set_source_files_properties(../tests/test_pro_shader_gpu.cpp PROPERTIES
 if (WIN32)
     foreach(test IN ITEMS pro-shader-test pro-shader-gpu-test)
         target_sources(${test} PRIVATE ../src/compat_win.c)
-        target_compile_definitions(${test} PRIVATE sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+        target_compile_definitions(${test} PRIVATE sigjmp_buf=wipeout_oc_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
         target_compile_options(${test} PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
         target_link_libraries(${test} PRIVATE onecore)
     endforeach()
@@ -343,7 +343,7 @@ set_source_files_properties(../tests/test_pro_tiling.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 if (WIN32)
     target_sources(pro-tiling-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pro-tiling-test PRIVATE sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(pro-tiling-test PRIVATE sigjmp_buf=wipeout_oc_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_options(pro-tiling-test PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
     target_link_libraries(pro-tiling-test PRIVATE onecore)
 endif()
