@@ -440,6 +440,13 @@ GraphicsPipeline::GraphicsPipeline(
     auto [pipeline_result, pipe] =
         CreateCachedGraphicsPipeline(device, pipeline_cache, pipeline_info, key,
                                      instance.GetPipelineBinaryGlobalKey(), binary_directory);
+    // gow3: a cached pipeline the driver refuses at the start (a damaged cache after a crash, or a
+    // driver error) stays out of the warm-up (Handle() is null) instead of stopping the game (#72).
+    if (pipeline_result != vk::Result::eSuccess && preloading) {
+        LOG_WARNING(Render_Vulkan, "Cached graphics pipeline {} not built ({}), left out of the warm-up",
+                    debug_str, vk::to_string(pipeline_result));
+        return;
+    }
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
                vk::to_string(pipeline_result));
     pipeline = std::move(pipe);
