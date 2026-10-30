@@ -2,6 +2,7 @@
 // event pump runs on the port's window thread (see window.cpp).
 #pragma once
 #include <atomic>
+#include <chrono>
 #include <mutex>
 #include <string>
 #include "common/types.h"
@@ -48,6 +49,8 @@ private:
     int display_mode = -1; ///< applied Gow3Settings display mode (window thread)
     bool mouse_locked = false; ///< relative mouse mode on (window thread)
     bool cursor_shown = false; ///< the system cursor is visible (window thread)
+    bool overlay_capturing = false; ///< previous overlay input state (window thread)
+    std::chrono::steady_clock::time_point cursor_hide_at{}; ///< hide cursor after overlay idle time
     void ApplyDisplayMode(int mode);
     int text_state{};
     std::string text, text_prompt, base_title;

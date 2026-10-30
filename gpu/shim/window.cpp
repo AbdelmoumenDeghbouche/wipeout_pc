@@ -188,6 +188,11 @@ bool WindowSDL::PollEvents() {
             UpdateTextTitle();
             continue;
         }
+        // The overlay consumes mouse events below, so refresh its cursor timer before passing
+        // them on. Moving the mouse always brings the system cursor back.
+        if (event.type == SDL_EVENT_MOUSE_MOTION && Gow3Overlay::CapturesInput()) {
+            cursor_hide_at = std::chrono::steady_clock::now() + std::chrono::seconds(2);
+        }
         if (Gow3Overlay::HandleEvent(event)) {
             continue;
         }
@@ -216,13 +221,23 @@ bool WindowSDL::PollEvents() {
     // another window or the game's pause menu (the pause key) get it back. Taken back, it starts
     // at the window's centre; let go by the pause key, the system cursor shows.
     const bool paused = mouse_paused.load(std::memory_order_relaxed);
+    const bool overlay = Gow3Overlay::CapturesInput();
+    const auto now = std::chrono::steady_clock::now();
+    if (overlay && !overlay_capturing) {
+        // Opening the menu should reveal the pointer even before its first movement.
+        cursor_hide_at = now + std::chrono::seconds(2);
+    }
+    overlay_capturing = overlay;
     const bool lock = Gow3Settings::Get().mouse_lock.load(std::memory_order_relaxed) && !text_active && !paused &&
-                      !Gow3Overlay::CapturesInput() && (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
+                      !overlay && (SDL_GetWindowFlags(window) & SDL_WINDOW_INPUT_FOCUS);
     if (lock != mouse_locked) {
         if (lock) SDL_WarpMouseInWindow(window, width / 2.0f, height / 2.0f);
         if (SDL_SetWindowRelativeMouseMode(window, lock)) mouse_locked = lock;
     }
-    if (const bool show = paused && !mouse_locked; show != cursor_shown) {
+    // Use SDL's normal cursor for menus; after two seconds of overlay inactivity, hide it just
+    // like a game cursor, without adding another composited draw layer.
+    const bool show = !mouse_locked && (paused || (overlay && now < cursor_hide_at));
+    if (show != cursor_shown) {
         show ? SDL_ShowCursor() : SDL_HideCursor();
         cursor_shown = show;
     }
