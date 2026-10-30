@@ -44,6 +44,7 @@ static long notice_file=-1, playing=-1;
 static unsigned char *menu_song; /* per file: in the "menu" subfolder */
 static size_t menu_songs;
 static volatile int in_race;     /* the game loaded a race's sound banks, not the menus' */
+static volatile unsigned loads;  /* sound bank loads of a race or the menus: a loading screen */
 static int notice_pending;
 static double ours_ms;
 /* Target RMS per channel at 100%, measured above ~150 Hz: the bass, most of a modern song's energy
@@ -274,8 +275,8 @@ void runtime_music_step(int direction) {
 void runtime_music_scene(const char *guest_path) {
     const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
     const int was=in_race;
-    if (strstr(guest_path,"/frontend_fliers.bnk")) in_race=0;
-    else if (env && (env[4]=='_' || isdigit((unsigned char)env[4]))) in_race=1; /* env_tower, env1_vinetak */
+    if (strstr(guest_path,"/frontend_fliers.bnk")) { in_race=0; ++loads; }
+    else if (env && (env[4]=='_' || isdigit((unsigned char)env[4]))) { in_race=1; ++loads; } /* env_tower, env1_vinetak */
     if (in_race!=was && menu_songs) printf("Music: %s songs from now on\n",in_race ? "race" : "menu");
 }
 
@@ -289,25 +290,45 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     /* Follow the game's own music (#66), which pcm still holds: it is silent while loading and at
      * the race intro, fades out between menus and races, and starts again for each race. Our songs
      * play at full level while the game's music is within 10 dB of its usual level, follow its
-     * fades below that, wait (keeping their place) while it is silent, and after 1 s of silence
-     * the next song starts with it ("music_continue": the same song goes on, #93). The level is smoothed (up in ~50 ms, down over ~1 s) and only a
-     * silence of 0.25 s or more counts: taken block by block (10 ms), the dips between beats and
-     * short drop-outs of the game's stream made the songs choppy (#66). */
+     * fades below that, wait (keeping their place) while it is silent, and after a loading screen
+     * the next song starts with it ("music_continue": the same song goes on, #93). A loading screen
+     * is a sound bank load (runtime_music_scene) and then silence; a pause or a quiet moment in a
+     * race is not one, and the song goes on (#104). The level is smoothed (up in ~50 ms, down
+     * over ~1 s) and only a silence of 0.25 s or more counts: taken block by block (10 ms), the
+     * dips between beats and short drop-outs of the game's stream made the songs choppy (#66). */
     static double game_ref, game_env, follow;
     static size_t silent_frames;
     static int heard; /* some of the current song has played */
+    static int switch_song; /* the scene changed: its own song starts after the loading screen */
+    static unsigned loads_seen;
+    static size_t since_silence, since_load; /* frames of the game's music after a silence / after a load */
     double game_ms=0;
     for (size_t i=0;i<(size_t)frames;++i) for (int c=0;c<2;++c) { const double v=pcm[i*(size_t)channels+c]; game_ms+=v*v; }
     const double game_rms=sqrt(game_ms/(2.0*frames));
     game_env+=fmin(1.0,frames/(48000.0*(game_rms>game_env ? 0.05 : 1.0)))*(game_rms-game_env);
-    /* A song of the other scene (menu/ in a race, or the other way round) changes as soon as the
-     * scene does, music_continue or not (#104); the new one waits for the game's music. */
-    if (heard && menu_songs) {
+    /* A song of the other scene (menu/ in a race, or the other way round) fades out with the
+     * game's music when the scene changes, and one of the new scene starts when the game's music
+     * comes back after the loading screen's silence, music_continue or not (#104). Changed at once,
+     * the new song began while the game's music still faded out, and the silence after it then
+     * moved on to a second song. */
+    if (heard && menu_songs && !switch_song) {
         const long now=runtime_music_playing();
-        if (now>=0 && !fits((size_t)now)) { runtime_music_step(1); heard=0; }
+        if (now>=0 && !fits((size_t)now)) switch_song=1;
     }
     if (game_rms>1e-5) {
-        if (silent_frames>=48000 && heard && !gow3gpu_music_continue()) { runtime_music_step(1); heard=0; }
+        if (silent_frames>=12000) since_silence=0;
+        const unsigned now_loads=loads;
+        /* After a loading screen: the game's music comes back after its silence, or it came back
+         * just before the sound banks loaded (Quit in the pause menu, whose silence came first),
+         * or it never stopped (10 s). */
+        if (now_loads!=loads_seen && (silent_frames>=12000 || since_silence<3*48000 || since_load>=10*48000)) {
+            loads_seen=now_loads; since_load=0;
+            if (heard && (switch_song || !gow3gpu_music_continue())) { runtime_music_step(1); heard=0; }
+            switch_song=0;
+        } else if (now_loads!=loads_seen) {
+            since_load+=(size_t)frames;
+        }
+        since_silence+=(size_t)frames;
         silent_frames=0;
         /* Its usual level: up within ~1 s, down over ~10 s (a fade lasts ~2 s). */
         game_ref=game_ref>0 ? game_ref+frames/(48000.0*(game_env>game_ref ? 1.0 : 10.0))*(game_env-game_ref) : game_env;
