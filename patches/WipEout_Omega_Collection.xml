@@ -84,8 +84,14 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="1c020000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 5120x2160" Note="Renders at 5120x2160 (2.370:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 5120x2160" Note="Renders at 5120x2160 (2.370:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen. Outside PS4 Pro mode the game gets 1 GB more of its own video memory for the bigger picture (DMEM to 1024 MB), so big races load." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
+            <!-- The game's video memory pool: 0x643180 takes {size, 256 MB, ...} at 0x86bb60 (PS4) or
+                 0x86bb80 (PS4 Pro, 4736 MB, left as it is: on an 8 GB card Pro mode at 4K then ran out
+                 of video memory at the start). 4224 MB -> 5248 MB. At 4K a race's models did not fit
+                 any more: the model loader failed ("Not enough Vram and MainUncache memory ... of
+                 RcsModel"), 0x6265a0 gave -1 and 0x7b87d1 wrote through it (#112, #96 Unity Square). -->
+            <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <!-- camera aspect ratio (16/9) -->
@@ -248,8 +254,14 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="d0020000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 4K" Note="Renders at 3840x2160 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, sharper. Needs more than 8 GB of video memory." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 4K" Note="Renders at 3840x2160 (16:9): output and half-resolution buffers at that size. Same 16:9 view as the game, sharper. Needs more than 8 GB of video memory. Outside PS4 Pro mode the game gets 1 GB more of its own video memory for the bigger picture (DMEM to 1024 MB), so big races load." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
+            <!-- The game's video memory pool: 0x643180 takes {size, 256 MB, ...} at 0x86bb60 (PS4) or
+                 0x86bb80 (PS4 Pro, 4736 MB, left as it is: on an 8 GB card Pro mode at 4K then ran out
+                 of video memory at the start). 4224 MB -> 5248 MB. At 4K a race's models did not fit
+                 any more: the model loader failed ("Not enough Vram and MainUncache memory ... of
+                 RcsModel"), 0x6265a0 gave -1 and 0x7b87d1 wrote through it (#112, #96 Unity Square). -->
+            <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="000f0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -420,8 +432,14 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="20030000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 3840x1600" Note="Renders at 3840x1600 (2.400:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 3840x1600" Note="Renders at 3840x1600 (2.400:1): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen. Outside PS4 Pro mode the game gets 1 GB more of its own video memory for the bigger picture (DMEM to 1024 MB), so big races load." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
+            <!-- The game's video memory pool: 0x643180 takes {size, 256 MB, ...} at 0x86bb60 (PS4) or
+                 0x86bb80 (PS4 Pro, 4736 MB, left as it is: on an 8 GB card Pro mode at 4K then ran out
+                 of video memory at the start). 4224 MB -> 5248 MB. At 4K a race's models did not fit
+                 any more: the model loader failed ("Not enough Vram and MainUncache memory ... of
+                 RcsModel"), 0x6265a0 gave -1 and 0x7b87d1 wrote through it (#112, #96 Unity Square). -->
+            <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="9a991940" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <!-- camera aspect ratio (16/9) -->
@@ -464,8 +482,14 @@
             <Line Type="bytes" Address="0x00a4b5c4" Value="20030000" Pattern="00 20 c2 0f 44 de 69 c1 1c 02 00 00 84 d2 89 9d" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 5120x1440" Note="Renders at 5120x1440 (32:9): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen. Needs more than 8 GB of video memory." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 5120x1440" Note="Renders at 5120x1440 (32:9): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the wider picture shows more at the sides (Hor+). HUD and menus stay 16:9 in the middle of the screen. Needs more than 8 GB of video memory. Outside PS4 Pro mode the game gets 1 GB more of its own video memory for the bigger picture (DMEM to 1024 MB), so big races load." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
+            <!-- The game's video memory pool: 0x643180 takes {size, 256 MB, ...} at 0x86bb60 (PS4) or
+                 0x86bb80 (PS4 Pro, 4736 MB, left as it is: on an 8 GB card Pro mode at 4K then ran out
+                 of video memory at the start). 4224 MB -> 5248 MB. At 4K a race's models did not fit
+                 any more: the model loader failed ("Not enough Vram and MainUncache memory ... of
+                 RcsModel"), 0x6265a0 gave -1 and 0x7b87d1 wrote through it (#112, #96 Unity Square). -->
+            <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="398e6340" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <!-- camera aspect ratio (16/9) -->
