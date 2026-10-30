@@ -862,6 +862,106 @@ static int install_jump(uint64_t at, unsigned length, unsigned char *stub) {
     return 1;
 }
 
+/* WipEout (01.07 eboot) load diagnostics. 0x7dd210 is the game's error report of its resource
+ * loader (printf-like: object, code, format, ...), silent in this build: "Not enough main
+ * memory to load Live::Rcs::Model", "Cannot resolve the path for the resource", ... (#112).
+ * 0x62692a is where the model slot function 0x6265a0 found its model not loaded (resource state
+ * +8 & 0x0f000000 not 5); unless the state changed meanwhile it then returns -1, and the model
+ * is not drawn: an invisible ship in ship select. Both print to the log. */
+static unsigned wipeout_log_lines;
+static ABI void wipeout_game_error(void *object, int code, const char *format, uint64_t a1, uint64_t a2, uint64_t a3) {
+    (void)object;
+    if (!format || wipeout_log_lines >= 200) return;
+    ++wipeout_log_lines;
+    const uint64_t args[3] = {a1, a2, a3};
+    char text[512];
+    size_t n = 0, next = 0;
+    for (const char *p = format; *p && n < sizeof(text) - 64; ++p) {
+        if (*p != '%') { text[n++] = *p == '\n' ? ' ' : *p; continue; }
+        while (p[1] && strchr("-+ #0123456789.lhz", p[1])) ++p; /* flags, width, length */
+        const char spec = *++p;
+        if (!spec) break;
+        const uint64_t value = next < 3 ? args[next] : 0;
+        if (spec == '%') { text[n++] = '%'; continue; }
+        if (next++ >= 3) { n += (size_t)snprintf(text + n, sizeof(text) - n, "?"); continue; }
+        if (spec == 's') n += (size_t)snprintf(text + n, sizeof(text) - n, "%.200s", value ? (const char *)(uintptr_t)value : "(null)");
+        else if (spec == 'd' || spec == 'i') n += (size_t)snprintf(text + n, sizeof(text) - n, "%d", (int)value);
+        else if (spec == 'u') n += (size_t)snprintf(text + n, sizeof(text) - n, "%u", (unsigned)value);
+        else if (spec == 'x' || spec == 'p') n += (size_t)snprintf(text + n, sizeof(text) - n, "%#llx", (unsigned long long)value);
+        else n += (size_t)snprintf(text + n, sizeof(text) - n, "?");
+    }
+    text[n < sizeof(text) ? n : sizeof(text) - 1] = 0;
+    static char last[512]; /* a texture that fails is asked for again and again: once is enough */
+    if (!strcmp(text, last)) { --wipeout_log_lines; return; }
+    memcpy(last, text, sizeof(last));
+    printf("Game error %d: %s\n", code, text);
+}
+static ABI void wipeout_model_not_loaded(const char *name, uint64_t resource) {
+    if (wipeout_log_lines >= 200) return;
+    ++wipeout_log_lines;
+    const uint32_t state = resource ? *(volatile uint32_t *)(uintptr_t)(resource + 8) : 0;
+    printf("Model not loaded: %.200s (resource %s, state %u, flags %#x)\n", name ? name : "(null)",
+           resource ? "found" : "none", (state >> 24) & 0xf, state);
+}
+/* 14-byte absolute jump (no register used), from a stub back to the game's code. */
+static unsigned char *put_jump(unsigned char *at, uintptr_t target) {
+    static const unsigned char jmp[6] = {0xff, 0x25, 0, 0, 0, 0};
+    memcpy(at, jmp, 6);
+    memcpy(at + 6, &target, 8);
+    return at + 14;
+}
+static void install_wipeout_logs(Segment *segments, uint64_t count, int which) {
+    /* Only whole instructions that no branch targets are replaced: 0x6271d8 and 0x627718 jump to
+     * 0x626933, the slot site's second instruction (taking it too crashed the game at the start). */
+    enum { REPORT = 0x7dd210, REPORT_LENGTH = 11, SLOT = 0x62692a, SLOT_LENGTH = 9 };
+    static const unsigned char report_original[REPORT_LENGTH] = {
+        0x55, 0x48, 0x89, 0xe5, 0x41, 0x57, 0x41, 0x56, 0x41, 0x54, 0x53}; /* push rbp .. push rbx */
+    static const unsigned char slot_original[SLOT_LENGTH] = {
+        0x41, 0xc6, 0x84, 0x1c, 0x06, 0x03, 0x00, 0x00, 0x00}; /* mov byte [r12+rbx+306h],0 */
+    if (!mapped(segments, count, REPORT, REPORT_LENGTH) || !mapped(segments, count, SLOT, SLOT_LENGTH) ||
+        memcmp(image + REPORT, report_original, REPORT_LENGTH) || memcmp(image + SLOT, slot_original, SLOT_LENGTH))
+        return; /* another eboot.bin: no load diagnostics */
+    unsigned char *stubs = allocate(page_size), *p = stubs;
+    static const unsigned char save[] = {0x57, 0x56, 0x52, 0x51, 0x41, 0x50, 0x41, 0x51, 0x50, 0x41, 0x52, 0x41, 0x53};
+    static const unsigned char restore[] = {0x41, 0x5b, 0x41, 0x5a, 0x58, 0x41, 0x59, 0x41, 0x58, 0x59, 0x5a, 0x5e, 0x5f};
+    /* Report, at the function's entry (rsp = 8 mod 16): the argument registers and xmm0-7 (its
+     * vararg floats) kept around the helper, which gets the same arguments. */
+    memcpy(p, save, sizeof(save)); p += sizeof(save);
+    static const unsigned char sub128[] = {0x48, 0x81, 0xec, 0x80, 0, 0, 0}, add128[] = {0x48, 0x81, 0xc4, 0x80, 0, 0, 0};
+    memcpy(p, sub128, 7); p += 7;
+    for (int x = 0; x < 8; ++x) { const unsigned char mov[6] = {0xf3, 0x0f, 0x7f, (unsigned char)(0x44 | x << 3), 0x24, (unsigned char)(x * 16)}; memcpy(p, mov, 6); p += 6; }
+    const uintptr_t report_helper = (uintptr_t)wipeout_game_error;
+    *p++ = 0x48; *p++ = 0xb8; memcpy(p, &report_helper, 8); p += 8; *p++ = 0xff; *p++ = 0xd0; /* mov rax,helper; call rax */
+    for (int x = 0; x < 8; ++x) { const unsigned char mov[6] = {0xf3, 0x0f, 0x6f, (unsigned char)(0x44 | x << 3), 0x24, (unsigned char)(x * 16)}; memcpy(p, mov, 6); p += 6; }
+    memcpy(p, add128, 7); p += 7;
+    memcpy(p, restore, sizeof(restore)); p += sizeof(restore);
+    memcpy(p, report_original, REPORT_LENGTH); p += REPORT_LENGTH;
+    p = put_jump(p, (uintptr_t)(image + REPORT + REPORT_LENGTH));
+    unsigned char *slot_stub = p;
+    /* Slot, in 0x6265a0's body (rsp = 0 mod 16, no vector state live): name [rbp-410h] and the
+     * entry's resource [r12+rbx+118h] to the helper, then the replaced instruction. */
+    static const unsigned char args[] = {0x48, 0x83, 0xec, 0x08,                    /* sub rsp,8 */
+                                         0x48, 0x8b, 0xbd, 0xf0, 0xfb, 0xff, 0xff,  /* mov rdi,[rbp-410h] */
+                                         0x49, 0x8b, 0xb4, 0x1c, 0x18, 0x01, 0, 0}; /* mov rsi,[r12+rbx+118h] */
+    memcpy(p, save, sizeof(save)); p += sizeof(save);
+    memcpy(p, args, sizeof(args)); p += sizeof(args);
+    const uintptr_t slot_helper = (uintptr_t)wipeout_model_not_loaded;
+    *p++ = 0x48; *p++ = 0xb8; memcpy(p, &slot_helper, 8); p += 8; *p++ = 0xff; *p++ = 0xd0;
+    static const unsigned char add8[] = {0x48, 0x83, 0xc4, 0x08};
+    memcpy(p, add8, 4); p += 4;
+    memcpy(p, restore, sizeof(restore)); p += sizeof(restore);
+    memcpy(p, slot_original, SLOT_LENGTH); p += SLOT_LENGTH;
+    put_jump(p, (uintptr_t)(image + SLOT + SLOT_LENGTH));
+    protect(stubs, page_size, 5);
+    /* rel32 jumps: the stubs are in the low mapping right after the image (allocate). */
+    if (((which & 1) && !install_jump(REPORT, REPORT_LENGTH, stubs)) ||
+        ((which & 2) && !install_jump(SLOT, SLOT_LENGTH, slot_stub))) {
+        printf("Load diagnostics: unavailable (hook outside relative-jump range)\n");
+        return;
+    }
+    printf("Load diagnostics: the game's loader errors and models not loaded go to this log\n");
+}
+
 /* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
  * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
 static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {
@@ -1319,6 +1419,10 @@ int main(int argc, char **argv) {
      * functions that keep data there go through trampolines (src/redzone.cpp). */
     bbport_red_zone_protect(argv[1], image, size, (const BbRedZoneSegment *)segments, ns);
 #endif
+    /* After the red zone pass, which must not take the hooks' jumps for the functions' code. */
+    const char *load_log = getenv("GOW3_LOAD_LOG"); /* 0: off; 1: errors only; 2: slots only (tests) */
+    if ((!strcmp(hooks_serial, "CUSA07671") || !strcmp(hooks_serial, "CUSA05670")) && !(load_log && *load_log == '0'))
+        install_wipeout_logs(segments, ns, load_log && *load_log == '1' ? 1 : load_log && *load_log == '2' ? 2 : 3);
     if (isa_table) {
         IsaReport r = isa_rewrite_apply(isa_table, image, stubs, isa_sets);
         if (r.unsupported_needed) {
