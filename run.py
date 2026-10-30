@@ -200,7 +200,9 @@ def main():
                                                env.get('WIPEOUT_OC_MODS_CONFIG', data / 'mods.json'),
                                                env.get('WIPEOUT_OC_MODS_ENABLED', '1') != '0',
                                                env.get('WIPEOUT_OC_GAME_DIR', PORT.parent / 'CUSA01623'))
-    extra_resolutions = [s for s in patches.resolution_names(mod_patch_files) if s not in graphics_options.RESOLUTIONS]
+    patch_game = env.get('WIPEOUT_OC_PATCH_DIR') or env.get('WIPEOUT_OC_GAME_DIR', PORT.parent / 'CUSA01623')
+    extra_resolutions = [size for size in patches.resolution_names(mod_patch_files, game=patch_game)
+                         if size not in graphics_options.RESOLUTIONS]
     env['WIPEOUT_OC_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
     derived.append('WIPEOUT_OC_EXTRA_RESOLUTIONS')
     graphics, reverted = graphics_options.prepare(env['WIPEOUT_OC_CONFIG'], out / 'graphics_state.json', extra_resolutions)
@@ -296,13 +298,24 @@ def main():
             env['WIPEOUT_OC_NO_MSAA'] = '1'
         env.setdefault('WIPEOUT_OC_READBACK_LINEAR', '1')
         patch_xml = profile[1] if profile else None
+        if profile:
+            patch_elf = (out / 'eboot.elf').read_bytes()
+            patch_image, patch_segments = patches.eboot_image(patch_elf), patches.eboot_segments(patch_elf)
+            # A mod offered by structural UI checks may not match this executable's signatures.
+            extra_resolutions = [size for size in patches.resolution_names(mod_patch_files, game=game,
+                                 image=patch_image, segments=patch_segments) if size not in graphics_options.RESOLUTIONS]
+            env['WIPEOUT_OC_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
+            graphics = graphics_options.startup_options(graphics, extra_resolutions)
+            env.update(graphics_options.environment(graphics))
         if profile and mod_patch_files:
             # The built-in patches plus the enabled mods' (the same file for the selection and the notes).
-            patch_xml = patches.merge_patch_files(profile[1], mod_patch_files, out / 'patches-merged.xml')
+            patch_xml = patches.merge_patch_files(profile[1], mod_patch_files, out / 'patches-merged.xml',
+                                                         game=game, image=patch_image, segments=patch_segments)
         if profile:
             names = selected_patches(patch_xml, profile[2], env.get('WIPEOUT_OC_PATCHES', ''), env.get('WIPEOUT_OC_PATCHES_ONLY') == '1')
             # A mod's patches that are on by default (isEnabled) stay on when the launcher chose the list.
-            names += [n for n in patches.default_enabled(mod_patch_files, profile[2]) if n not in names]
+            names += [n for n in patches.default_enabled(mod_patch_files, patches.game_app_version(game), game=game,
+                                                        image=patch_image, segments=patch_segments) if n not in names]
             # gow3.ini decides the resolution and frame rate patches (in-game menu, launcher).
             names = graphics_options.patch_names(names, graphics)
             names = graphics_options.restrict_to_available(names, patches.available_patches(patch_xml, profile[2]))
