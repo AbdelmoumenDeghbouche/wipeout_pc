@@ -190,7 +190,12 @@ def main():
                                                env.get('GOW3_MODS_CONFIG', data / 'mods.json'),
                                                env.get('GOW3_MODS_ENABLED', '1') != '0',
                                                env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623'))
-    extra_resolutions = [s for s in patches.resolution_names(mod_patch_files) if s not in graphics_options.RESOLUTIONS]
+    # A game's own sizes beyond the shared list (WipEout's 2880x1800, #110) come from its profile.
+    import game_profiles
+    own = game_profiles.PROFILES.get(patches.game_title_id(env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623')), {})
+    own = own.get('env', {}).get('GOW3_ALLOWED_RESOLUTIONS', '').split(';')
+    extra_resolutions = list(dict.fromkeys(s for s in [*patches.resolution_names(mod_patch_files), *own]
+                                           if s and s not in graphics_options.RESOLUTIONS))
     env['GOW3_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
     derived.append('GOW3_EXTRA_RESOLUTIONS')
     graphics, reverted = graphics_options.prepare(env['GOW3_CONFIG'], out / 'graphics_state.json', extra_resolutions)
