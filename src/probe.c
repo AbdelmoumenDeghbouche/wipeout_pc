@@ -323,7 +323,7 @@ static DWORD WINAPI cpu_profiler_thread(LPVOID unused) {
                                               {.name="draw recording thread"},{.name="Vulkan recording thread"}};
     LARGE_INTEGER frequency, start, now;
     QueryPerformanceFrequency(&frequency);
-    fputs("CPU profile: on (GOW3_CPU_PROFILE), a report every second\n",stderr);
+    fputs("CPU profile: on (WIPEOUT_OC_CPU_PROFILE), a report every second\n",stderr);
     for (unsigned window=1;;++window) {
         unsigned long ids[THREADS]={0,0,0,0};
         uint64_t frames_start=0, frames_end=0, drain_start=0, drain_end=0;
@@ -707,7 +707,7 @@ void runtime_restart(void) {
     /* run.py sets GOW3_RESTART_COMMAND: the launch command line, started again (new patches). */
     const char *command=wipeout_oc_getenv("WIPEOUT_OC_RESTART_COMMAND");
     puts("Runtime: restarting through run.py");
-    if (!command || !*command) { fputs("runtime_restart: GOW3_RESTART_COMMAND is not set\n",stderr); _exit(1); }
+    if (!command || !*command) { fputs("runtime_restart: WIPEOUT_OC_RESTART_COMMAND is not set\n",stderr); _exit(1); }
     char *line=_strdup(command);
     /* Same output handles: a launcher reading the game's log keeps reading the new launch. */
     STARTUPINFOA startup={.cb=sizeof(startup),.dwFlags=STARTF_USESTDHANDLES,
@@ -724,7 +724,7 @@ void runtime_restart(void) {
     const char *command = wipeout_oc_getenv("WIPEOUT_OC_RESTART_COMMAND");
     syscall(SYS_close_range, 3u, ~0u, 0u);
     if (command && *command) {
-        puts("Runtime: restarting through GOW3_RESTART_COMMAND");
+        puts("Runtime: restarting through WIPEOUT_OC_RESTART_COMMAND");
         execl("/bin/sh", "sh", "-c", command, (char *)NULL);
     } else {
         puts("Runtime: restarting through run.sh");
@@ -811,7 +811,7 @@ int main(int argc, char **argv) {
     const char *policy = wipeout_oc_getenv("WIPEOUT_OC_ISA_REWRITE");
     unsigned isa_sets = policy && !strcmp(policy, "1") ? 0xffffffffu : policy && !strcmp(policy, "0") ? 0 : cpu_missing_sets;
     if (cpu_missing_sets && !isa_sets) {
-        printf("STOP: this CPU lacks %s and the rewrite is disabled (GOW3_ISA_REWRITE=0)\n", missing);
+        printf("STOP: this CPU lacks %s and the rewrite is disabled (WIPEOUT_OC_ISA_REWRITE=0)\n", missing);
         return 20;
     }
     if (cpu_missing_sets && !isa_file) {
@@ -857,7 +857,7 @@ int main(int argc, char **argv) {
         strict.RaiseExceptionOnInvalidHandleReference=1;
         strict.HandleExceptionsPermanentlyEnabled=1;
         if (!SetProcessMitigationPolicy(ProcessStrictHandleCheckPolicy,&strict,sizeof(strict)))
-            fprintf(stderr,"GOW3_STRICT_HANDLES: policy not set (%lu)\n",GetLastError());
+            fprintf(stderr,"WIPEOUT_OC_STRICT_HANDLES: policy not set (%lu)\n",GetLastError());
     }
     watchdog_seconds = timeout_seconds;
     if (watchdog_seconds) CloseHandle(CreateThread(NULL,0,watchdog_thread,NULL,0,NULL));
@@ -1060,7 +1060,7 @@ int main(int argc, char **argv) {
             fflush(NULL);
             _exit(20); /* no destructors: GPU threads are running */
         }
-        if (isa_sets == 0xffffffffu) printf("ISA: forced rewrite of all %u sites (GOW3_ISA_REWRITE=1), %u skipped\n", r.rewritten, r.skipped);
+        if (isa_sets == 0xffffffffu) printf("ISA: forced rewrite of all %u sites (WIPEOUT_OC_ISA_REWRITE=1), %u skipped\n", r.rewritten, r.skipped);
         else printf("ISA: CPU lacks %s: %u sites rewritten (%u jmp, %u relocated, %u int3), %u skipped\n",
                     missing, r.rewritten, r.jmp, r.relocated, r.int3, r.skipped);
         runtime_set_report_hook(isa_report_hook);

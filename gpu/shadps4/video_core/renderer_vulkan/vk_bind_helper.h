@@ -85,7 +85,7 @@ public:
 
 private:
     void Run(std::stop_token stop) {
-        Common::SetCurrentThreadName("gow3:TexBind");
+        Common::SetCurrentThreadName("woc-texbind");
         on_helper = true;
         u64 seen = 0;
         while (!stop.stop_requested()) {

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Packs a mod folder as <name>.zip, ready to be dropped into the mods folder (the launcher unpacks it).
 
-  python tools/zip_mod.py extras/mods/Ultrawide [OUT.zip]
+  python tools/zip_mod.py mods/MyMod [OUT.zip]
 
 The mod's own files are at the root of the zip (patches/..., dvdroot_ps4/...); the zip's name is the mod's name.
 """

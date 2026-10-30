@@ -163,7 +163,7 @@ private:
     }
 
     void Run(std::stop_token stop) {
-        Common::SetCurrentThreadName("gow3:DrawRec");
+        Common::SetCurrentThreadName("woc-drawrec");
         on_stage_b = true;
         stage_b_tid.store(static_cast<u32>(gettid()), std::memory_order_release);
 #ifdef _WIN32

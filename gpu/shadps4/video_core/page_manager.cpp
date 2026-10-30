@@ -336,7 +336,7 @@ public:
     }
 
     void UffdHandler(std::stop_token token) {
-        Common::SetCurrentThreadName("gow3:Uffd");
+        Common::SetCurrentThreadName("woc-uffd");
         while (!token.stop_requested()) {
             pollfd pollfd{};
             pollfd.fd = uffd;

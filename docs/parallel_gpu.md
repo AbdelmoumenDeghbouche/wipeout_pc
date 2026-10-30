@@ -1,5 +1,9 @@
 # Parallel GPU command processing — design notes
 
+> Historical research from the God of War III base port. The measurements, commands and
+> implementation snapshots below are not WipEout gameplay validation. See the
+> [README](../README.md) for current usage and supported scope.
+
 Goal: remove the single-core bottleneck of the emulated GPU command processor
 (`shadPS4:GpuCommandProcessor`, ~100% of one core while the rest of the CPU idles).
 

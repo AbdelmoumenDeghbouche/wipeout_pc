@@ -39,11 +39,11 @@ extern std::unique_ptr<Vulkan::Presenter> presenter;
 extern std::unique_ptr<AmdGpu::Liverpool> liverpool;
 
 namespace Vulkan {
-extern std::atomic<u64> g_gow3_compile_ns;
-extern std::atomic<u32> g_gow3_compiles;
-extern std::atomic<u64> g_gow3_capture_ns, g_gow3_async_ns, g_gow3_compile_wait_ns;
-extern std::atomic<u64> g_gow3_snapshot_ns, g_gow3_guest_wait_ns;
-extern std::atomic<u32> g_gow3_pending_draws;
+extern std::atomic<u64> g_wipeout_oc_compile_ns;
+extern std::atomic<u32> g_wipeout_oc_compiles;
+extern std::atomic<u64> g_wipeout_oc_capture_ns, g_wipeout_oc_async_ns, g_wipeout_oc_compile_wait_ns;
+extern std::atomic<u64> g_wipeout_oc_snapshot_ns, g_wipeout_oc_guest_wait_ns;
+extern std::atomic<u32> g_wipeout_oc_pending_draws;
 } // namespace Vulkan
 
 namespace Libraries::VideoOut {
@@ -99,7 +99,7 @@ void VideoOutDriver::RunPresenter(std::function<void()> work, bool if_idle) {
 }
 
 void VideoOutDriver::SwapThread(std::stop_token token) {
-    Common::SetCurrentThreadName("gow3:Present");
+    Common::SetCurrentThreadName("woc-present");
     while (true) {
         std::function<void()> work;
         {
@@ -351,7 +351,7 @@ void VideoOutDriver::Flip(const Request& req) {
         static u64 last_wait[7];
         const u64 wait_now[7] = {WipeoutOCStats::t_readback_wait.load(), WipeoutOCStats::tick_wait_ns.load(),
                                  WipeoutOCStats::sync_recording_ns.load(), WipeoutOCStats::host_copies_wait_ns.load(),
-                                 u64(Vulkan::g_gow3_compile_ns.load()), u64(Vulkan::g_gow3_compiles.load()),
+                                 u64(Vulkan::g_wipeout_oc_compile_ns.load()), u64(Vulkan::g_wipeout_oc_compiles.load()),
                                  WipeoutOCStats::t_gc.load()};
         if (stall) {
             std::printf("Stall: %.1f ms frame; waits: readback %.1f ms, GPU ticks %.1f ms, "
@@ -477,14 +477,14 @@ void VideoOutDriver::Flip(const Request& req) {
         ++frames;
         const double window = std::chrono::duration<double>(now - window_start).count();
         if (window >= 5.0) {
-            const u32 compiles = Vulkan::g_gow3_compiles.exchange(0);
-            const u64 compile_ns = Vulkan::g_gow3_compile_ns.exchange(0);
-            const double capture_ms = Vulkan::g_gow3_capture_ns.exchange(0) / 1e6;
-            const double async_ms = Vulkan::g_gow3_async_ns.exchange(0) / 1e6;
-            const double wait_ms = Vulkan::g_gow3_compile_wait_ns.exchange(0) / 1e6;
-            const double snapshot_ms = Vulkan::g_gow3_snapshot_ns.exchange(0) / 1e6;
-            const double guest_wait_ms = Vulkan::g_gow3_guest_wait_ns.exchange(0) / 1e6;
-            const u32 pending_draws = Vulkan::g_gow3_pending_draws.exchange(0);
+            const u32 compiles = Vulkan::g_wipeout_oc_compiles.exchange(0);
+            const u64 compile_ns = Vulkan::g_wipeout_oc_compile_ns.exchange(0);
+            const double capture_ms = Vulkan::g_wipeout_oc_capture_ns.exchange(0) / 1e6;
+            const double async_ms = Vulkan::g_wipeout_oc_async_ns.exchange(0) / 1e6;
+            const double wait_ms = Vulkan::g_wipeout_oc_compile_wait_ns.exchange(0) / 1e6;
+            const double snapshot_ms = Vulkan::g_wipeout_oc_snapshot_ns.exchange(0) / 1e6;
+            const double guest_wait_ms = Vulkan::g_wipeout_oc_guest_wait_ns.exchange(0) / 1e6;
+            const u32 pending_draws = Vulkan::g_wipeout_oc_pending_draws.exchange(0);
             const u64 direct = Vulkan::Scheduler::direct_recordings.exchange(0);
             const u64 faults = WipeoutOCStats::tracker_faults.exchange(0);
             // GPU command thread CPU time per draw: comparable between builds even when the scene

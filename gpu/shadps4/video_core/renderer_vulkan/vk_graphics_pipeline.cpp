@@ -24,8 +24,8 @@ namespace Vulkan {
 using Shader::Backend::SPIRV::AuxShaderType;
 
 // gow3: where pipeline construction time goes (reported when the background warm-up ends).
-std::atomic<u64> g_gow3_pipeline_total_ns, g_gow3_pipeline_driver_ns;
-std::atomic<u32> g_gow3_pipelines_built;
+std::atomic<u64> g_wipeout_oc_pipeline_total_ns, g_wipeout_oc_pipeline_driver_ns;
+std::atomic<u32> g_wipeout_oc_pipelines_built;
 namespace {
 using Clock = std::chrono::steady_clock;
 u64 NsSince(Clock::time_point start) {
@@ -458,8 +458,8 @@ GraphicsPipeline::GraphicsPipeline(
         square_pipeline = std::move(square);
         SetObjectName(device, *square_pipeline, "Graphics Pipeline {} squaring pass", debug_str);
     }
-    g_gow3_pipeline_total_ns += NsSince(started);
-    ++g_gow3_pipelines_built;
+    g_wipeout_oc_pipeline_total_ns += NsSince(started);
+    ++g_wipeout_oc_pipelines_built;
 }
 
 GraphicsPipeline::~GraphicsPipeline() = default;

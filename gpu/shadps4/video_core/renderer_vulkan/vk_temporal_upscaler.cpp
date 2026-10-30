@@ -391,7 +391,7 @@ bool TemporalUpscaler::EnsureResources(u32 w, u32 h, u32 ow, u32 oh, bool hdr) {
     const bool use_fsr4 = UseFsr4() || UseDlss();
     const bool use_taa = WipeoutOCSettings::Get().upscaler == WipeoutOCSettings::UpscalerTaa;
     if (use_taa && (w != ow || h != oh)) {
-        std::printf("TAA: remove GOW3_RENDER_RES to use native-resolution TAA\n");
+        std::printf("TAA: remove WIPEOUT_OC_RENDER_RES to use native-resolution TAA\n");
         return false;
     }
     if (resources_ready && w == width && h == height && ow == out_width && oh == out_height &&

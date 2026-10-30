@@ -843,7 +843,7 @@ void Instance::CollectDeviceParameters() {
                              : wipeout_oc_no_msaa_default(static_cast<VkDriverId>(driver_id)) != 0;
     AmdGpu::no_msaa.store(no_msaa, std::memory_order_relaxed);
     std::printf("GPU: guest multisampling %s\n",
-                no_msaa ? "off (single-sampled images; GOW3_NO_MSAA=0 keeps it)" : "on");
+                no_msaa ? "off (single-sampled images; WIPEOUT_OC_NO_MSAA=0 keeps it)" : "on");
 
     const std::string model_name{GetModelName()};
     const std::string driver_version = GetDriverVersionName();

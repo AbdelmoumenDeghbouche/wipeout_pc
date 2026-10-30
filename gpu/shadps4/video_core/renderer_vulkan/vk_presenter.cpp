@@ -210,7 +210,7 @@ std::filesystem::path ScreenshotPath() {
     std::filesystem::create_directories(dir, ec);
     std::string serial{Common::ElfInfo::Instance().GameSerial()};
     if (serial.empty()) {
-        serial = "gow3";
+        serial = "wipeout_oc";
     }
     const auto now = std::chrono::system_clock::now();
     const std::time_t now_time = std::chrono::system_clock::to_time_t(now);

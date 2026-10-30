@@ -229,7 +229,7 @@ extern "C" void __gcov_reset(void);
 // intervals.
 static void StartProfileWriter() {
     std::thread([] {
-        Common::SetCurrentThreadName("gow3:pgo");
+        Common::SetCurrentThreadName("woc-pgo");
         for (;;) {
             std::this_thread::sleep_for(std::chrono::seconds(30));
             __gcov_dump();
@@ -252,10 +252,10 @@ extern "C" int wipeout_oc_gpu_init(const WipeoutOCGpuConfig* config) {
     if (config->user_dir && !wipeout_oc_getenv("WIPEOUT_OC_GPU_USER_DIR")) setenv("WIPEOUT_OC_GPU_USER_DIR", config->user_dir, 0);
 #endif
     Core::Emulator::FillElfInfo(*config);
-    const std::string title = config->title ? config->title : "God of War III";
+    const std::string title = config->title ? config->title : "WipEout Omega Collection";
     const s32 width = config->width, height = config->height;
     g_window_thread = std::thread([title, width, height] {
-        Common::SetCurrentThreadName("gow3:window");
+        Common::SetCurrentThreadName("woc-window");
         auto* window = new Frontend::WindowSDL(width, height, title.c_str());
         {
             std::scoped_lock lock{g_window_mutex};
@@ -345,7 +345,7 @@ void KernelSignalRequest() {
 }
 
 static void KernelServiceThread(std::stop_token stoken) {
-    Common::SetCurrentThreadName("gow3:kernel_service");
+    Common::SetCurrentThreadName("woc-service");
     while (!stoken.stop_requested()) {
         {
             std::unique_lock lock{m_asio_req};

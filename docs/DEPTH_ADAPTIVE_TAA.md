@@ -1,5 +1,9 @@
 # Depth-Adaptive TAA Improvements
 
+> Historical research from the God of War III base port. The measurements, commands and
+> implementation snapshots below are not WipEout gameplay validation. See the
+> [README](../README.md) for current usage and supported scope.
+
 **Дата:** 2026-10-01  
 **Статус:** Исторический эксперимент, заменён исправлением temporal reprojection.
 

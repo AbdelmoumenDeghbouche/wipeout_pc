@@ -1,12 +1,10 @@
 # Temporal upscaling and frame generation: historical research
 
-> **Status, October 14, 2026:** this document preserves experiments and plans from earlier
-> development. FSR 1 and temporal upscalers (FSR 3.1, FSR 4, TAA and DLSS) are disabled in the
-> current launcher and game settings path, including release 2.2.0. RCAS sharpening remains
-> available. Descriptions below of live selectors, experimental switches, assets and validation
-> runs are historical, not instructions for enabling these features in the current release.
-> The God of War III frame map remains useful for research. For current player instructions,
-> see the [README](../README.md) and [release notes](https://github.com/FelipePrado0/gow3_pc/releases/latest).
+> This document preserves historical God of War III experiments and measurements from the
+> base port. Their commands, releases, frame map and quality/performance claims do not validate
+> WipEout Omega Collection. The inherited frame-map tool was removed. For current options and
+> the FSR 3.1 / DLAA package path, see the [Windows guide](../packaging/windows/README.md)
+> and [README](../README.md). Historical names and observations below are retained as context.
 
 ## Native TAA and missing FSR 4 assets (2026-10-01)
 
@@ -93,10 +91,10 @@ sampled textures, and the first 1 KiB of bound constants for small passes and fi
 
 ## God of War III's frame (mapped 2026-10-10, 2560x1440 render)
 
-Captured with the in-game menu (Insert > Diagnostics > Capture frame, files in
-`user/captures/`). `tools/gow3_frame_map.py <capture>` finds every piece below by structure,
-not by address (addresses change with the render resolution patch), and exits 1 when one is
-missing. There is no velocity buffer: motion vectors have to be computed.
+The historical capture used the in-game menu (Insert > Diagnostics > Capture frame,
+files in `user/captures/`). The now-removed `tools/gow3_frame_map.py` found every piece
+below by structure, not by address (addresses changed with the render resolution patch).
+That game's frame had no velocity buffer: motion vectors had to be computed.
 
 | Stage | What |
 |---|---|

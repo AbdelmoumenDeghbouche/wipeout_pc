@@ -120,7 +120,7 @@ def main():
     except OSError as error:
         # Startup diagnostics should identify driver/cache failures rather than
         # falling through to an unrelated Vulkan assertion.
-        print(f"gow3: cannot prepare NVIDIA driver: {error}", file=sys.stderr)
+        print(f"wipeout_oc: cannot prepare NVIDIA driver: {error}", file=sys.stderr)
         return 1
     if "--vulkan-info" in sys.argv[1:]:
         tool = getenv("WIPEOUT_OC_VULKANINFO", "vulkaninfo")

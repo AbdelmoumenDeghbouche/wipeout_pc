@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: user settings changed at run time from the in-game menu (wipeout_oc_overlay.h) and kept
-// in gow3.ini (GOW3_CONFIG overrides the path). Environment variables override the file at
-// start. Readers load the atomics every frame; writers are the menu and Load().
+// WipEout settings: wipeout_oc.ini (WIPEOUT_OC_CONFIG overrides), changed by the in-game menu.
+// Legacy gow3.ini / GOW3_CONFIG remain compatible. Environment variables override values at start.
+// Readers load atomics every frame; writers are the menu and Load().
 
 #pragma once
 

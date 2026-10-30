@@ -273,8 +273,8 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         const auto ns = u64(std::chrono::duration_cast<std::chrono::nanoseconds>(
                                 std::chrono::steady_clock::now() - started)
                                 .count());
-        extern std::atomic<u64> g_gow3_pipeline_driver_ns;
-        g_gow3_pipeline_driver_ns += ns;
+        extern std::atomic<u64> g_wipeout_oc_pipeline_driver_ns;
+        g_wipeout_oc_pipeline_driver_ns += ns;
         if (enabled) {
             (restored ? binary_restore_ns : binary_compile_ns) += ns;
             ++(restored ? binary_restore_calls : binary_compile_calls);
@@ -463,7 +463,7 @@ struct PipelineCache::WarmupPool {
         for (u32 i = 0; i < count; ++i) {
             threads.emplace_back([this, low_priority] {
                 if (low_priority) {
-                    Common::SetCurrentThreadName("GoW3:ShaderWarmup");
+                    Common::SetCurrentThreadName("woc-warmup");
                     Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
                 }
                 Run();
@@ -536,9 +536,9 @@ private:
             try {
                 ok = job();
             } catch (const std::exception& e) {
-                LOG_ERROR(Render_Vulkan, "gow3: warm-up pipeline failed: {}", e.what());
+                LOG_ERROR(Render_Vulkan, "wipeout_oc: warm-up pipeline failed: {}", e.what());
             } catch (...) {
-                LOG_ERROR(Render_Vulkan, "gow3: warm-up pipeline failed");
+                LOG_ERROR(Render_Vulkan, "wipeout_oc: warm-up pipeline failed");
             }
             (ok ? built : failed).fetch_add(1, std::memory_order_relaxed);
             lock.lock();
@@ -1331,14 +1331,14 @@ void PipelineCache::PumpWarmUp() {
                 binary_key_ns.load() / 1e9, binary_load_ns.load() / 1e9,
                 binary_handles_ns.load() / 1e9, binary_restore_ns.load() / 1e9,
                 binary_compile_ns.load() / 1e9);
-    extern std::atomic<u64> g_gow3_pipeline_total_ns, g_gow3_pipeline_driver_ns;
-    extern std::atomic<u32> g_gow3_pipelines_built;
-    const u32 built = std::max(1u, g_gow3_pipelines_built.load());
+    extern std::atomic<u64> g_wipeout_oc_pipeline_total_ns, g_wipeout_oc_pipeline_driver_ns;
+    extern std::atomic<u32> g_wipeout_oc_pipelines_built;
+    const u32 built = std::max(1u, g_wipeout_oc_pipelines_built.load());
     std::printf("Pipeline build time: %u graphics pipelines, %.1f ms each (driver %.1f ms, the rest "
                 "%.1f ms), %.1f s in all\n",
-                built, g_gow3_pipeline_total_ns / 1e6 / built, g_gow3_pipeline_driver_ns / 1e6 / built,
-                (g_gow3_pipeline_total_ns - g_gow3_pipeline_driver_ns) / 1e6 / built,
-                g_gow3_pipeline_total_ns / 1e9);
+                built, g_wipeout_oc_pipeline_total_ns / 1e6 / built, g_wipeout_oc_pipeline_driver_ns / 1e6 / built,
+                (g_wipeout_oc_pipeline_total_ns - g_wipeout_oc_pipeline_driver_ns) / 1e6 / built,
+                g_wipeout_oc_pipeline_total_ns / 1e9);
     // The idle threads stay parked (StopWarmUp).
     warm.finished = true;
     WipeoutOCOverlay::SetBackgroundLoading(0, 0);

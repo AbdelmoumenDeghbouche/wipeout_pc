@@ -1,4 +1,4 @@
-# gow3 on Windows
+# WipEout Omega Collection on Windows
 
 The port builds and runs natively on 64-bit Windows 10 (1903+) / 11 with the same sources as
 on Linux. Players: see `README-Windows.txt` (it ships in the package).
@@ -39,7 +39,7 @@ python launcher/wipeout_oc_launcher_win.py
 ```
 
 Choose the game folder in the launcher. For platform-specific tests, see
-[Tests in the root README](https://github.com/FelipePrado0/gow3_pc#tests): Windows uses Ninja
+[Tests in the root README](../../README.md#tests): Windows uses Ninja
 test targets; `bash build.sh --test` runs additional runtime tests only on Linux.
 
 `run.py` is the Windows `run.sh` (same variables; works from a plain Windows Python too).
@@ -51,11 +51,11 @@ BMI1 or LZCNT.
 `Play WipEout.exe` (`packaging/windows/play.c`) is a small native program that runs
 `WipEout.exe --play` from its folder and waits for it, for players who want to start the
 game directly with the saved settings.
-`scripts/patches.py` identifies God of War III by title ID or title and finds built-in patch
-sites by signature, rather than requiring one `eboot.bin` hash. Each unmatched patch is skipped
-and reported; this is not a guarantee that every game build works. The startup black-screen
-fix is always requested, including with patch lists saved by older launchers. The resolution
-patch and texture fix are mutually exclusive. See the root README for tested builds.
+`scripts/patches.py` selects the WipEout profile. Address-only patches require the exact
+validated EU CUSA05670 / APP_VER 01.07 executable hash; other builds need unique safe
+signatures and valid relative dependencies. Mod and external XML are checked against the
+actual title ID and version before merging. A skipped patch is reported; this does not
+guarantee that every game build works. See [patch compatibility](../../README.md#game-patches-and-compatibility).
 From a source tree, `run.py` adds `C:\msys64\clang64\bin` (or `$MSYS2_ROOT`) to `PATH` for DLLs.
 
 Temporal anti-aliasing (Graphics > Temporal anti-aliasing) offers FSR 3.1 and, on NVIDIA RTX cards,
@@ -66,8 +66,8 @@ only when its SHA-256 matches. RCAS sharpening remains available. The FSR asset 
 are development code, not player setup steps.
 See [the historical research notes](../../docs/upscaler.md) for context.
 
-See the [feature availability table](https://github.com/FelipePrado0/gow3_pc#feature-availability)
-for differences between published packages and current source builds, including Discord Rich Presence.
+The updater only notifies and opens the release page in a browser; it does not install updates.
+See [Progress](../../README.md#progress) for current scope and validation limits.
 
 The launcher texts are written in English with the Russian beside them; the other languages
 are in `launcher/wipeout_oc_lang.py` (one list per language in the order of `KEYS`; a missing or

@@ -21,7 +21,7 @@ public:
     void Run(std::function<void(std::stop_token)>&& func) {
         finished = std::make_shared<std::atomic<bool>>(false);
         thread = std::jthread([func = std::move(func), done = finished](std::stop_token stop) {
-            runtime_thread_attach_host("gow3:hle");
+            runtime_thread_attach_host("woc-hle");
             func(stop);
             done->store(true);
         });

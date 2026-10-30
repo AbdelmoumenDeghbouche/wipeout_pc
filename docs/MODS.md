@@ -1,153 +1,100 @@
-# Mods de arquivos
+# Mods de arquivos — WipEout Omega Collection
 
-O launcher tem a aba **Mods**: chave geral, ativação de cada mod, setas de ordem de carga e um
-painel com os detalhes do mod selecionado. As mudanças valem no próximo início. O mod mais abaixo na lista tem
-prioridade; quando dois mods trocam o mesmo arquivo, o log mostra qual venceu.
-
-## O que dá para mudar
-
-- Texturas e modelos: personagens, roupas, armas, inimigos e cenários (WADs em `EXEC/WAD/PS4_LE/`)
-- Interface: ícones de botão, menus e HUD
-- Textos: menus e legendas (WADs de idioma, como `R_LANG_EN.WAD`)
-- Áudio: falas (`.XVAG` nas pastas de idioma), música e efeitos (`EXEC/SOUNDS`)
-- Vídeos: cinemáticas (`EXEC/CINEMATICS`)
-
-## O que não dá
-
-- Lógica do jogo (dano, física, IA, câmera): fica no executável. Use patches (pasta `patches/`)
-- `eboot.bin`, `sce_module` e `sce_sys`: recusados pelo carregador
-- Injetar DLL ou script
-- Mesclar dois mods no mesmo arquivo: o último da lista vence
-- Mod feito para outra região sem ajuste: um mod para `R_LANG_UK.WAD` não muda o `R_LANG_EN.WAD`
+A aba **Mods** ativa cada mod e define a ordem de carga. As mudanças valem no próximo
+início; o último mod vence quando dois trocam o mesmo arquivo. Não há mesclagem de arquivos.
+O dump original não é alterado: o runner monta uma vista temporária em `out/mod-game-*`.
 
 ## Como montar um mod
 
-A pasta padrão é `mods/` no diretório de dados. Cada mod fica na sua própria pasta e espelha a
-árvore do jogo, que no GOW3PC tem os dados em `EXEC/` e numa pasta por idioma
-(`ENGLISH/`, `PORTUGUESE/`, ...):
+Cada pasta em `mods/` espelha caminhos relativos existentes no dump escolhido. Não presuma
+formatos de arquivos de outro jogo. Este exemplo é **sintético**: substitua `pasta-do-dump`
+e `arquivo.ext` pelos nomes reais do seu dump:
 
 ```text
 mods/
-  Nome do mod/
-    EXEC/WAD/PS4_LE/R_UI.WAD
-    PORTUGUESE/SOUNDS/...
+  Meu mod/
+    pasta-do-dump/arquivo.ext
+    mod.json
+    preview.png
 ```
 
-Pastas de outras regiões, como `JAPANESE/`, também são reconhecidas quando existem na raiz do
-jogo selecionado. Isso vale tanto para a lista do launcher quanto para a aplicação dos mods.
+Também são aceitos os wrappers `dvdroot_ps4/` e `app0/`, ou uma pasta externa adicional.
+`eboot.bin`, `sce_module` e `sce_sys` são protegidos; links simbólicos são recusados.
+Os nomes são comparados sem distinguir maiúsculas e minúsculas. Confira no log os totais
+`replaced` e `added`: zero substituições pode indicar um caminho errado ou outra região.
 
-Também são aceitos:
-
-- `Nome do mod/dvdroot_ps4/EXEC/...` (convenção do shadPS4): o `dvdroot_ps4/` é descartado e o
-  resto vai para a raiz do jogo;
-- `Nome do mod/app0/EXEC/...`;
-- uma pasta a mais por fora, como a de um arquivo extraído numa pasta com o nome dele:
-  `Nome do mod/Nome do mod v1.2/EXEC/...` (readme e imagens ao lado são ignorados).
-
-Na aba **Mods** do launcher, clicar no nome de um mod mostra os detalhes dele. Para preencher,
-coloque na pasta do mod, ao lado de `EXEC/`, um `mod.json` e uma imagem `preview.png` (ou `.jpg`),
-ambos opcionais:
+`mod.json` e a imagem são opcionais:
 
 ```json
-{ "name": "Kratos Gold Armor", "author": "Seu nome", "version": "1.0",
-  "description": "O que o mod muda.", "url": "https://..." }
+{"name": "Meu mod", "author": "Seu nome", "version": "1.0",
+ "description": "O que o mod muda.", "url": "https://example.org/"}
 ```
 
-Sem `mod.json`, o launcher usa o nome da pasta e o começo de um `readme.txt` ou `readme.md`. Sem
-`preview`, usa a primeira imagem da pasta (`cover` e `screenshot` também têm prioridade). O link
-só abre se começar com `http://` ou `https://`.
-
-Pastas de idioma reconhecidas: `ENGLISH`, `FRENCH`, `GERMAN`, `ITALIAN`, `SPANISH`, `PORTUGUESE`,
-`DUTCH`, `POLISH` e `RUSSIAN`. Um mod feito para outra região (por exemplo, o `R_LANG_UK.WAD` da
-versão europeia) não troca nada num jogo que não tem esse arquivo: o log mostra `added` em vez de
-`replaced`.
-
-Maiúsculas e minúsculas nos nomes do mod não importam: um arquivo com outra caixa troca o
-arquivo do jogo de mesmo nome. O log mostra quantos arquivos o mod trocou e quantos acrescentou:
-`Mods: 12 game files replaced, 0 added`. Se o mod deveria trocar arquivos e aparece
-`0 game files replaced`, confira os caminhos dentro dele. Um mod em **ZIP** pode ser largado direto na pasta de mods: ao abrir o launcher ou iniciar o jogo ele é extraído numa pasta com o nome do zip (uma pasta de mesmo nome que você criou não é substituída, e caminhos perigosos ou links no zip são recusados). Arquivos 7z/RAR precisam ser extraídos antes. Dois mods que trocam o mesmo arquivo não são mesclados: o último vence inteiro.
-
-Uma pasta `<pasta do jogo>-mods/EXEC/...` ao lado da pasta do jogo (convenção do shadPS4)
-entra antes dos mods da lista. A chave geral também a desliga.
-
-Os arquivos do jogo nunca são alterados. A cada início é montada uma árvore de links em
-`out/mod-game-*` no diretório de dados, apagada quando o jogo termina. `/app0` fica só para
-leitura; os saves continuam na pasta de sempre.
-
-Patches de código ficam em `patches/` / `GOW3_PATCHES`. Links simbólicos dentro do mod são recusados.
-
-Pelo terminal:
+Um ZIP colocado na pasta de mods é extraído ao abrir o launcher ou iniciar o jogo. Pastas
+já existentes não são substituídas; caminhos perigosos e links no ZIP são recusados.
+Extraia 7z/RAR antes. `python tools/zip_mod.py mods/MeuMod` empacota uma pasta.
 
 ```sh
-GOW3_GAME_DIR=/caminho/CUSA01623 GOW3_MODS_DIR=/caminho/mods python run.py
-GOW3_GAME_DIR=/caminho/CUSA01623 GOW3_MODS_ENABLED=0 python run.py
+WIPEOUT_OC_GAME_DIR=/caminho/CUSA05670 WIPEOUT_OC_MODS_DIR=/caminho/mods python run.py
+WIPEOUT_OC_GAME_DIR=/caminho/CUSA05670 WIPEOUT_OC_MODS_ENABLED=0 python run.py
 ```
 
-Ordem e desativações ficam em `mods.json` no diretório de dados:
+A ordem e as desativações ficam em `mods.json` no diretório de dados;
+`WIPEOUT_OC_MODS_CONFIG` seleciona outro arquivo. Pastas novas entram ativadas no fim,
+em ordem alfabética. A chave geral também desliga a pasta `<pasta-do-jogo>-mods/`.
 
-```json
-{"order": ["Primeiro", "Segundo"], "disabled": ["Primeiro"]}
-```
+## Mods com patches de código
 
-Pastas novas entram ativadas, no fim da lista, em ordem alfabética. `GOW3_MODS_CONFIG` muda o
-caminho desse arquivo.
+Um mod pode conter somente `patches/meu-patch.xml`, no formato de
+[WipEout_Omega_Collection.xml](../patches/WipEout_Omega_Collection.xml).
+O XML do mod deve declarar o **TitleID real** do dump e seu **APP_VER real** (por exemplo,
+CUSA05670 / 01.07). O tag `01.00` do XML embutido não é a versão real desse dump.
+A validação ocorre antes de substituir um patch embutido de mesmo `Name`; uma cópia
+privada dos metadados aceitos é ajustada para a mesclagem. O XML original fica intacto.
 
-## Mods com patches de jogo / Mods with game patches
-
-Uma pasta de mod também pode trazer **patches de código** (para o `eboot.bin`): arquivos XML na pasta
-`patches/` do mod, no mesmo formato dos patches embutidos (`patches/God_of_War_III_Remastered.xml`),
-com assinaturas (`Pattern`/`At`) que acham cada ponto em qualquer build. Um mod pode ter só patches, sem
-`dvdroot_ps4`:
+Um `Pattern` precisa encontrar exatamente um local válido. Referências de `<Line Target="...">`
+para `<Target Name="...">`, de `<Target Line="...">` para uma linha e valores `{rel:...}`
+precisam ser completos e sem ciclos; dependências
+inválidas, ambíguas ou fora da imagem fazem o patch inteiro ser ignorado. Outros placeholders
+não são aceitos. `Address` sem assinatura só é autorizado para a combinação exata
+CUSA05670 / APP_VER 01.07 / SHA-256 do `eboot.bin`:
 
 ```text
-mods/
-  Nome do mod/
-    patches/
-      meu-patch.xml
+3a52e910f6c450cc2f0c85ef994be5d8c951c326a362bcc4775f29e6ff7f644c
 ```
 
-Os patches do mod valem enquanto o mod está ativado (a chave geral também os desliga) e entram junto com os
-embutidos. Um patch com o mesmo nome de um embutido o substitui; arquivos de outros jogos (`TitleID`) ou que
-não abrem são ignorados, com aviso no log. `isEnabled="true"` liga o patch com o mod.
+O hash é calculado novamente a partir do executável. Outras builds precisam de assinaturas
+seguras. O log distingue patches ignorados de nomes realmente aplicados.
+`isEnabled="true"` define a ativação inicial; a chave geral de mods também os desliga.
+Um patch `Resolution Patch - <largura>x<altura>` pode adicionar uma resolução; consulte
+[ultrawide](ultrawide.md). Isso não comprova sua qualidade ou desempenho no jogo.
 
-**Resoluções:** um patch chamado `Resolution Patch - <largura>x<altura>` vira uma opção de **Render
-resolution** no launcher e no menu do jogo (tecla Insert), depois das embutidas. Vale a mesma regra das
-resoluções embutidas (a nota pede memória com `Requires setting DMEM to N MB`). Se o mod é desativado, a
-resolução volta a `native`. O exemplo é o mod [Ultrawide](ultrawide.md) (`extras/mods/Ultrawide`); as mesmas
-resoluções agora também são embutidas, então o mod só faz diferença em versões antigas.
+## Patches de terceiros
 
-*English:* a mod can be dropped into the mods folder as a **.zip** (it is unpacked into a folder with the zip's name when the launcher or the game starts; `tools/zip_mod.py` packs a mod folder). A mod folder can also carry **game patches**: XML files in its `patches/` folder, in the format of
-the built-in patches (signatures, `Pattern`/`At`). They apply while the mod is enabled, together with the
-built-in ones (a patch with the same name replaces it). A patch named `Resolution Patch - <width>x<height>`
-becomes a **Render resolution** choice in the launcher and the in-game menu (Insert). See the
-[Ultrawide mod](ultrawide.md).
-## Ícones e imagem do controle
-
-A opção de ícones em **Controls** já prepara os prompts e a imagem do controle no menu de pausa
-ao escolher Xbox ou Nintendo (ou detectar um desses controles em automático). Não precisa instalar
-um mod. O estilo PlayStation mantém os arquivos originais; o estilo de teclado mantém o desenho
-original do controle. As cópias são criadas no cache local, sem modificar o dump do jogador.
-
-Os desenhos e a ferramenta em `tools/controller_diagrams/` vieram da contribuição de Kristian
-Andreev na [PR #234](https://github.com/FelipePrado0/gow3_pc/pull/234), sob GPL-2.0-or-later.
-`scripts/controller_diagrams/*.png` contém apenas esses desenhos, sem arquivos do jogo. Para
-regenerá-los, a ferramenta usa Pillow, NumPy e scikit-image, com a fonte Russo One distribuída no
-projeto (OFL). Essas dependências de desenho não são necessárias para usar os PNGs no launcher.
-
-# Patches de terceiros (XML do shadPS4)
-
-Pasta `patches/` no diretório de dados (no launcher, grupo **Third-party patches**, onde também
-dá para escolher outra pasta). Servem arquivos XML no formato shadPS4/GoldHEN: entram os
-`Metadata` da versão do jogo (01.02) para `eboot.bin`, e arquivos com `TitleID` de outros jogos
-são ignorados. A ativação padrão vem do `isEnabled` do arquivo; a escolha do launcher fica em
-`patches.json`:
+A pasta `patches/` no diretório de dados (ou a escolhida no launcher) aceita XML shadPS4 /
+GoldHEN para `eboot.bin`. Valem o TitleID e APP_VER reais e a mesma política de segurança
+acima. Não use o hash de um executável de God of War III como autorização para WipEout.
+Os patches externos entram depois dos embutidos. A seleção fica em `patches.json`:
 
 ```json
 {"enabled": ["arquivo.xml/Nome do patch"], "disabled": ["arquivo.xml/Outro patch"]}
 ```
 
-Tipos de linha aceitos: `bytes`, `bytes16/32/64`, `float32/64`, `utf8`, `utf16`. Um patch com
-linhas `mask` (busca por padrão) ou com endereço fora do eboot é ignorado inteiro, com aviso no
-log. Os patches de terceiros são aplicados depois dos embutidos
-(`patches/God_of_War_III_Remastered.xml`): onde os dois escrevem, vence o de terceiros. Pelo
-terminal: `GOW3_PATCHES_DIR=/caminho GOW3_PATCHES_CONFIG=/caminho/patches.json python run.py`.
+```sh
+WIPEOUT_OC_PATCHES_DIR=/caminho WIPEOUT_OC_PATCHES_CONFIG=/caminho/patches.json python run.py
+```
+
+Tipos de dados aceitos incluem `bytes`, `bytes16/32/64`, `float32/64`, `utf8` e `utf16`.
+Patches incompatíveis são ignorados inteiros e reportados. Não há garantia de suporte a
+qualquer XML ou build.
+
+## Controles e créditos
+
+O mapeamento genérico de teclado/controle e os nomes dos botões continuam disponíveis.
+A injeção herdada de prompts WAD e da imagem no menu de pausa de God of War III foi
+removida; ela não é uma opção de WipEout.
+
+Os desenhos e a ferramenta em `tools/controller_diagrams/` vieram de Kristian Andreev na
+[PR #234](https://github.com/FelipePrado0/gow3_pc/pull/234), sob GPL-2.0-or-later.
+São material de autoria, sem arquivos do jogo; suas dependências de desenho não são
+necessárias para usar o launcher.

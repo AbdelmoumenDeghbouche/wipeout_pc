@@ -836,7 +836,7 @@ void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) 
     io.IniFilename = nullptr; // window positions are not kept
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
     io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
-    io.BackendPlatformName = "gow3";
+    io.BackendPlatformName = "wipeout_oc";
 
     ImGui::StyleColorsDark();
     ImGuiStyle& style = ImGui::GetStyle();

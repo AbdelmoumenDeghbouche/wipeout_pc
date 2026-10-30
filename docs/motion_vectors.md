@@ -1,5 +1,9 @@
 # Векторы движения: доработка после видео 2026-09-26
 
+> Historical research from the God of War III base port. The measurements, commands and
+> implementation snapshots below are not WipEout gameplay validation. See the
+> [README](../README.md) for current usage and supported scope.
+
 Исходный материал: `video_2026-09-26_04-19-53.mp4`, FSR 3.1 Performance,
 рендер 960×540 → вывод 1920×1080, и `out/dev/t71.log`.
 Это описание текущих изменений рабочего дерева, а не подтверждение качества в игре.
@@ -83,11 +87,8 @@ done
 
 ## Следующий запуск в игре
 
-Из `game_files`:
-
-```bash
-GOW3_FRAME_STATS=1 GOW3_TOGGLE_FILE=out/dev/motion-toggles bash native_probe/run.sh 2>&1 | tee native_probe/out/dev/motion-run.log
-```
+Этот исторический план проверки использовал старую структуру `native_probe/`, которой
+больше нет в репозитории. Текущий запуск описан в [README](../README.md).
 
 Бит 29 во временном toggle-файле выключает только запись истории. Для корректного
 сравнения производительности надо запускать игру с `GOW3_OBJECT_MOTION=0` и без него:

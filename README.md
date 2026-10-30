@@ -8,6 +8,10 @@ graphics are translated to Vulkan by the shadPS4 video core. There is no CPU emu
 > **Status: playable, in active development. Menus and races (HD and 2048) play above 60 FPS.**
 > See [Progress](#progress).
 
+The local gameplay baseline is v0.2.43 (`97766e4`), before the identity migration:
+Empire Climb / 2048 at 4K, 120 FPS (8.3 ms), VSync on, HDR and Pro off, with no observed
+visual defects. The migrated build has not yet had a manual gameplay test.
+
 For contributors: [build and debug on Windows](docs/windows-debug.md), or optionally [edit from WSL2](docs/windows-debug-wsl.md). Debugging scripts and tests are versioned; GDB and the compiler are installed as development dependencies.
 
 ## Download and play (Windows)
@@ -88,8 +92,8 @@ the game's own music. Without the launcher, `WIPEOUT_OC_MUSIC_DIR` points to ano
 
 | Title ID | Region | Version | State |
 |---|---|---|---|
-| CUSA07671 | US | 01.00 + update 01.07 | Development target |
-| CUSA05670 | EU | — | Playable (five races tested, #19) |
+| CUSA07671 | US | 01.00 + update 01.07 | Supported profile; not validated in the local baseline playtest |
+| CUSA05670 | EU | 01.07 (merged dump) | Local baseline playtest: Empire Climb / 2048, 4K, 120 FPS; HDR and Pro off |
 
 The base game and the update are merged into one folder (the update's files replace the base
 game's). One `eboot.bin` runs all three games: WipEout 2048, WipEout HD and WipEout Fury.
@@ -123,7 +127,8 @@ game's). One `eboot.bin` runs all three games: WipEout 2048, WipEout HD and WipE
    git submodule foreach --recursive 'git rm -rq --cached . && git reset -q --hard'
    ```
 
-For the historical Nix AppImage builder, `WIPEOUT_OC_PACKAGE_FSR411=1 bash packaging/appimage.sh`
+The Nix AppImage builder produces `dist/wipeout-x86_64.AppImage` from the local Linux build.
+`WIPEOUT_OC_PACKAGE_FSR411=1 bash packaging/appimage.sh`
 accepts the legacy environment alias too. Direct `nix-build packaging` uses the explicit boolean
 `--arg packageFsr411 true`; it does not read either environment name. Keep these private FSR models
 out of public packages.
@@ -188,6 +193,32 @@ python run.py --check-imports
 Without `--check-imports`, `run.py` starts the game. The loader stops at the first system
 function the runtime does not implement and prints its name.
 
+The updater checks for a release and opens its page in your browser. It does not download,
+install or replace the package. Extract an update separately and preserve your data.
+
+## Game patches and compatibility
+
+Built-in patches use [WipEout_Omega_Collection.xml](patches/WipEout_Omega_Collection.xml).
+Its metadata tag `01.00` is distinct from the dump's actual `APP_VER` (`01.07` in the validated
+EU dump). Address-only writes require the exact CUSA05670 / 01.07 executable SHA-256
+`3a52e910f6c450cc2f0c85ef994be5d8c951c326a362bcc4775f29e6ff7f644c`.
+Other builds need unique safe signatures and valid relative dependencies; an unsupported or
+ambiguous patch is skipped and reported. Mod and third-party XML must match the actual title ID
+and version before merging; see [Mods](docs/MODS.md).
+
+The launcher and overlay expose WipEout options, including event unlock patches. Inherited
+God of War III cheats, mouse aiming, WAD button/pause-menu injection and LightingTest were
+removed. Generic controls, music and graphics settings remain available. Existing unknown or
+retired INI entries are preserved when saving.
+
+## Tests
+
+Run the Python tests with `python -m unittest discover -s tests` in an isolated profile.
+`bash build.sh --test` runs Linux runtime tests. Windows native tests are explicit Ninja targets
+in [gpu/CMakeLists.txt](gpu/CMakeLists.txt), for example
+`ninja -C out/gpu -j6 settings-paths-test graphics-settings-test`; run each generated executable
+from `out/gpu`. Build success and automated checks do not establish gameplay or HDR quality.
+
 ## How it works
 
 | Part | Where | What it does |
@@ -206,7 +237,9 @@ function the runtime does not implement and prints its name.
 
 Environment options use `WIPEOUT_OC_*`. Older `GOW3_*` names remain accepted as inputs; the new
 name wins whenever present, including an empty value or `0`. Launchers and wrappers export the
-new names. File names such as `wipeout_oc-probe.exe` still come from the original God of War III port.
+new names. The Windows runtime is `wipeout_oc-probe.exe`; Linux uses `wipeout_oc-probe`,
+`wipeout_oc-gpu-capabilities` and `libwipeout_oc_gpu.so`. The Windows DLSS bridge is
+`wipeout_oc_dlss.dll` (`WipeoutOCDlssGetApi`, ABI 1).
 
 ## Credits
 

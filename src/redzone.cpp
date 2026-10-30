@@ -1341,14 +1341,14 @@ extern "C" void bbport_red_zone_protect(const char* boot_file, unsigned char* im
     // GOW3_RED_ZONE: 0 off, 1 always, unset: when this Windows build overwrites red zones.
     const char* setting = wipeout_oc_getenv("WIPEOUT_OC_RED_ZONE");
     if (setting && setting[0] == '0') {
-        std::puts("Red zones: protection off (GOW3_RED_ZONE=0)");
+        std::puts("Red zones: protection off (WIPEOUT_OC_RED_ZONE=0)");
         return;
     }
     if (!(setting && setting[0] == '1')) {
         const int clobbered = ProbeRedZoneClobbering();
         if (!clobbered) {
             std::puts("Red zones: this Windows keeps exception records out of the red zone; no "
-                      "patching needed (GOW3_RED_ZONE=1 patches anyway)");
+                      "patching needed (WIPEOUT_OC_RED_ZONE=1 patches anyway)");
             return;
         }
         std::printf("Red zones: this Windows writes exception records %d bytes below the stack "

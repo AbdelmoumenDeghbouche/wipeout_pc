@@ -326,7 +326,7 @@ void DrawPreparation::Collect() {
 }
 
 void DrawPreparation::ScannerLoop(std::stop_token stop) {
-    Common::SetCurrentThreadName("gow3:DrawScan");
+    Common::SetCurrentThreadName("woc-drawscan");
     WipeoutOCThreads::MakeBackground();
     std::unique_ptr<AmdGpu::Regs> regs;
     u64 checksum = 0;
@@ -380,7 +380,7 @@ void DrawPreparation::ScannerLoop(std::stop_token stop) {
 }
 
 void DrawPreparation::WorkerLoop(std::stop_token stop, u32 index) {
-    Common::SetCurrentThreadName(("gow3:DrawPrep" + std::to_string(index)).c_str());
+    Common::SetCurrentThreadName(("woc-drawprep" + std::to_string(index)).c_str());
     WipeoutOCThreads::MakeBackground();
     auto regs = std::make_unique<AmdGpu::Regs>();
     constexpr u64 NoPosition = ~0ull;

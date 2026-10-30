@@ -63,7 +63,7 @@ bool Scheduler::FullBarriers() {
         const bool on = env && env[0] == '1';
         if (on) {
             // In last_run.log whatever the GPU log level, so a tester's log shows the mode.
-            std::printf("GPU: full barriers on (GOW3_FULL_BARRIERS=1)\n");
+            std::printf("GPU: full barriers on (WIPEOUT_OC_FULL_BARRIERS=1)\n");
         }
         return on;
     }();
@@ -310,7 +310,7 @@ void Scheduler::SyncRecording() {
 }
 
 void Scheduler::RecorderThread(std::stop_token stoken) {
-    Common::SetCurrentThreadName("gow3:VkRecorder");
+    Common::SetCurrentThreadName("woc-recorder");
 #ifdef _WIN32
     // The first recording thread is the rasterizer's scheduler (GOW3_CPU_PROFILE).
     unsigned long none = 0;

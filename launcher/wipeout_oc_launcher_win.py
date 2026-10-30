@@ -2,10 +2,11 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """WipEout Omega Collection launcher for Windows and Linux (Tkinter), from gow3_pc's launcher.
 
-Every setting of the port in one window: the game folder and saves, gow3.ini (upscaler,
+Every setting of the port in one window: the game folder and saves, wipeout_oc.ini (upscaler,
 preset, output, effects), start-up options passed to run.py as environment variables
 (frame rate, presentation, HDR, ...), mods, third-party patches and controls.
-Launcher options live in %APPDATA%/gow3-launcher/settings.json (~/.config/gow3-launcher on Linux).
+Launcher options live in %APPDATA%/wipeout-launcher/settings.json (~/.config/wipeout-launcher on Linux).
+Legacy gow3.ini and GOW3_CONFIG remain compatibility inputs; the canonical name takes precedence.
 
 Frozen with PyInstaller (packaging/windows/package.sh) the same WipEout.exe also runs the
 game without the window (`--play`), run.py (`--run`) and the preparation scripts (`--script`),
@@ -793,7 +794,7 @@ def save_ini(values, lines):
                 continue
         out.append(line)
     if not lines:
-        out.append('# gow3 settings (in-game menu: Insert / R3+L2)')
+        out.append('# WipEout Omega Collection settings (in-game menu: Insert / R3+L2)')
     out += [f'{key}={value}' for key, value in values.items() if key not in written]
     atomic_write(ini_path(), '\n'.join(out) + '\n')
 

@@ -55,7 +55,7 @@ ObjectMotion::ObjectMotion(const Instance& instance_, Scheduler& scheduler_)
     // animated draws. A setting or environment override can still disable the path.
     if (!WipeoutOCSettings::Get().object_motion ||
         WipeoutOCSettings::Get().upscaler == WipeoutOCSettings::UpscalerOff) {
-        std::puts("Object motion: off (enable in menu or GOW3_OBJECT_MOTION=1)");
+        std::puts("Object motion: off (enable in menu or WIPEOUT_OC_OBJECT_MOTION=1)");
         return;
     }
     const auto& features = instance.GetPhysicalDevice().getFeatures();

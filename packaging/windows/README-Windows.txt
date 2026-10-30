@@ -5,8 +5,12 @@ An early version of a native PC port. Menus and races (HD and 2048) play; not ev
 event type has been tested yet.
 
 No game files are included. You need your own copy of WipEout Omega Collection, dumped from
-your own PS4, as a folder containing eboot.bin, sce_module and sce_sys. Tested: CUSA07671 (US),
-version 01.00 with update 01.07, merged into one folder. CUSA05670 (EU) is listed but untested.
+your own PS4, as a folder containing eboot.bin, sce_module and sce_sys. The local baseline
+playtest (v0.2.43, 97766e4, before the identity migration) used CUSA05670 (EU), APP_VER
+01.07, merged into one folder: Empire Climb / 2048,
+4K, 120 FPS, VSync on, HDR and Pro off. CUSA07671 (US) has a supported profile; that
+local playtest does not validate it or every track, mode or graphics setting. The migrated
+build has not yet had a manual gameplay test.
 
 Requirements
 - Windows 10 (1903 or newer) or Windows 11, 64-bit.
@@ -48,9 +52,9 @@ While playing
 Next time
 - "Play WipEout.exe" starts the game straight away with the saved settings. Make a desktop
   shortcut to it (Advanced -> Desktop shortcut), or add it to Steam with "Add a Non-Steam Game".
-- When a new version is out, the launcher shows a pop-up at start. Click UPDATE NOW: it downloads
-  and installs the new version, then opens again. Saves, settings, mods and music are kept.
-  Advanced -> Check for updates does the same check by hand.
+- When a new version is out, the launcher offers to open its release page in your browser.
+  It does not download, install or replace files. Extract the new package separately and
+  preserve your data. Advanced -> Check for updates checks by hand.
 
 Data
 - Saves, shader cache and the log: user\ next to WipEout.exe (keep it when updating).
@@ -62,6 +66,13 @@ Data
   accepted when the new variable is absent; an empty WIPEOUT_OC_CONFIG selects the default.
   Launcher options remain in %APPDATA%\wipeout-launcher. Both INIs survive package updates.
 - Generated files (prepared game image, patches): out\.
+
+Patches
+- WipEout event unlocks remain available. Inherited God of War III cheats, mouse aiming,
+  WAD prompt/pause-menu injection and LightingTest have been removed.
+- Third-party XML must match the actual title ID and APP_VER. Address-only writes require
+  the validated EU 01.07 executable; other builds need unique safe signatures. Skipped
+  patches are reported in the log. Built-in XML uses metadata tag 01.00, not the dump version.
 
 Known issues
 - PS4 Pro mode is experimental: Graphics -> PS4 Pro mode in the launcher.
