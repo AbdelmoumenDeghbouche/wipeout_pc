@@ -347,25 +347,35 @@ static ssize_t host_write(int h,const void *buffer,uint64_t size) { return write
 #define host_read read
 #define host_write write
 #endif
-/* Pages of the destination may be write-protected for GPU tracking: the kernel's copy then
- * fails with EFAULT instead of faulting to our handler. A user-mode write to each page first
- * goes through the handler, which unprotects it (and records the upcoming write). */
-static void touch_for_write(void *buffer,uint64_t size) {
-    if (!size) return;
-    uintptr_t p=(uintptr_t)buffer & ~(uintptr_t)4095, end=(uintptr_t)buffer+size;
-    for (; p<end; p+=4096) {
-        volatile unsigned char *b=(volatile unsigned char *)(p<(uintptr_t)buffer ? (uintptr_t)buffer : p);
-        *b=*b;
+/* Pages of the destination may be protected for GPU tracking: the kernel's copy then fails with
+ * EFAULT/EIO instead of faulting to our handler. Reads go through a per-thread buffer and are
+ * copied to the game's memory with user-mode writes, which the handler resolves. A user-mode
+ * write to each page before the read (the former way) left a window: between it and the kernel's
+ * copy the GPU thread could protect a page again (texture tracking, readback watches), and the read failed with
+ * EIO/EFAULT. The game then dropped the texture and the model using it: an invisible ship in
+ * ship select until a restart ("Failed to read Gnf texels"). offset<0: at the current position. */
+#define BOUNCE (1u<<20)
+static int64_t bounce_read(int h,void *buffer,uint64_t size,int64_t offset) {
+    static _Thread_local unsigned char *bounce;
+    if (!bounce && !(bounce=malloc(BOUNCE))) return -ENOMEM;
+    uint64_t done=0;
+    while (done<size) {
+        const uint64_t want=size-done<BOUNCE ? size-done : BOUNCE;
+        const ssize_t n=offset<0 ? host_read(h,bounce,want) : pread(h,bounce,want,offset+(int64_t)done);
+        if (n<0) return done ? (int64_t)done : -errno;
+        memcpy((unsigned char *)buffer+done,bounce,(size_t)n);
+        done+=(uint64_t)n;
+        if ((uint64_t)n<want) break; /* end of file */
     }
+    return (int64_t)done;
 }
 static int64_t do_read(int fd,void *buffer,uint64_t size) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
-    touch_for_write(buffer,size);
     const File *f=get(fd);
     const int64_t at=f && f->patched ? host_lseek(h,0,SEEK_CUR) : 0;
-    ssize_t n=host_read(h,buffer,size);
-    if (n<0) { if (audio_trace()) printf("Audio trace: read(fd %d, %llu) failed, errno %d\n",fd,(unsigned long long)size,errno); return -errno; }
+    const int64_t n=bounce_read(h,buffer,size,-1);
+    if (n<0) { if (audio_trace()) printf("Audio trace: read(fd %d, %llu) failed, errno %d\n",fd,(unsigned long long)size,(int)-n); return n; }
     if (f && f->patched) file_patches_apply(f->path,buffer,at,n);
     __atomic_add_fetch(&reads,1,__ATOMIC_RELAXED); __atomic_add_fetch(&bytes_read,(uint64_t)n,__ATOMIC_RELAXED);
     return n;
@@ -373,9 +383,8 @@ static int64_t do_read(int fd,void *buffer,uint64_t size) {
 static int64_t do_pread(int fd,void *buffer,uint64_t size,int64_t offset) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
-    touch_for_write(buffer,size);
-    ssize_t n=pread(h,buffer,size,offset);
-    if (n<0) { if (audio_trace()) printf("Audio trace: pread(fd %d, %llu @%lld) failed, errno %d\n",fd,(unsigned long long)size,(long long)offset,errno); return -errno; }
+    const int64_t n=bounce_read(h,buffer,size,offset);
+    if (n<0) { if (audio_trace()) printf("Audio trace: pread(fd %d, %llu @%lld) failed, errno %d\n",fd,(unsigned long long)size,(long long)offset,(int)-n); return n; }
     const File *f=get(fd);
     if (f && f->patched) file_patches_apply(f->path,buffer,offset,n);
     __atomic_add_fetch(&reads,1,__ATOMIC_RELAXED); __atomic_add_fetch(&bytes_read,(uint64_t)n,__ATOMIC_RELAXED);
