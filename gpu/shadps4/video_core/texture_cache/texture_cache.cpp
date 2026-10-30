@@ -1301,6 +1301,10 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
 }
 
 ImageId TextureCache::FindImageFromRange(VAddr address, size_t size, bool ensure_valid) {
+    // gow3: under the mutex, as UnmapMemory on a guest thread: both walk the page table and set
+    // Picked; unlocked, an unmap during a race load could list an image twice and free it twice
+    // ("Trying to unregister an already unregistered image", #100).
+    std::scoped_lock lock{mutex};
     ImageIds image_ids;
     ForEachImageInRegion(address, size, [&](ImageId image_id, Image& image) {
         if (image.info.guest_address != address) {
@@ -1373,6 +1377,7 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
     image.usage.render_target = 1u;
     UpdateImage(image_id);
     PublishAliasWrite(image_id);
+    std::scoped_lock lock{mutex}; // gow3: metas, as FindImageFromRange (#100)
 
     // Register meta data for this color buffer
     if (desc.info.meta_info.cmask_addr) {
@@ -1396,6 +1401,7 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
     image.flags |= ImageFlagBits::GpuModified;
     image.usage.depth_target = 1u;
     UpdateImage(image_id);
+    std::scoped_lock lock{mutex}; // gow3: page table and metas, as FindImageFromRange (#100)
 
     // Register meta data for this depth buffer
     if (desc.info.meta_info.htile_addr) {
