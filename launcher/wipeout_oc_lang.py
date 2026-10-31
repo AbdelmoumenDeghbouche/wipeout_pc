@@ -1028,7 +1028,8 @@ EXTRA = {
         'Touchpad click': 'Clique do touchpad', 'PS button': 'Botão PS', 'Mute button': 'Botão de mudo',
         'LS (left stick click)': 'LS (clique do analógico esquerdo)',
         'RS (right stick click)': 'RS (clique do analógico direito)', 'Xbox button': 'Botão Xbox',
-        # Notes of the game patches (patches/God_of_War_III_Remastered.xml) shown on the Game page.
+        # Inherited base-port patch-note translations are retained below.
+        # Current WipEout Game-page notes come from patches/WipEout_Omega_Collection.xml.
         'Fixes corrupted textures in the game by increasing the Video Arena size, allowing the game to use more video memory for textures and effects. Requires setting DMEM to 2048 MB or more, or the game crashes. Enable either this patch or one resolution patch, never both.':
             'Corrige texturas corrompidas no jogo aumentando a Video Arena, para o jogo usar mais memória de vídeo em texturas e efeitos. Exige DMEM de 2048 MB ou mais, senão o jogo fecha. Ative este patch ou um patch de resolução, nunca os dois.',
         'Skips the initial logos. Thanks to illusion0001 aka illusionyy for the PS3 patch which made this very easy.':

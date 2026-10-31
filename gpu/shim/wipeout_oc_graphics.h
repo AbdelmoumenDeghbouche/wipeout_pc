@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: graphics options of the in-game menu (Insert / R3+L2), kept in gow3.ini. The live ones
+// WipEout graphics options of the in-game menu (Insert / R3+L2), kept in wipeout_oc.ini. The live ones
 // apply on the next frame; the startup ones (patches, GPU readback modes) are read by run.py and
 // apply through "Apply and restart". The launcher reads and writes the same keys.
 #pragma once

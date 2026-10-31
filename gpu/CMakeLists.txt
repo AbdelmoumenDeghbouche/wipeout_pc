@@ -1,4 +1,4 @@
-# gow3 GPU library: shadPS4 video core + shader recompiler + Gnm/VideoOut
+# WipEout GPU library: shadPS4 video core + shader recompiler + Gnm/VideoOut
 # drivers, adapted to the native_probe runtime through shims in shim/.
 cmake_minimum_required(VERSION 3.24)
 project(wipeout_oc_gpu LANGUAGES C CXX)
@@ -267,7 +267,7 @@ if (WIN32)
     add_executable(wipeout_oc-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/wipeout_oc_gpu_capabilities.rc)
     target_include_directories(wipeout_oc-gpu-capabilities PRIVATE shadps4)
     target_link_libraries(wipeout_oc-gpu-capabilities PRIVATE Vulkan::Vulkan)
-    # "Play God of War III.exe": the game with the launcher's saved settings, no launcher window.
+    # "Play WipEout.exe": the game with the launcher's saved settings, no launcher window.
     add_executable(wipeout_oc-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
     target_compile_options(wipeout_oc-play PRIVATE -municode)
     target_link_options(wipeout_oc-play PRIVATE -municode)

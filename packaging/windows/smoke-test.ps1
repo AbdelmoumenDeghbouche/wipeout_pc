@@ -6,7 +6,7 @@ param([Parameter(Mandatory)][string]$Package)
 $ErrorActionPreference = 'Stop'
 # A player's PATH: a DLL found only in MSYS2 or another toolchain must not hide a missing one.
 $env:PATH = "$env:SystemRoot\System32;$env:SystemRoot;$env:SystemRoot\System32\WindowsPowerShell\v1.0"
-$work = Join-Path ([IO.Path]::GetTempPath()) ("gow3-smoke-" + [guid]::NewGuid())
+$work = Join-Path ([IO.Path]::GetTempPath()) ("wipeout-smoke-" + [guid]::NewGuid())
 Expand-Archive -LiteralPath $Package -DestinationPath $work
 $tree = Join-Path $work 'wipeout-windows'
 $failed = @()

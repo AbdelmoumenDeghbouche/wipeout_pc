@@ -6,7 +6,7 @@ Every setting of the port in one window: the game folder and saves, wipeout_oc.i
 preset, output, effects), start-up options passed to run.py as environment variables
 (frame rate, presentation, HDR, ...), mods, third-party patches and controls.
 Launcher options live in %APPDATA%/wipeout-launcher/settings.json (~/.config/wipeout-launcher on Linux).
-Legacy gow3.ini and WIPEOUT_OC_CONFIG remain compatibility inputs; the canonical name takes precedence.
+Legacy gow3.ini and GOW3_CONFIG remain compatibility inputs; the canonical name takes precedence.
 
 Frozen with PyInstaller (packaging/windows/package.sh) the same WipEout.exe also runs the
 game without the window (`--play`), run.py (`--run`) and the preparation scripts (`--script`),
@@ -405,7 +405,7 @@ def heading_font(size, fallback=None, every_language=False):
 
 
 # ---------------------------------------------------------------------------------------------
-# Settings. gow3.ini keys (the game reads them, the in-game menu edits them) and the
+# Settings. wipeout_oc.ini keys (the game reads them, the in-game menu edits them) and the
 # launcher's own settings.json (passed to run.py as environment variables).
 
 INI_FLAGS = {'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
@@ -654,8 +654,8 @@ def migrate_controls(saved):
 UPSCALERS = [('fsr3', ('FSR 3.1 (every GPU)', 'FSR 3.1 (любая видеокарта)')),
              ('taa', ('TAA (native resolution anti-aliasing)', 'TAA (нативное сглаживание)')),
              ('off', ('Off', 'Выключен'))]
-# WipEout's anti-aliasing (Graphics page): native size only, fed by the game's own motion vectors.
-# TAA reprojects with God of War III's camera and is left out.
+# WipEout's AA/upscaling uses its own motion vectors; Off preset means native AA (DLAA for DLSS).
+# The inherited base-port TAA mode is not offered by this page.
 AA_CHOICES = [('off', ('Off',)), ('fsr3', ('FSR 3.1 (every GPU)',))]
 DLSS_CHOICE = ('dlss', ('DLAA (NVIDIA RTX)',))
 DLSS_PRESETS = [('0', ('Driver default (K)',)), ('11', ('K (transformer)',)),
@@ -916,7 +916,7 @@ def same_folder(a, b):
 def system_files_beside(folder, reference=None, base=None):
     """PKG extractors write the system files (param.sfo, icon0.png, pic1.png, trophy/) to Sc0/
     beside the game files (Image0/), while the port reads them from the folder's sce_sys/: the
-    Sc0 folder beside `folder` holding a God of War III param.sfo (patches.game_profile), while
+    Sc0 folder beside `folder` holding a supported WipEout param.sfo (patches.game_profile), while
     `folder` has none worth keeping (an unreadable one is a different problem). For an update
     folder the title must be that of `reference` (the base game's param.sfo values); an Sc0
     beside the base game itself (`base`) is the base game's own unless the base game's param.sfo
@@ -1677,7 +1677,7 @@ class Launcher:
             row=self.next_row(parent), column=0, columnspan=2, sticky='w', pady=self.px((top, 0)))
 
     def slider(self, parent, key, low, high, unit, store='ini', step=1):
-        """A gow3.ini (or launcher) number on a slider, with its value beside it."""
+        """A wipeout_oc.ini (or launcher) number on a slider, with its value beside it."""
         holder = self.ttk.Frame(parent)
         amount = self.var(key, store)
         self.tk.Scale(holder, from_=low, to=high, resolution=step, orient='horizontal', variable=amount, showvalue=False,
@@ -1839,7 +1839,7 @@ class Launcher:
         ttk.Label(quick, text=_('Quick settings', 'Основное').upper(), style='Section.TLabel').grid(
             row=0, column=0, columnspan=4, sticky='w')
         tk.Frame(quick, bg=LINE, height=self.px(1)).grid(row=1, column=0, columnspan=4, sticky='we', pady=self.px((2, 6)))
-        # WipEout renders 1080p at 60 FPS: no engine frame rate or render resolution patches.
+        # Home keeps quick display/pacing controls; game-specific render sizes are on Graphics.
         items = ((0, 0, _('Display mode'), 'display_mode', DISPLAY_MODES),
                  (1, 0, _('Frame rate limit'), 'fps_limit', FPS_LIMITS),
                  (0, 2, _('Frames queued'), 'frames_queued', FRAMES_QUEUED),
@@ -1896,8 +1896,7 @@ class Launcher:
             return self.banner_image.subsample(factor) if factor > 1 else self.banner_image
 
     def build_graphics(self):
-        """Window and overlay controls, render resolution and WipEout's anti-aliasing; God of War III's
-        upscaler presets stay commented out."""
+        """Window, render resolution, textures and WipEout's temporal AA/upscaling controls."""
         f = self.scrolled_page('graphics', _('Graphics', 'Графика'), _('How the game appears on your screen.'))
         self.build_display(f)
         self.section(f, _('Resolution'))
@@ -2089,7 +2088,7 @@ class Launcher:
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
 
     def build_music_page(self):
-        """Your own music: a guide, the folder, the switches (gow3.ini, also in the in-game Music tab)
+        """Your own music: a guide, the folder, the switches (wipeout_oc.ini, also in the in-game Music tab)
         and the songs found."""
         tk, ttk = self.tk, self.ttk
         f = self.scrolled_page('music', _('Music'), _("Play your own songs in the game instead of its music."))
@@ -2180,7 +2179,7 @@ class Launcher:
 
     def build_patches(self, f):
         """Community patches of the selected game's built-in XML, on the Game page. Resolution and
-        frame rate patches follow Performance (gow3.ini; run.py adds them)."""
+        frame rate patches follow Performance (wipeout_oc.ini; run.py adds them)."""
         self.section(f, _('Game patches', 'Патчи игры'))
         self.game_patch_frame = self.ttk.Frame(f)
         self.game_patch_frame.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we')
@@ -2230,7 +2229,7 @@ class Launcher:
 
     def store_game_patches(self):
         """The page's selection into settings (the whole list for this game, without the resolution
-        and frame rate patches: run.py adds those from gow3.ini)."""
+        and frame rate patches: run.py adds those from wipeout_oc.ini)."""
         if not self.game_patch_title:
             return
         self.app.setdefault('game_patches', {})[self.game_patch_title] = \
@@ -2663,7 +2662,7 @@ class Launcher:
         from patches import game_patchable, patch_status
         if not game_patchable(self.meta_dir()):
             return _('{} · 60 FPS · no patches for this game').format(resolution)
-        # No engine frame rate: WipEout's profile sets 240 (God of War III's engine_fps setting does nothing here).
+        # This summary lists selected patches; run.py derives the effective engine rate at launch.
         text = _('{} · {} patches').format(resolution, len(names))
         # Which patches the game's eboot.bin had is known once the game has started (patches.py).
         status = patch_status(DATA_DIR / 'out')
@@ -2910,7 +2909,7 @@ class Launcher:
             self.refresh_lists()
 
     def gather(self):
-        """What collect() writes, as data: settings.json, the gow3.ini values, the mods selection and
+        """What collect() writes, as data: settings.json, the wipeout_oc.ini values, the mods selection and
         the third-party patches selection. Reads the window and changes nothing."""
         app, ini = dict(self.app), dict(self.ini)
         if self.game_patch_title:
@@ -2937,7 +2936,7 @@ class Launcher:
         return {'app': app, 'ini': ini, 'mods': mods, 'patches': patches}
 
     def collect(self):
-        """Writes settings.json, gow3.ini, mods.json and patches.json."""
+        """Writes settings.json, wipeout_oc.ini, mods.json and patches.json."""
         state = self.gather()
         try:
             _disk, lines = load_ini()

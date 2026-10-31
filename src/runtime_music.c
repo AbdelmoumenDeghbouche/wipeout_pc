@@ -3,7 +3,7 @@
  * (sceAudioOut type 1) carries only its music. FFmpeg decodes the files to 48 kHz stereo float on
  * their own thread. Each song is leveled (mean square over ~8 s, without the bass below ~150 Hz)
  * to a fixed level times "music_volume", not to the game's level; only the game's silences and fades
- * are followed (runtime_music_bgm). "music" and "music_shuffle" in gow3.ini (launcher's Music page, in-game menu's Music
+ * are followed (runtime_music_bgm). "music" and "music_shuffle" in wipeout_oc.ini (launcher's Music page, in-game menu's Music
  * tab) turn them off or play the list in order; the Music tab picks a song or skips
  * (runtime_music_play, runtime_music_step). Songs in a "menu" subfolder play in the menus only,
  * the others in races (#66); the game's sound banks tell which (runtime_music_scene). */
