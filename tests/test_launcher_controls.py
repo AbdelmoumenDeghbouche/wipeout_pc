@@ -299,7 +299,7 @@ class ControlMapTest(unittest.TestCase):
     def test_graphics_defaults_match_the_game(self):
         d = launcher.INI_DEFAULTS
         self.assertEqual((d['display_mode'], d['vsync'], d['fps_limit'], d['engine_fps']), ('windowed', '1', '0', '120'))
-        self.assertEqual([v for v, _t in launcher.FPS_LIMITS], ['30', '40', '60', '100', '120', '240', '0'])
+        self.assertEqual([v for v, _t in launcher.FPS_LIMITS], ['30', '40', '60', '100', '120', '144', '165', '240', '0'])
         self.assertEqual(d['frames_queued'], '1')
         self.assertEqual([v for v, _t in launcher.FRAMES_QUEUED], ['1', '2', '0'])
         self.assertNotIn('WIPEOUT_OC_FRAMES_AHEAD', launcher.game_environment({**launcher.APP_DEFAULTS, 'frames_ahead': '2'}))
@@ -807,11 +807,21 @@ class QuietStreamTest(unittest.TestCase):
         self.assertEqual(stream.fileno(), 7)
 
 
+class TextureQualityTest(unittest.TestCase):
+    def test_texture_limit_reaches_the_game_only_when_lowered(self):
+        # #72, #16: Low and Medium cap the largest textures; Full (default) sets nothing.
+        self.assertEqual([v for v, _t in launcher.TEXTURE_LIMITS], ['', '4096', '2048'])
+        with mock.patch.dict(os.environ, {'GOW3_TEXTURE_LIMIT': '1024'}):
+            self.assertNotIn('GOW3_TEXTURE_LIMIT', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
+            low = launcher.game_environment({**launcher.APP_DEFAULTS, 'texture_limit': '2048'})
+        self.assertEqual(low['WIPEOUT_OC_TEXTURE_LIMIT'], '2048')
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.43')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.44'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.42'))
+        self.assertEqual(launcher.VERSION, '0.2.49')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.50'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.48'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.

@@ -41,8 +41,8 @@ typedef struct stat HostStat;
 #endif
 #define ERR(n) ((int32_t)(UINT32_C(0x80020000)|(n)))
 #define MAX_FILES 1024
-/* Five defaults, eight asset overrides, pause menu and sixteen save slots. */
-#define MAX_MOUNTS 32
+/* Five defaults, 32 asset overrides (--mount), pause menu and sixteen save slots. */
+#define MAX_MOUNTS 64
 
 typedef struct { int64_t sec, nsec; } GuestTimespec;
 typedef struct {
@@ -58,7 +58,7 @@ typedef struct {
 _Static_assert(sizeof(GuestStat)==120,"FreeBSD stat layout");
 
 typedef struct { char *names; size_t count, *offsets; unsigned char *types; } Listing;
-typedef struct { int used, host; Listing *dir; size_t position; char path[512]; } File;
+typedef struct { int used, host, patched; Listing *dir; size_t position; char path[512]; } File;
 typedef struct { char guest[64]; char host[512]; } Mount;
 static File files[MAX_FILES];
 static Mount mounts[MAX_MOUNTS];
@@ -86,6 +86,57 @@ void runtime_file_unmount(const char *guest) {
     }
     pthread_mutex_unlock(&lock);
 }
+/* GOW3_FILE_PATCHES=<file>: same-length byte changes the game reads in its own files, the files
+ * on disk untouched (scripts/menu_patches.py writes them: "guest-path offset original new" per
+ * line, hex). A change applies once the file is found to hold its original bytes. */
+typedef struct { char guest[128]; int64_t offset; size_t length; unsigned char original[512], data[512]; int state; } FilePatch;
+static FilePatch file_patches[8];
+static size_t file_patch_count;
+static int hex_bytes(const char *hex,unsigned char *out,size_t max) {
+    size_t n=strlen(hex);
+    if (n%2 || n/2>max) return -1;
+    for (size_t i=0;i<n/2;++i) { unsigned v; if (sscanf(hex+2*i,"%2x",&v)!=1) return -1; out[i]=(unsigned char)v; }
+    return (int)(n/2);
+}
+static void load_file_patches(void) {
+    const char *path=wipeout_oc_getenv("WIPEOUT_OC_FILE_PATCHES");
+    FILE *f=path && *path ? fopen(path,"r") : NULL;
+    if (!f) return;
+    char line[2200], guest[128], original[1100], data[1100]; long long offset;
+    while (file_patch_count<sizeof(file_patches)/sizeof(*file_patches) && fgets(line,sizeof(line),f)) {
+        FilePatch *p=&file_patches[file_patch_count];
+        if (sscanf(line,"%127s %llx %1099s %1099s",guest,&offset,original,data)!=4) continue;
+        int a=hex_bytes(original,p->original,sizeof(p->original)), b=hex_bytes(data,p->data,sizeof(p->data));
+        if (a<=0 || a!=b || offset<0) continue;
+        snprintf(p->guest,sizeof(p->guest),"%s",guest);
+        p->offset=offset; p->length=(size_t)a; p->state=0;
+        ++file_patch_count;
+    }
+    fclose(f);
+}
+/* At open: whether the guest file has a change that applies (its original bytes are there). */
+static int file_patches_check(const char *guest,int host) {
+    int found=0;
+    for (size_t i=0;i<file_patch_count;++i) {
+        FilePatch *p=&file_patches[i];
+        if (strcasecmp(p->guest,guest)) continue;
+        if (!p->state) {
+            unsigned char now[512];
+            p->state=pread(host,now,p->length,p->offset)==(ssize_t)p->length && !memcmp(now,p->original,p->length) ? 1 : -1;
+            printf("Runtime: file patch %s @0x%llx %s\n",guest,(long long)p->offset,p->state>0 ? "applies" : "skipped (other bytes)");
+        }
+        found|=p->state>0;
+    }
+    return found;
+}
+static void file_patches_apply(const char *guest,unsigned char *buffer,int64_t at,int64_t n) {
+    for (size_t i=0;i<file_patch_count;++i) {
+        const FilePatch *p=&file_patches[i];
+        if (p->state<=0 || strcasecmp(p->guest,guest)) continue;
+        const int64_t from=p->offset>at ? p->offset : at, to=p->offset+(int64_t)p->length<at+n ? p->offset+(int64_t)p->length : at+n;
+        if (from<to) memcpy(buffer+(from-at),p->data+(from-p->offset),(size_t)(to-from));
+    }
+}
 static char user_root[512]="user";
 const char *runtime_file_user_dir(void) { return user_root; }
 void runtime_file_configure(const char *app0,const char *user) {
@@ -93,6 +144,7 @@ void runtime_file_configure(const char *app0,const char *user) {
     snprintf(user_root,sizeof(user_root),"%s",user);
     runtime_file_mount("/app0",app0);
     runtime_file_mount("/hostapp",app0);
+    load_file_patches();
     const char *writable[]={"temp0","download0","data"};
     mkdir(user,0755);
     for (int i=0;i<3;++i) {
@@ -212,6 +264,7 @@ static int game_path(const char *p) {
 /* All operations return >=0 or -(host errno); wrappers adapt the convention. */
 static int64_t do_open(const char *guest,int flags,int mode) {
     if (game_path(guest) && (flags & (3|0x8|0x200|0x400|0x800))) return -EROFS;
+    if (game_path(guest)) runtime_music_scene(guest);
     char path[1024];
     int e=translate(guest,path,sizeof(path));
     if (e) return -e;
@@ -252,7 +305,8 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     int fd=-1;
     for (int i=3;i<MAX_FILES;++i) if (!files[i].used) { fd=i; break; }
     if (fd<0) { pthread_mutex_unlock(&lock); if (host>=0) close(host); free_listing(dir); return -EMFILE; }
-    files[fd]=(File){.used=1,.host=host,.dir=dir};
+    files[fd]=(File){.used=1,.host=host,.dir=dir,
+                     .patched=file_patch_count && host>=0 && game_path(guest) && file_patches_check(guest,host)};
     snprintf(files[fd].path,sizeof(files[fd].path),"%s",guest);
     ++opens;
     pthread_mutex_unlock(&lock);
@@ -294,32 +348,46 @@ static ssize_t host_write(int h,const void *buffer,uint64_t size) { return write
 #define host_read read
 #define host_write write
 #endif
-/* Pages of the destination may be write-protected for GPU tracking: the kernel's copy then
- * fails with EFAULT instead of faulting to our handler. A user-mode write to each page first
- * goes through the handler, which unprotects it (and records the upcoming write). */
-static void touch_for_write(void *buffer,uint64_t size) {
-    if (!size) return;
-    uintptr_t p=(uintptr_t)buffer & ~(uintptr_t)4095, end=(uintptr_t)buffer+size;
-    for (; p<end; p+=4096) {
-        volatile unsigned char *b=(volatile unsigned char *)(p<(uintptr_t)buffer ? (uintptr_t)buffer : p);
-        *b=*b;
+/* Pages of the destination may be protected for GPU tracking: the kernel's copy then fails with
+ * EFAULT/EIO instead of faulting to our handler. Reads go through a per-thread buffer and are
+ * copied to the game's memory with user-mode writes, which the handler resolves. A user-mode
+ * write to each page before the read (the former way) left a window: between it and the kernel's
+ * copy the GPU thread could protect a page again (texture tracking, readback watches), and the read failed with
+ * EIO/EFAULT. The game then dropped the texture and the model using it: an invisible ship in
+ * ship select until a restart ("Failed to read Gnf texels"). offset<0: at the current position. */
+#define BOUNCE (1u<<20)
+static int64_t bounce_read(int h,void *buffer,uint64_t size,int64_t offset) {
+    static _Thread_local unsigned char *bounce;
+    if (!bounce && !(bounce=malloc(BOUNCE))) return -ENOMEM;
+    uint64_t done=0;
+    while (done<size) {
+        const uint64_t want=size-done<BOUNCE ? size-done : BOUNCE;
+        const ssize_t n=offset<0 ? host_read(h,bounce,want) : pread(h,bounce,want,offset+(int64_t)done);
+        if (n<0) return done ? (int64_t)done : -errno;
+        memcpy((unsigned char *)buffer+done,bounce,(size_t)n);
+        done+=(uint64_t)n;
+        if ((uint64_t)n<want) break; /* end of file */
     }
+    return (int64_t)done;
 }
 static int64_t do_read(int fd,void *buffer,uint64_t size) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
-    touch_for_write(buffer,size);
-    ssize_t n=host_read(h,buffer,size);
-    if (n<0) { if (audio_trace()) printf("Audio trace: read(fd %d, %llu) failed, errno %d\n",fd,(unsigned long long)size,errno); return -errno; }
+    const File *f=get(fd);
+    const int64_t at=f && f->patched ? host_lseek(h,0,SEEK_CUR) : 0;
+    const int64_t n=bounce_read(h,buffer,size,-1);
+    if (n<0) { if (audio_trace()) printf("Audio trace: read(fd %d, %llu) failed, errno %d\n",fd,(unsigned long long)size,(int)-n); return n; }
+    if (f && f->patched) file_patches_apply(f->path,buffer,at,n);
     __atomic_add_fetch(&reads,1,__ATOMIC_RELAXED); __atomic_add_fetch(&bytes_read,(uint64_t)n,__ATOMIC_RELAXED);
     return n;
 }
 static int64_t do_pread(int fd,void *buffer,uint64_t size,int64_t offset) {
     int h=host_fd(fd);
     if (h<0) return -EBADF;
-    touch_for_write(buffer,size);
-    ssize_t n=pread(h,buffer,size,offset);
-    if (n<0) { if (audio_trace()) printf("Audio trace: pread(fd %d, %llu @%lld) failed, errno %d\n",fd,(unsigned long long)size,(long long)offset,errno); return -errno; }
+    const int64_t n=bounce_read(h,buffer,size,offset);
+    if (n<0) { if (audio_trace()) printf("Audio trace: pread(fd %d, %llu @%lld) failed, errno %d\n",fd,(unsigned long long)size,(long long)offset,(int)-n); return n; }
+    const File *f=get(fd);
+    if (f && f->patched) file_patches_apply(f->path,buffer,offset,n);
     __atomic_add_fetch(&reads,1,__ATOMIC_RELAXED); __atomic_add_fetch(&bytes_read,(uint64_t)n,__ATOMIC_RELAXED);
     return n;
 }

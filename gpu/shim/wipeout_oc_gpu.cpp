@@ -441,6 +441,10 @@ extern "C" int wipeout_oc_gpu_music_volume(void) {
     return WipeoutOCSettings::Get().music_volume.load(std::memory_order_relaxed);
 }
 
+extern "C" int wipeout_oc_gpu_game_music_volume(void) {
+    return WipeoutOCSettings::Get().game_music_volume.load(std::memory_order_relaxed);
+}
+
 extern "C" void wipeout_oc_gpu_mouse_pause_key(void) {
     Frontend::ToggleMousePause();
 }

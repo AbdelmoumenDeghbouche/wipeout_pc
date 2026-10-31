@@ -33,6 +33,7 @@ struct PageState {
     u8 AddDelta() {
         if constexpr (is_read) {
             if constexpr (delta == 1) {
+                ASSERT_MSG(num_read_watchers < 0xFF, "Too many watchers");
                 return ++num_read_watchers;
             } else if (delta == -1) {
                 ASSERT_MSG(num_read_watchers > 0, "Not enough watchers");
@@ -42,6 +43,7 @@ struct PageState {
             }
         } else {
             if constexpr (delta == 1) {
+                ASSERT_MSG(num_write_watchers < 0xFF, "Too many watchers");
                 return ++num_write_watchers;
             } else if (delta == -1) {
                 ASSERT_MSG(num_write_watchers > 0, "Not enough watchers");

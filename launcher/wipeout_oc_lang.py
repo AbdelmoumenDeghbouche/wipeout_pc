@@ -956,6 +956,37 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antisserrilhamento temporal',
         'Shuffle': 'Aleatório',
         'Music volume': 'Volume da música',
+        'In-game menu patches': 'Patches dos menus do jogo',
+        'Eliminator target limit': 'Limite do alvo do Eliminator',
+        "The highest target of the Eliminator slider in the race setup (the game's own: 600 points).":
+            'O alvo mais alto do controle do Eliminator na configuração da corrida (o do jogo: 600 pontos).',
+        'Upscaling': 'Upscaling',
+        'Off (full resolution)': 'Desligado (resolução completa)',
+        'Quality (scene at 1/1.5)': 'Qualidade (cena a 1/1,5)',
+        'Balanced (scene at 1/1.7)': 'Equilibrado (cena a 1/1,7)',
+        'Performance (scene at 1/2)': 'Desempenho (cena a 1/2)',
+        'Draws the race at a lower resolution and scales it up with the method above: more FPS, a softer picture. The HUD and menus stay sharp. Off: smooth edges only, at full resolution. Also in the game: Insert > Image.':
+            'Desenha a corrida numa resolução menor e aumenta com o método acima: mais FPS, imagem mais suave. O HUD e os menus continuam nítidos. Desligado: só suaviza as bordas, na resolução completa. Também no jogo: Insert > Image.',
+        'Button layout': 'Layout dos botões',
+        "Standard (the game's)": 'Padrão (o do jogo)',
+        'Racer: R2 accelerate, L2 brake': 'Racer: R2 acelera, L2 freia',
+        "Racer (as on the PS Vita): R2 accelerates, L2 brakes, Square with left or right is that air brake, Cross fires, Circle absorbs. Keep the game's own controls at their default with it.":
+            'Racer (como no PS Vita): R2 acelera, L2 freia, Quadrado com esquerda ou direita é esse freio aéreo, X dispara, Círculo absorve. Deixe os controles do próprio jogo no padrão com ele.',
+        'Menu songs: put the songs for the menus in a subfolder named menu. They play only in the menus, and the other songs play in races.':
+            'Músicas do menu: coloque as músicas para os menus numa subpasta chamada menu. Elas tocam só nos menus, e as outras músicas tocam nas corridas.',
+        'Texture quality': 'Qualidade das texturas',
+        'Full (default)': 'Completa (padrão)',
+        'Medium (largest textures at 4096)': 'Média (texturas maiores em 4096)',
+        'Low (for 4 GB graphics cards)': 'Baixa (para placas de vídeo de 4 GB)',
+        'Low loads the largest textures at half size or less: about 1 GB less video memory in a race. For graphics cards with 4 GB that crash or freeze in races.':
+            'Baixa carrega as maiores texturas com metade do tamanho ou menos: cerca de 1 GB a menos de memória de vídeo numa corrida. Para placas de 4 GB que travam ou fecham nas corridas.',
+        'Save data folder (optional)': 'Pasta dos saves (opcional)',
+        'Choose the save data folder': 'Escolha a pasta dos saves',
+        'Only the saves, in a folder of their own: for example a network share two PCs play from (not both at once). Empty: savedata in the saves folder.':
+            'Só os saves, numa pasta própria: por exemplo uma pasta de rede usada por dois PCs (não ao mesmo tempo). Vazio: savedata na pasta de saves.',
+        'Game music volume': 'Volume da música do jogo',
+        "The game's own music, on top of its Audio Options. Above 100% it is louder than the game allows; very loud parts may clip.":
+            'A música do próprio jogo, além das Opções de Áudio dele. Acima de 100% fica mais alta do que o jogo permite; partes muito altas podem distorcer.',
         "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
             '100%: mais ou menos o volume da música do próprio jogo. Cada música é nivelada, então músicas baixas e altas soam parecidas.',
         'Off: the songs play in the order of the list below.': 'Desligado: as músicas tocam na ordem da lista abaixo.',
@@ -1307,6 +1338,37 @@ EXTRA = {
         'Temporal anti-aliasing': 'Antialiasing temporal',
         'Shuffle': 'Aleatorio',
         'Music volume': 'Volumen de la música',
+        'In-game menu patches': 'Parches de los menús del juego',
+        'Eliminator target limit': 'Límite del objetivo de Eliminator',
+        "The highest target of the Eliminator slider in the race setup (the game's own: 600 points).":
+            'El objetivo más alto del control de Eliminator en la configuración de la carrera (el del juego: 600 puntos).',
+        'Upscaling': 'Escalado',
+        'Off (full resolution)': 'Desactivado (resolución completa)',
+        'Quality (scene at 1/1.5)': 'Calidad (escena a 1/1,5)',
+        'Balanced (scene at 1/1.7)': 'Equilibrado (escena a 1/1,7)',
+        'Performance (scene at 1/2)': 'Rendimiento (escena a 1/2)',
+        'Draws the race at a lower resolution and scales it up with the method above: more FPS, a softer picture. The HUD and menus stay sharp. Off: smooth edges only, at full resolution. Also in the game: Insert > Image.':
+            'Dibuja la carrera a una resolución menor y la escala con el método de arriba: más FPS, imagen más suave. El HUD y los menús siguen nítidos. Desactivado: solo suaviza los bordes, a resolución completa. También en el juego: Insert > Image.',
+        'Button layout': 'Distribución de botones',
+        "Standard (the game's)": 'Estándar (la del juego)',
+        'Racer: R2 accelerate, L2 brake': 'Racer: R2 acelera, L2 frena',
+        "Racer (as on the PS Vita): R2 accelerates, L2 brakes, Square with left or right is that air brake, Cross fires, Circle absorbs. Keep the game's own controls at their default with it.":
+            'Racer (como en PS Vita): R2 acelera, L2 frena, Cuadrado con izquierda o derecha es ese aerofreno, X dispara, Círculo absorbe. Deja los controles del propio juego en su valor predeterminado con él.',
+        'Menu songs: put the songs for the menus in a subfolder named menu. They play only in the menus, and the other songs play in races.':
+            'Canciones del menú: pon las canciones para los menús en una subcarpeta llamada menu. Suenan solo en los menús, y las demás canciones suenan en las carreras.',
+        'Texture quality': 'Calidad de texturas',
+        'Full (default)': 'Completa (predeterminada)',
+        'Medium (largest textures at 4096)': 'Media (texturas más grandes a 4096)',
+        'Low (for 4 GB graphics cards)': 'Baja (para tarjetas gráficas de 4 GB)',
+        'Low loads the largest textures at half size or less: about 1 GB less video memory in a race. For graphics cards with 4 GB that crash or freeze in races.':
+            'Baja carga las texturas más grandes a la mitad de tamaño o menos: cerca de 1 GB menos de memoria de vídeo en una carrera. Para tarjetas gráficas de 4 GB que se cierran o se congelan en carreras.',
+        'Save data folder (optional)': 'Carpeta de partidas guardadas (opcional)',
+        'Choose the save data folder': 'Elige la carpeta de partidas guardadas',
+        'Only the saves, in a folder of their own: for example a network share two PCs play from (not both at once). Empty: savedata in the saves folder.':
+            'Solo las partidas, en una carpeta propia: por ejemplo una carpeta de red que usan dos PCs (no a la vez). Vacío: savedata en la carpeta de guardado.',
+        'Game music volume': 'Volumen de la música del juego',
+        "The game's own music, on top of its Audio Options. Above 100% it is louder than the game allows; very loud parts may clip.":
+            'La música del propio juego, además de sus Opciones de audio. Por encima de 100% suena más fuerte de lo que el juego permite; las partes muy fuertes pueden saturar.',
         "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs sound alike.":
             '100%: más o menos el volumen de la música del propio juego. Cada canción se nivela, así que las canciones suaves y fuertes suenan parecido.',
         'Off: the songs play in the order of the list below.': 'Desactivado: las canciones suenan en el orden de la lista de abajo.',
@@ -1614,6 +1676,13 @@ EXTRA['es'].update({
     'To report it, attach this file to your GitHub issue:\n{}\n\nShow the file now?':
         'Para informarlo, adjunta este archivo a tu issue de GitHub:\n{}\n\n¿Mostrar el archivo ahora?',
 })
+
+EXTRA['pl'] = {
+    'In-game menu patches': 'Łatki menu gry',
+    'Eliminator target limit': 'Limit celu Eliminatora',
+    "The highest target of the Eliminator slider in the race setup (the game's own: 600 points).":
+        'Najwyższy cel suwaka Eliminatora w ustawieniach wyścigu (w samej grze: 600 punktów).',
+}
 
 _tables = {}
 

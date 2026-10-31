@@ -6,7 +6,7 @@ Every setting of the port in one window: the game folder and saves, wipeout_oc.i
 preset, output, effects), start-up options passed to run.py as environment variables
 (frame rate, presentation, HDR, ...), mods, third-party patches and controls.
 Launcher options live in %APPDATA%/wipeout-launcher/settings.json (~/.config/wipeout-launcher on Linux).
-Legacy gow3.ini and GOW3_CONFIG remain compatibility inputs; the canonical name takes precedence.
+Legacy gow3.ini and WIPEOUT_OC_CONFIG remain compatibility inputs; the canonical name takes precedence.
 
 Frozen with PyInstaller (packaging/windows/package.sh) the same WipEout.exe also runs the
 game without the window (`--play`), run.py (`--run`) and the preparation scripts (`--script`),
@@ -64,7 +64,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.43'
+VERSION = '0.2.49'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 # The title face (Russo One), next to wipeout_oc.ico; main() registers it for this process only.
@@ -411,7 +411,7 @@ def heading_font(size, fallback=None, every_language=False):
 INI_FLAGS = {'object_motion', 'show_fps', 'vsync', 'async_shaders', 'deferred_readback',
              'stale_readback', 'music', 'music_shuffle', 'music_continue'}
 # The graphics keys are also in the in-game menu (Insert / R3+L2); run.py reads the startup ones.
-INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
+INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '0', 'dlss_preset': '0',
                 'object_motion': '1', 'show_fps': '1', 'output_res': '1920x1080',
                 'live_resolution': 'auto', 'display_mode': 'windowed', 'vsync': '1', 'fps_limit': '0',
                 'async_shaders': '1', 'deferred_readback': '1', 'stale_readback': '1',
@@ -419,10 +419,10 @@ INI_DEFAULTS = {'upscaler': 'fsr3', 'preset': '1', 'dlss_preset': '0',
                 'frames_queued': '1',
                 'anisotropy': '0', 'vibration': '100', 'stick_deadzone': '0', 'mouse_lock': '1',
                 'music': '1', 'music_shuffle': '1', 'music_continue': '0',
-                'music_volume': '100'}
+                'music_volume': '100', 'game_music_volume': '100'}
 DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), ('fullscreen', ('Fullscreen',))]
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
-FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('240', ('240',)), ('0', ('Unlimited',))]
+FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('144', ('144',)), ('165', ('165',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
 PAGES = ('home', 'graphics', 'performance', 'game', 'cheats', 'music', 'controls', 'mods', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
@@ -430,17 +430,19 @@ PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
+# WIPEOUT_OC_PAD_SCHEME (src/runtime_pad.c apply_scheme): the Vita's "Racer" layout of WipEout 2048 (#99).
+PAD_SCHEMES = [('', ("Standard (the game's)",)), ('racer', ('Racer: R2 accelerate, L2 brake',))]
 GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('3', ('Third connected',)),
                    ('4', ('Fourth connected',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': getenv('WIPEOUT_OC_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
-                'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '',
+                'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '', 'savedata_dir': '',
                 'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
-                'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached',
+                'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached', 'texture_limit': '',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1',
-                'controls_layout': 2}
+                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
+                'controls_layout': 2, 'eliminator_limit': '2000'}
 
 # PS4 button, default key, default gamepad button (SDL names; src/runtime_pad.c). L2/R2 come
 # from the analog triggers and the left touchpad click (photo mode) from L1 + the right click's
@@ -661,6 +663,10 @@ DLSS_PRESETS = [('0', ('Driver default (K)',)), ('11', ('K (transformer)',)),
                 ('10', ('J (less ghosting, more flicker)',))]
 PRESETS = [('0', ('Native AA (×1.0)',)), ('1', ('Quality (×1.5)',)), ('2', ('Balanced (×1.7)',)),
            ('3', ('Performance (×2)',)), ('4', ('Ultra Performance (×3)',))]
+# The upscaling choice of the Anti-aliasing section (#51): the scene at 1/x of the render
+# resolution per axis, scaled up by FSR 3.1 or DLSS; the HUD stays at full size.
+UPSCALE_PRESETS = [('0', ('Off (full resolution)',)), ('1', ('Quality (scene at 1/1.5)',)),
+                   ('2', ('Balanced (scene at 1/1.7)',)), ('3', ('Performance (scene at 1/2)',))]
 OUTPUTS = [('1280x720', ('1280 × 720 (Steam Deck)',)), ('1920x1080', ('1920 × 1080',)),
            ('2560x1440', ('2560 × 1440',)), ('3840x2160', ('3840 × 2160 (4K)',))]
 LIVE = [('auto', ('Auto (by graphics card)', 'Авто (по видеокарте)')), ('0', ('Off (faster)', 'Выключена (быстрее)')),
@@ -714,6 +720,9 @@ STREAM_MEMORY = [('cached', ('System RAM (cached, default)',)),
                  ('host', ('System RAM (uncached)',)),
                  ('device', ('GPU memory (previous behavior)',))]
 FRAMES_QUEUED = [('1', ('1 (lowest latency)',)), ('2', ('2',)), ('0', ('Unlimited',))]
+# WIPEOUT_OC_TEXTURE_LIMIT (texture_cache.h LimitTextureSize): the largest textures load at most this big.
+TEXTURE_LIMITS = [('', ('Full (default)',)), ('4096', ('Medium (largest textures at 4096)',)),
+                  ('2048', ('Low (for 4 GB graphics cards)',))]
 # The Cheats page: (setting, patch in the game's patch file, title, hint).
 CHEATS = (('cheat_events', 'Cheat - Unlock all HD and Fury events', 'Unlock all HD and HD Fury events',
            ('Every event of the HD and HD Fury campaigns is open; the campaign screen shows 99998 points. '
@@ -1227,7 +1236,13 @@ def game_environment(s):
         env['WIPEOUT_OC_PATCHES'] = ';'.join([n for n in env.get('WIPEOUT_OC_PATCHES', '').split(';') if n] + cheats)
     if s['user_dir']:
         env['WIPEOUT_OC_USER_DIR'] = s['user_dir']
+    env.pop('WIPEOUT_OC_SAVEDATA_DIR', None)
+    if s.get('savedata_dir'):
+        env['WIPEOUT_OC_SAVEDATA_DIR'] = s['savedata_dir']
     env['WIPEOUT_OC_GAMEPAD'] = str(s.get('gamepad_number') or '1')
+    env.pop('WIPEOUT_OC_PAD_SCHEME', None)
+    if s.get('pad_scheme') == 'racer':
+        env['WIPEOUT_OC_PAD_SCHEME'] = 'racer'
     env.pop('WIPEOUT_OC_MUSIC_DIR', None)
     if s.get('music_dir'):
         env['WIPEOUT_OC_MUSIC_DIR'] = s['music_dir']
@@ -1239,6 +1254,7 @@ def game_environment(s):
     env['WIPEOUT_OC_PATCHES_DIR'] = s['patches_dir'] or str(DATA_DIR / 'patches')
     env['WIPEOUT_OC_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
     env['WIPEOUT_OC_LANGUAGE'] = s['language']
+    env['WIPEOUT_OC_ELIMINATOR_LIMIT'] = str(s.get('eliminator_limit', APP_DEFAULTS['eliminator_limit']))
     env['WIPEOUT_OC_DISCORD'] = '1' if s.get('discord_rpc') else '0'
     if s['hdr']:
         env['WIPEOUT_OC_HDR'] = '1'
@@ -1249,6 +1265,9 @@ def game_environment(s):
     # The saved UI choice wins over inherited diagnostic overrides, including when reverting.
     stream_memory = s.get('stream_memory', APP_DEFAULTS['stream_memory'])
     env['WIPEOUT_OC_STREAM_MEMORY'] = stream_memory if stream_memory in ('cached', 'host', 'device') else 'cached'
+    env.pop('WIPEOUT_OC_TEXTURE_LIMIT', None)
+    if s.get('texture_limit') in ('4096', '2048'):
+        env['WIPEOUT_OC_TEXTURE_LIMIT'] = s['texture_limit']
     gpu_id = str(s.get('gpu_id', ''))
     env.pop('WIPEOUT_OC_GPU_ID', None)
     if gpu_id.isdigit():
@@ -1657,11 +1676,11 @@ class Launcher:
         self.ttk.Label(parent, text=text, style='Muted.TLabel', wraplength=self.px(680), justify='left').grid(
             row=self.next_row(parent), column=0, columnspan=2, sticky='w', pady=self.px((top, 0)))
 
-    def slider(self, parent, key, low, high, unit):
-        """A gow3.ini number on a slider, with its value beside it."""
+    def slider(self, parent, key, low, high, unit, store='ini', step=1):
+        """A gow3.ini (or launcher) number on a slider, with its value beside it."""
         holder = self.ttk.Frame(parent)
-        amount = self.var(key, 'ini')
-        self.tk.Scale(holder, from_=low, to=high, orient='horizontal', variable=amount, showvalue=False,
+        amount = self.var(key, store)
+        self.tk.Scale(holder, from_=low, to=high, resolution=step, orient='horizontal', variable=amount, showvalue=False,
                       length=self.px(260), width=self.px(12), sliderlength=self.px(18), bg=ACCENT, troughcolor=CARD,
                       activebackground=ACCENT_HI, highlightthickness=0, bd=0, sliderrelief='flat').pack(side='left')
         value = self.ttk.Label(holder, width=7)
@@ -1885,6 +1904,9 @@ class Launcher:
         self.row(f, _('Render resolution'), self.choice(f, 'render_resolution', 'ini', self.game_resolution_options()),
                  _('Sizes with a resolution patch for this game. Wider than 16:9 keeps the HUD at 16:9.'),
                  restart=True)
+        self.row(f, _('Texture quality'), self.choice(f, 'texture_limit', 'app', TEXTURE_LIMITS),
+                 _('Low loads the largest textures at half size or less: about 1 GB less video memory in a race. '
+                   'For graphics cards with 4 GB that crash or freeze in races.'), restart=True)
         self.check(f, 'ps4_pro', 'app', _('PS4 Pro mode (experimental)'),
                    _('The game runs as on a PS4 Pro, with its Pro graphics. Menus and a race start work; other events '
                      'are not tested yet. Turn it off if something looks wrong.'), restart=True)
@@ -1900,6 +1922,10 @@ class Launcher:
                  restart=True)
         if WINDOWS:
             self.build_dlss_row(f)
+        self.row(f, _('Upscaling'), self.choice(f, 'preset', 'ini', UPSCALE_PRESETS),
+                 _('Draws the race at a lower resolution and scales it up with the method above: more FPS, a '
+                   'softer picture. The HUD and menus stay sharp. Off: smooth edges only, at full resolution. '
+                   'Also in the game: Insert > Image.'))
         # Only DLAA has presets; FSR 3.1 at native size has none (its quality modes choose
         # an upscaling ratio). The row (title, box, note) hides with another method.
         first = self.next_row(f)
@@ -2042,12 +2068,22 @@ class Launcher:
                     _('Choose the saves folder', 'Выберите папку сохранений'),
                     _('Empty: {} (shader caches are kept there too).',
                       'Пусто: {} (там же кэш шейдеров).').format(DATA_DIR / 'user'), on_change=self.refresh_status)
+        self.folder(f, 'savedata_dir', _('Save data folder (optional)'), _('Choose the save data folder'),
+                    _('Only the saves, in a folder of their own: for example a network share two PCs play '
+                      'from (not both at once). Empty: savedata in the saves folder.'), on_change=self.refresh_status)
         self.section(f, _('Saves'))
         self.build_save_backups(f)
         self.section(f, _('Language'))
         self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app',
                                                                   lambda: game_languages(self.meta_dir())))
         self.build_patches(f)
+        # scripts/menu_patches.py (#89): each digit over 3 takes an indentation space (the menu has 4).
+        self.section(f, _('In-game menu patches', 'Патчи меню игры'))
+        self.row(f, _('Eliminator target limit', 'Предел цели Eliminator'),
+                 self.slider(f, 'eliminator_limit', 600, 10000, '', store='app', step=100),
+                 _("The highest target of the Eliminator slider in the race setup (the game's own: 600 points).",
+                   'Наибольшая цель ползунка Eliminator в настройке гонки (в самой игре: 600 очков).'),
+                 restart=True)
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
@@ -2063,6 +2099,8 @@ class Launcher:
                        "effects stay. Set how loud with Music volume below.\n"
                        "3. In the game, press Insert (or R3 + L2) and open the Music tab: pick a song, skip to the "
                        "next one or turn shuffle off."), top=8)
+        self.note(f, _("Menu songs: put the songs for the menus in a subfolder named menu. They play only in the "
+                       "menus, and the other songs play in races."), top=8)
         self.section(f, _('Settings'))
         self.folder(f, 'music_dir', _('Music folder'), _('Choose your music folder'),
                     _('Empty: the music folder next to your saves.'), on_change=self.refresh_music)
@@ -2073,6 +2111,9 @@ class Launcher:
         self.row(f, _('Music volume'), self.slider(f, 'music_volume', 0, 200, '%'),
                  _("100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
                    "sound alike."))
+        self.row(f, _('Game music volume'), self.slider(f, 'game_music_volume', 0, 300, '%'),
+                 _("The game's own music, on top of its Audio Options. Above 100% it is louder than the game "
+                   "allows; very loud parts may clip."))
         head = ttk.Frame(f)
         head.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we', pady=self.px((24, 0)))
         ttk.Label(head, text=_('Songs').upper(), style='Section.TLabel').pack(side='left')
@@ -2128,7 +2169,7 @@ class Launcher:
                                                     'The current saves are backed up first.').format(name)):
             return
         try:
-            safety = save_backup.restore(self.user_dir(), name)
+            safety = save_backup.restore(self.user_dir(), name, savedata=self.var('savedata_dir', 'app').get() or None)
         except (OSError, ValueError) as error:
             self.messagebox.showerror(APP_NAME, _('Could not restore: {}').format(error))
             return
@@ -2337,6 +2378,10 @@ class Launcher:
         self.row(f, _('Controller type'), names)
         self.row(f, _('Gamepad'), self.choice(f, 'gamepad_number', 'app', GAMEPAD_NUMBERS),
                  _('With several gamepads connected: the one that plays. Player 2 gets the next free one.'))
+        self.row(f, _('Button layout'), self.choice(f, 'pad_scheme', 'app', PAD_SCHEMES),
+                 _("Racer (as on the PS Vita): R2 accelerates, L2 brakes, Square with left or right is that air "
+                   "brake, Cross fires, Circle absorbs. Keep the game's own controls at their default with it."),
+                 restart=True)
         self.row(f, _('Vibration'), self.slider(f, 'vibration', 0, 100, '%'), _("Strength of the gamepad's vibration; 0% turns it off."))
         self.row(f, _('Stick deadzone'), self.slider(f, 'stick_deadzone', 0, 50, '%'), _("Ignores small stick movements, for a stick that drifts. 0% keeps the game's own."))
         table = mapping_table(f)
@@ -3176,6 +3221,8 @@ class Launcher:
     def open_path(self, path, key=None):
         if key == 'user_dir' and not path:
             path = DATA_DIR / 'user'
+        elif key == 'savedata_dir' and not path:
+            path = self.user_dir() / 'savedata'
         elif key == 'mods_dir' and not path:
             path = DATA_DIR / 'mods'
         elif key == 'music_dir' and not path:

@@ -3,7 +3,8 @@
 """Backups of the game's saves: <user>/savedata copied to <user>/savedata_backups/<time>.
 
 run.py makes one before every start; the launcher lists them and restores one. A restore
-first backs up the current saves, so it can always be undone.
+first backs up the current saves, so it can always be undone. savedata: the saves' own folder
+when the player chose one (WIPEOUT_OC_SAVEDATA_DIR, #86); the backups stay in the user folder.
 """
 import datetime
 from pathlib import Path
@@ -43,8 +44,16 @@ def _prune(user_dir, keep=KEEP):
         shutil.rmtree(backups_dir(user_dir) / name, ignore_errors=True)
 
 
-def _copy(user_dir, now):
-    savedata = Path(user_dir) / 'savedata'
+def savedata_dir(user_dir, savedata=None):
+    return Path(savedata) if savedata else Path(user_dir) / 'savedata'
+
+
+def _copy(user_dir, now, savedata=None):
+    savedata = savedata_dir(user_dir, savedata)
+    root = backups_dir(user_dir)
+    source_path, backup_path = savedata.resolve(), root.resolve()
+    if source_path.is_relative_to(backup_path) or backup_path.is_relative_to(source_path):
+        raise ValueError('Savedata and backup folders overlap')
     if not _has_saves(savedata):
         return None
     root = backups_dir(user_dir)
@@ -68,27 +77,31 @@ def _copy(user_dir, now):
     return target
 
 
-def backup(user_dir, now=None, keep=KEEP):
+def backup(user_dir, now=None, keep=KEEP, savedata=None):
     """Copies savedata; returns the new folder, or None when there is nothing to save."""
-    made = _copy(user_dir, now)
+    made = _copy(user_dir, now, savedata)
     if made:
         _prune(user_dir, keep)
     return made
 
 
-def restore(user_dir, name, now=None):
+def restore(user_dir, name, now=None, savedata=None):
     """Replaces savedata with backup `name`; returns the backup of the saves it replaced."""
     if not name or name not in list_backups(user_dir):
         raise ValueError(f'No save backup named {name!r}')
     source = backups_dir(user_dir) / name
-    savedata = Path(user_dir) / 'savedata'
+    savedata = savedata_dir(user_dir, savedata)
     # Pruning waits until the copy is done: the restored backup may be the oldest one.
-    safety = _copy(user_dir, now)
-    staging = Path(user_dir) / 'savedata.restoring'
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.copytree(source, staging)
-    shutil.rmtree(savedata, ignore_errors=True)
-    staging.rename(savedata)
+    safety = _copy(user_dir, now, savedata)
+    savedata.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f'.{savedata.name}.restoring-', dir=savedata.parent))
+    try:
+        shutil.copytree(source, staging, dirs_exist_ok=True)
+        shutil.rmtree(savedata, ignore_errors=True)
+        staging.rename(savedata)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     _prune(user_dir)
     return safety
 

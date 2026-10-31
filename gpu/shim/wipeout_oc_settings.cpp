@@ -224,8 +224,8 @@ bool Set(Values& v, const std::string& key, const std::string& value) {
         v.music_continue = !value.empty() && i != 0;
     } else if (key == "music_volume") {
         v.music_volume = value.empty() ? 100 : std::clamp(i, 0, 200);
-
-
+    } else if (key == "game_music_volume") {
+        v.game_music_volume = value.empty() ? 100 : std::clamp(i, 0, 300);
     } else if (key == "restart_unconfirmed") {
         v.restart_unconfirmed = i != 0;
 
@@ -446,10 +446,10 @@ void Save() {
                  int(v.restart_unconfirmed.load()));
     std::fprintf(file, "anisotropy=%d\nvibration=%d\nmouse_lock=%d\n"
                        "music=%d\nmusic_shuffle=%d\nmusic_volume=%d\n"
-                       "stick_deadzone=%d\nmusic_continue=%d\n",
+                       "stick_deadzone=%d\nmusic_continue=%d\ngame_music_volume=%d\n",
                  v.anisotropy.load(), v.vibration.load(), int(v.mouse_lock.load()), int(v.music.load()),
                  int(v.music_shuffle.load()), v.music_volume.load(), v.stick_deadzone.load(),
-                 int(v.music_continue.load()));
+                 int(v.music_continue.load()), v.game_music_volume.load());
     for (const auto& line : retained_keys) std::fprintf(file, "%s\n", line.c_str());
     // Read by run.sh at start.
     std::fprintf(file, "live_resolution=%s\n", v.live_resolution < 0 ? "auto"

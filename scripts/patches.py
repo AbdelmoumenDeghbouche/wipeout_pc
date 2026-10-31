@@ -141,6 +141,8 @@ def resolve_targets(image, meta, *, allow_address=False, segments=None, validate
         resolve('Line',index)
         for name in re.findall(r'\{rel:([^:}]+):[^}]+\}',line.get('Value','')):
             resolve('Target',name)
+    for table in meta.iter('Table'):
+        resolve('Target',table.get('Target'))
     return [sites[i] for i in range(len(lines))],targets
 
 
@@ -173,10 +175,48 @@ def encode(line):
     raise ValueError(f'unsupported patch type {kind!r}')
 
 
-def metadata_writes(meta, segments, image=None, *, allow_address=False, validate_only=False):
+# RIP-relative LEA (REX.W, any register), followed by its signed 32-bit operand.
+LEA_RIP=re.compile(rb'[\x48\x4c]\x8d[\x05\x0d\x15\x1d\x25\x2d\x35\x3d]')
+
+
+def move_table(image, table, old, reserve, segments, *, validate_only=False):
+    size,entry,count,refs=(int(table.get(k),0) for k in ('Size','Entry','Count','Refs'))
+    needed=(count+1)*entry
+    if min(size,entry,count,refs)<=0 or size%entry or count*entry<size or needed>(1<<63)-1:
+        raise ValueError('invalid table layout')
+    if validate_only:
+        return []
+    if not reserve or len(reserve)!=2 or reserve[1]<needed:
+        raise LookupError('no memory reserved for the bigger table')
+    base,capacity=reserve
+    if base<0 or capacity<=0 or base+capacity>(1<<63)-1:
+        raise ValueError('invalid table reserve')
+    if any(base<end and start<base+capacity for start,end in segments):
+        raise ValueError('table reserve overlaps an eboot segment')
+    if old<0 or not any(start<=old and old+size<=end for start,end in segments):
+        raise ValueError('source table is outside the eboot segments')
+    writes=[]
+    for m in LEA_RIP.finditer(image):
+        at=m.end()
+        if at+4>len(image):
+            continue
+        target=at+4+struct.unpack_from('<i',image,at)[0]
+        if old<=target<=old+size:
+            if not any(start<=m.start() and at+4<=end for start,end in segments):
+                raise ValueError('table reference is outside the eboot segments')
+            moved=base+entry+(target-old if target<old+size else count*entry)
+            writes.append((at,struct.pack('<i',moved-at-4)))
+    if len(writes)!=refs:
+        raise LookupError(f'{len(writes)} table references, not {refs}')
+    return writes
+
+
+def metadata_writes(meta, segments, image=None, *, allow_address=False, validate_only=False, reserve=None):
     """Validate one patch atomically; UI may check policy/syntax without loading the ELF."""
     if meta.get('AppElf','eboot.bin')!='eboot.bin':
         raise ValueError('AppElf is not eboot.bin')
+    if len(list(meta.iter('Table')))>1:
+        raise ValueError('only one table can own the linked reserve')
     lines=list(meta.iter('Line'))
     if not lines:
         raise ValueError('patch has no Lines')
@@ -195,19 +235,28 @@ def metadata_writes(meta, segments, image=None, *, allow_address=False, validate
         if not validate_only and not any(start<=offset and offset+len(data)<=end for start,end in segments):
             raise ValueError(f'address {offset+EBOOT_BASE:#x} is outside the eboot')
         writes.append((offset,data))
+    for table in meta.iter('Table'):
+        writes += move_table(image,table,targets[table.get('Target')],reserve,segments,
+                             validate_only=validate_only)
     return writes
 
 
-def compile_patches(xml, names, app_version, segments, image=None, skipped=None, *, allow_address=False):
+def compile_patches(xml, names, app_version, segments, image=None, skipped=None, *, allow_address=False, reserve=None):
     """Compile selected metadata, with no absolute fallback unless its build was verified."""
     found={m.get('Name'):m for m in ET.parse(xml).getroot().iter('Metadata')
            if m.get('Name') in names and app_version in (None,m.get('AppVer'))}
     writes=[]
+    table_owner=None
     for name in names:
         try:
             if name not in found:
                 raise LookupError(f'patch not found for metadata version {app_version}')
-            ours=metadata_writes(found[name],segments,image,allow_address=allow_address)
+            has_table=next(found[name].iter('Table'),None) is not None
+            if has_table and table_owner is not None:
+                raise ValueError(f'table reserve already owned by {table_owner}')
+            ours=metadata_writes(found[name],segments,image,allow_address=allow_address,reserve=reserve)
+            if has_table:
+                table_owner=name
         except (LookupError,ValueError,TypeError,OverflowError,struct.error) as error:
             if skipped is None:
                 raise ValueError(f'{name}: {error}') from error
@@ -293,7 +342,7 @@ EXCLUSIVE_PREFIX='Resolution Patch'
 # Fixes with nothing to choose: not offered in the launcher and applied even with its saved list,
 # which predates them (the startup black screen fix sets a value the game overwrites at once).
 ALWAYS_ON={'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
-           'Bug Fix - Zone crash above 60 FPS'}
+           'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Model slots'}
 
 
 def selected_patches(xml, app_version, extra, only=False):
@@ -338,7 +387,7 @@ def resolution_names(xmls, game=None, *, image=None, segments=None):
     return sorted(found, key=pixels)
 
 
-def eligible_metadata(path, app_version, ids, *, allow_address=False, image=None, segments=None, skipped=None):
+def eligible_metadata(path, app_version, ids, *, allow_address=False, image=None, segments=None, skipped=None, reserve=None):
     """Metadata accepted before offering/merging it; runtime also resolves the real signatures."""
     accepted=[]
     try:
@@ -358,7 +407,7 @@ def eligible_metadata(path, app_version, ids, *, allow_address=False, image=None
                 raise ValueError(f'AppVer does not match real APP_VER {app_version or "unknown"}')
             if file_ids and not file_ids&ids:
                 raise ValueError('TitleID does not match this game')
-            metadata_writes(meta,segments,image,allow_address=allow_address,validate_only=image is None)
+            metadata_writes(meta,segments,image,allow_address=allow_address,validate_only=image is None,reserve=reserve)
         except (LookupError,ValueError,TypeError,OverflowError,struct.error) as error:
             if skipped is not None:
                 skipped[key]=str(error)
@@ -368,7 +417,7 @@ def eligible_metadata(path, app_version, ids, *, allow_address=False, image=None
     return accepted
 
 
-def merge_patch_files(base, extras, out, *, game=None, image=None, segments=None, skipped=None):
+def merge_patch_files(base, extras, out, *, game=None, image=None, segments=None, skipped=None, reserve=None):
     """Validate each mod metadata before replacing a built-in Name. Originals are never changed."""
     tree=ET.parse(base)
     root=tree.getroot()
@@ -378,8 +427,12 @@ def merge_patch_files(base, extras, out, *, game=None, image=None, segments=None
     allow_address=address_patch_problem(game) is None
     for path in extras:
         for meta in eligible_metadata(path,version,ids,allow_address=allow_address,image=image,
-                                      segments=segments,skipped=skipped):
+                                      segments=segments,skipped=skipped,reserve=reserve):
             name=meta.get('Name')
+            if next(meta.iter('Table'),None) is not None and any(m.get('Name')!=name and next(m.iter('Table'),None) is not None for m in root.iter('Metadata')):
+                if skipped is not None:
+                    skipped[f'{path}/{name}']='table reserve already owned by another built-in patch'
+                continue
             for old in [m for m in root.iter('Metadata') if m.get('Name')==name]:
                 root.remove(old)
             meta=copy.deepcopy(meta)
@@ -438,12 +491,17 @@ def external_selection(found, config):
             if key in enabled or (key not in disabled and meta.get('isEnabled','false').lower()=='true')]
 
 
-def compile_external(selected, segments, image=None, *, allow_address=False, skipped=None):
+def compile_external(selected, segments, image=None, *, allow_address=False, skipped=None, reserve=None, table_owner=None):
     """External patches use the same atomic resolver and absolute-address policy as built-ins."""
     writes=[]
     for key,_,meta in selected:
         try:
-            ours=metadata_writes(meta,segments,image,allow_address=allow_address)
+            has_table=next(meta.iter('Table'),None) is not None
+            if has_table and table_owner is not None:
+                raise ValueError(f'table reserve already owned by {table_owner}')
+            ours=metadata_writes(meta,segments,image,allow_address=allow_address,reserve=reserve)
+            if has_table:
+                table_owner=key
         except (LookupError,ValueError,TypeError,OverflowError,struct.error) as error:
             if skipped is not None:
                 skipped[key]=str(error)
@@ -486,20 +544,25 @@ def main():
     elf=(a.out/'eboot.elf').read_bytes()
     segments=eboot_segments(elf)
     image=eboot_image(elf)
+    link=json.loads((a.out/'link.json').read_text()) if (a.out/'link.json').is_file() else {}
+    record=link.get('reserve')
+    reserve=(int(record['base'],0),record['size']) if record else None
     mod_skipped={}
     if a.mod_patches:
         xml=merge_patch_files(xml,a.mod_patches,a.out/'patches-merged.xml',game=a.game_dir,
-                              image=image,segments=segments,skipped=mod_skipped)
+                              image=image,segments=segments,skipped=mod_skipped,reserve=reserve)
     names=selected_patches(xml,tag,a.extra,getenv('WIPEOUT_OC_PATCHES_ONLY')=='1')
     skipped={}
-    writes=compile_patches(xml,names,tag,segments,image,skipped,allow_address=allow_address)
+    writes=compile_patches(xml,names,tag,segments,image,skipped,allow_address=allow_address,reserve=reserve)
     for name,reason in skipped.items():
         print(f'Patches: {name} skipped ({reason} in this eboot.bin)')
+    table_owner=next((m.get('Name') for m in ET.parse(xml).getroot().iter('Metadata')
+                      if m.get('Name') in names and m.get('Name') not in skipped and next(m.iter('Table'),None) is not None),None)
     external_skipped={}
     if a.patches_dir:
         found=external_patches(a.patches_dir,version,xml,{title},game=a.game_dir,skipped=external_skipped)
         writes+=compile_external(external_selection(found,a.patches_config),segments,image,
-                                 allow_address=allow_address,skipped=external_skipped)
+                                 allow_address=allow_address,skipped=external_skipped,reserve=reserve,table_owner=table_owner)
     write_patches(a.out,writes)
     applied=[n for n in names if n not in skipped]
     if skipped and not applied:

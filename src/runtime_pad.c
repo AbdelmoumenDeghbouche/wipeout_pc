@@ -394,9 +394,43 @@ static void read_gamepad(SDL_Gamepad *g, PadData *d) {
  * touchpad is the left side; lx= ly= rx= ry= (0..255) override the sticks; shot saves a
  * screenshot (as F12, without taking the focus); tokens after p2 are player 2's (user 2 then
  * stays logged in, as with a second gamepad). An empty file releases everything. */
-typedef struct { uint32_t buttons; int stick[4]; } Injected;
-static Injected injected={0,{-1,-1,-1,-1}}, injected2={0,{-1,-1,-1,-1}};
+typedef struct { uint32_t buttons; int stick[4]; float gyro[3]; int has_gyro; } Injected;
+static Injected injected={.stick={-1,-1,-1,-1}}, injected2={.stick={-1,-1,-1,-1}};
 static int injected2_seen;
+/* Motion sensors (#18): the gamepad's gyro (rad/s) and accelerometer (in g), and the orientation
+ * integrated from the gyro as shadPS4 does it; scePadResetOrientation starts it over. The game's
+ * own Motion control option steers with them. One per player; called under lock. */
+typedef struct { SDL_Gamepad *g; float q[4]; uint64_t last; } Motion;
+static Motion motions[2]={{.q={0,0,0,1}},{.q={0,0,0,1}}};
+static void read_motion(Motion *m, SDL_Gamepad *g, const Injected *in, PadData *d) {
+    float gyro[3]={0,0,0}, accel[3]={0,0,0};
+    int have=0;
+    if (g && g!=m->g) {
+        m->g=g;
+        SDL_SetGamepadSensorEnabled(g,SDL_SENSOR_GYRO,true);
+        SDL_SetGamepadSensorEnabled(g,SDL_SENSOR_ACCEL,true);
+    }
+    if (g && SDL_GetGamepadSensorData(g,SDL_SENSOR_GYRO,gyro,3)) {
+        have=1;
+        if (SDL_GetGamepadSensorData(g,SDL_SENSOR_ACCEL,accel,3))
+            for (int i=0;i<3;++i) d->acceleration[i]=accel[i]/SDL_STANDARD_GRAVITY;
+    }
+    if (in->has_gyro) { memcpy(gyro,in->gyro,sizeof(gyro)); have=1; }
+    const float dt=m->last && d->timestamp>m->last ? (float)(d->timestamp-m->last)/1e6f : 0;
+    m->last=d->timestamp;
+    if (have) {
+        memcpy(d->angular_velocity,gyro,sizeof(gyro));
+        if (dt>0 && dt<0.5f) { /* q += q * (0, w) / 2 * dt, then normalized */
+            float *q=m->q;
+            const float x=q[3]*gyro[0]+q[1]*gyro[2]-q[2]*gyro[1], y=q[3]*gyro[1]+q[2]*gyro[0]-q[0]*gyro[2],
+                        z=q[3]*gyro[2]+q[0]*gyro[1]-q[1]*gyro[0], w=-q[0]*gyro[0]-q[1]*gyro[1]-q[2]*gyro[2];
+            q[0]+=0.5f*x*dt; q[1]+=0.5f*y*dt; q[2]+=0.5f*z*dt; q[3]+=0.5f*w*dt;
+            const float n=sqrtf(q[0]*q[0]+q[1]*q[1]+q[2]*q[2]+q[3]*q[3]);
+            if (n>0) for (int i=0;i<4;++i) q[i]/=n;
+        }
+    }
+    memcpy(d->orientation,m->q,sizeof(m->q));
+}
 static int replay_armed;      /* 1 while a GOW3_PAD_REPLAY recording plays, 2 once it ended */
 static uint64_t replay_start; /* 0: (re)start at the next sample */
 static void read_inject(void) {
@@ -419,7 +453,7 @@ static void read_inject(void) {
     FILE *f=fopen(path,"r");
     if (!f) return;
     static const char *sticks[]={"lx=","ly=","rx=","ry="};
-    injected=injected2=(Injected){0,{-1,-1,-1,-1}};
+    injected=injected2=(Injected){.stick={-1,-1,-1,-1}};
     Injected *target=&injected;
     char token[64];
     while (fscanf(f,"%63s",token)==1) {
@@ -428,6 +462,10 @@ static void read_inject(void) {
         if (!strcmp(token,"p2")) { target=&injected2; injected2_seen=1; }
         for (size_t i=0;i<sizeof(ps_names)/sizeof(*ps_names);++i) if (!strcmp(token,ps_names[i].name)) target->buttons|=ps_names[i].ps;
         for (int i=0;i<4;++i) if (!strncmp(token,sticks[i],3)) { int v=atoi(token+3); target->stick[i]=v<0 ? 0 : v>255 ? 255 : v; }
+        /* gx= gy= gz=: the gyro in degrees per second (motion control tests, #18) */
+        if (token[0]=='g' && token[1]>='x' && token[1]<='z' && token[2]=='=') {
+            target->gyro[token[1]-'x']=(float)atof(token+3)*3.14159265f/180.0f; target->has_gyro=1;
+        }
     }
     fclose(f);
     printf("Runtime: pad file: buttons 0x%x sticks %d %d %d %d\n",injected.buttons,
@@ -510,6 +548,26 @@ static void note_pause_key(const PadData *d) {
     held=pause;
 }
 
+/* GOW3_PAD_SCHEME=racer (#99, as WipEout 2048's "Racer" on the Vita): R2 accelerates, L2 brakes
+ * (both air brakes), Square with the stick left or right is that air brake, Cross fires, Circle
+ * absorbs. Turned into the game's default layout (Cross accelerate, L2/R2 air brakes, Square fire)
+ * only while R2 or L2 is held: menus and the pause menu keep Cross to confirm and Square. */
+static void apply_scheme(PadData *d) {
+    static int racer=-1;
+    if (racer<0) { const char *env=wipeout_oc_getenv("WIPEOUT_OC_PAD_SCHEME"); racer=env && !strcmp(env,"racer"); }
+    if (!racer || !(d->buttons & (BTN_L2|BTN_R2))) return;
+    const uint32_t in=d->buttons;
+    const uint8_t brake=d->l2;
+    uint32_t out=in & ~(BTN_CROSS|BTN_SQUARE|BTN_L2|BTN_R2);
+    d->l2=d->r2=0;
+    if (in & BTN_R2) out|=BTN_CROSS;
+    if (in & BTN_CROSS) out|=BTN_SQUARE;
+    if (in & BTN_L2) { out|=BTN_L2|BTN_R2; d->l2=d->r2=brake ? brake : 255; }
+    if ((in & BTN_SQUARE) && d->left_x<96) { out|=BTN_L2; d->l2=255; }
+    if ((in & BTN_SQUARE) && d->left_x>160) { out|=BTN_R2; d->r2=255; }
+    d->buttons=out;
+}
+
 /* After the menu or the text dialog closes, buttons still held (the Cross that accepted a
  * name) stay hidden until released: the game would take them as a new press. */
 static int hold_after_capture;
@@ -519,11 +577,13 @@ static void sample(PadData *d) {
     record_sample(d); /* the click sources as they are: a replay plays them again */
     read_inject();
     replay_sample(d);
+    read_motion(&motions[0],gamepad,&injected,d);
     d->buttons|=injected.buttons;
     if (injected.buttons & BTN_L2) d->l2=255;
     if (injected.buttons & BTN_R2) d->r2=255;
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected.stick[i]>=0) *axes[i]=(uint8_t)injected.stick[i];
+    apply_scheme(d);
     note_pause_key(d);
     play_click(d);
     d->buttons&=~0x38000000u; /* retired host-action bits may remain in old replay files */
@@ -541,6 +601,7 @@ static void sample_second(PadData *d) {
     if (wipeout_oc_gpu_overlay_captures_input()) return;
     load_button_maps();
     read_gamepad(g,d);
+    read_motion(&motions[1],g,&injected2,d);
     d->buttons|=injected2.buttons;
     if (d->buttons & (CLICK_LEFT|CLICK_RIGHT)) d->buttons|=BTN_TOUCHPAD; /* no touch surface to aim */
     d->buttons&=~(CLICK_LEFT|CLICK_RIGHT|0x38000000u);
@@ -548,6 +609,7 @@ static void sample_second(PadData *d) {
     if (injected2.buttons & BTN_R2) d->r2=255;
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
     for (int i=0;i<4;++i) if (injected2.stick[i]>=0) *axes[i]=(uint8_t)injected2.stick[i];
+    apply_scheme(d);
 }
 /* User 2 is logged in while a second gamepad is connected, or the pad file has p2 tokens. */
 int runtime_pad_second_user(void) {
@@ -624,6 +686,13 @@ static ABI int32_t pad_vibration(int32_t handle, const uint8_t *param) {
 }
 static ABI int32_t pad_ok_handle(int32_t handle) { return valid(handle) ? 0 : ERR_INVALID_HANDLE; }
 static ABI int32_t pad_ok_handle_flag(int32_t handle, uint8_t flag) { (void)flag; return pad_ok_handle(handle); }
+static ABI int32_t pad_reset_orientation(int32_t handle) {
+    if (!valid(handle)) return ERR_INVALID_HANDLE;
+    pthread_mutex_lock(&lock);
+    memcpy(motions[handle==PAD2_HANDLE].q,(const float[4]){0,0,0,1},sizeof(float[4]));
+    pthread_mutex_unlock(&lock);
+    return 0;
+}
 
 static ABI int32_t pad_light_bar(int32_t handle, const uint8_t *rgb) {
     if (!valid(handle)) return ERR_INVALID_HANDLE;
@@ -634,7 +703,7 @@ static const RuntimeExport exports[]={
     {"scePadInit",pad_init}, {"scePadOpen",pad_open}, {"scePadClose",pad_close},
     {"scePadReadState",pad_read_state}, {"scePadRead",pad_read},
     {"scePadGetControllerInformation",pad_info}, {"scePadSetVibration",pad_vibration},
-    {"scePadResetOrientation",pad_ok_handle},
+    {"scePadResetOrientation",pad_reset_orientation},
     {"scePadSetAngularVelocityDeadbandState",pad_ok_handle_flag}, {"scePadSetTiltCorrectionState",pad_ok_handle_flag},
     {"scePadSetMotionSensorState",pad_ok_handle_flag},
 };

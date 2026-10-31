@@ -281,8 +281,15 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         }
         return result;
     };
+    // gow3: a driver that refuses a pipeline with its pipeline cache (damaged after a crash, #72)
+    // gets one more try without it.
+    const auto create_any = [&](const auto& used_info) {
+        auto result = create(cache, used_info, false);
+        return result.result == vk::Result::eSuccess || !cache ? std::move(result)
+                                                              : create(nullptr, used_info, false);
+    };
     if (!enabled) {
-        return create(cache, info, false);
+        return create_any(info);
     }
     SCOPE_EXIT {
         const auto count = binary_hits.load() + binary_misses.load();
@@ -307,7 +314,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         !ValidKey(global) || !ValidKey(BinaryKey(pipeline_key))) {
         ++binary_errors;
         ++binary_misses;
-        return create(cache, info, false);
+        return create_any(info);
     }
     const auto pipeline_id = BinaryKey(pipeline_key);
     std::string name;
@@ -387,7 +394,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
     auto result = create(nullptr, captured_info, false);
     if (result.result != vk::Result::eSuccess) {
         ++binary_errors;
-        return create(cache, info, false);
+        return create_any(info);
     }
     VkReleaseCapturedPipelineDataInfoKHR release{
         VK_STRUCTURE_TYPE_RELEASE_CAPTURED_PIPELINE_DATA_INFO_KHR};
@@ -792,6 +799,7 @@ bool PipelineCache::LoadGraphicsPipeline(Serialization::Archive& ar) {
     const auto [it, is_new] = graphics_pipelines.try_emplace(sel.graphics_key);
     ASSERT(is_new);
 
+    bool built = true;
     if (warmup_pool) {
         warmup_pool->Push([this, key = sel.graphics_key, infos = sel.infos,
                            runtime_infos = sel.runtime_infos, fetch = sel.fetch_shader,
@@ -799,6 +807,9 @@ bool PipelineCache::LoadGraphicsPipeline(Serialization::Archive& ar) {
             auto pipeline = std::make_unique<GraphicsPipeline>(
                 instance, scheduler, desc_heap, profile, key, *pipeline_cache, infos,
                 runtime_infos, fetch, modules, sdata, true);
+            if (!pipeline->Handle()) {
+                return false; // the driver refused it (#72); its reserved slot is dropped below
+            }
             std::scoped_lock lock{warmup_results_mutex};
             warmup_graphics.emplace_back(key, std::move(pipeline));
             return true;
@@ -807,13 +818,17 @@ bool PipelineCache::LoadGraphicsPipeline(Serialization::Archive& ar) {
         it.value() = std::make_unique<GraphicsPipeline>(
             instance, scheduler, desc_heap, profile, sel.graphics_key, *pipeline_cache, sel.infos,
             sel.runtime_infos, sel.fetch_shader, sel.modules, sdata, true);
+        if (!it.value()->Handle()) {
+            graphics_pipelines.erase(sel.graphics_key); // the driver refused it (#72)
+            built = false;
+        }
     }
 
     sel.infos.fill(nullptr);
     sel.modules.fill(nullptr);
     sel.fetch_shader.reset();
 
-    return true;
+    return built;
 }
 
 bool PipelineCache::LoadPipelineStage(Serialization::Archive& ar, size_t stage) {
@@ -1227,9 +1242,9 @@ void PipelineCache::PumpWarmUp() {
     // Built pipelines: the first one ready for a key wins (the game may have compiled it).
     for (auto& built : warm.built.Take(64)) {
         const bool kept =
-            built.graphics
-                ? PublishFirst(graphics_pipelines, built.graphics_key, std::move(built.graphics))
-                : PublishFirst(compute_pipelines, built.compute_key, std::move(built.compute));
+            built.graphics  ? PublishFirst(graphics_pipelines, built.graphics_key, std::move(built.graphics))
+            : built.compute ? PublishFirst(compute_pipelines, built.compute_key, std::move(built.compute))
+                            : false;
         warm.loaded += kept;
         warm.done.fetch_add(1, std::memory_order_relaxed);
     }
@@ -1293,6 +1308,9 @@ void PipelineCache::PumpWarmUp() {
                 built.graphics = std::make_unique<GraphicsPipeline>(
                     instance, scheduler, desc_heap, profile, graphics_key, *pipeline_cache, infos,
                     no_runtime_infos, fetch, modules, sdata, true);
+                if (!built.graphics->Handle()) {
+                    built.graphics.reset(); // the driver refused it (#72): not published
+                }
             }
             warm.built.Push(std::move(built));
             return true;

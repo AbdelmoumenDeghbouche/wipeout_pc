@@ -302,6 +302,13 @@ void GameTab() {
                  "While you play, the mouse stays in the game window; this menu and other windows get it back.");
         ImGui::EndTable();
     }
+    ImGui::SeparatorText("Pictures");
+    if (BeginRows("##pictures")) {
+        CheckRow("Hide HUD (F8)", s.hide_hud,
+                 "The game's HUD and menus are not drawn, for clean pictures (photo mode, F12). F8 "
+                 "switches it while you play; it is off again at the next start.");
+        ImGui::EndTable();
+    }
 }
 
 // The session started with a temporal upscaler (launcher: Graphics > Temporal anti-aliasing);
@@ -338,6 +345,12 @@ void ImageTab() {
                   dlss      ? "Smooths edges at the game's resolution. DLAA needs an NVIDIA RTX GPU."
                   : problem ? problem
                             : "DLAA: NVIDIA RTX GPU and the launcher's Download NVIDIA DLSS button.");
+        // #51: the scene at a lower resolution, scaled up by the method (live); the HUD stays sharp.
+        static const char* const scale_labels[] = {"Off", "Quality (1/1.5)", "Balanced (1/1.7)",
+                                                   "Performance (1/2)"};
+        ChoiceRow("Upscaling", s.preset, scale_labels, nullptr, 4,
+                  "Draws the race at a lower resolution and scales it up: more FPS, a softer picture. "
+                  "The HUD stays sharp.");
         ImGui::EndTable();
     }
     const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;
@@ -382,7 +395,7 @@ void PerformanceTab() {
     auto& s = WipeoutOCSettings::Get();
     ImGui::SeparatorText("Live");
     if (BeginRows("##live")) {
-        static const char* const fps_labels[] = {"30", "40", "60", "100", "120", "240", "Unlimited"};
+        static const char* const fps_labels[] = {"30", "40", "60", "100", "120", "144", "165", "240", "Unlimited"};
         ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
                   "Caps the frame rate. The engine frame rate (below) is the highest it can go.");
         const int effective = G::EffectiveFps(s.fps_limit, s.applied_engine_fps);
@@ -493,6 +506,9 @@ void MusicTab() {
         SliderRow("Music volume", s.music_volume, 0, 200, "%d%%",
                   "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
                   "sound alike.");
+        SliderRow("Game music volume", s.game_music_volume, 0, 300, "%d%%",
+                  "The game's own music, on top of its Audio Options. Above 100% it is louder than the game "
+                  "allows; very loud parts may clip.");
         ImGui::EndTable();
     }
     const int songs = runtime_music_songs();
@@ -634,6 +650,27 @@ void Menu() {
     } else {
         ImGui::NewLine();
     }
+    // Quit asks once more; it closes the game like the window's close button (#94).
+    static bool confirm_quit = false, focus_quit = false;
+    if (!confirm_quit) {
+        confirm_quit = focus_quit = ImGui::Button("Quit game");
+    } else {
+        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "Quit? Unsaved progress is lost.");
+        ImGui::SameLine();
+        if (focus_quit) { // the pressed button is gone: keyboard and pad go on from here
+            ImGui::SetKeyboardFocusHere();
+            focus_quit = false;
+        }
+        if (ImGui::Button("Quit")) {
+            WipeoutOCSettings::Save();
+            SDL_Event quit{};
+            quit.type = SDL_EVENT_QUIT;
+            SDL_PushEvent(&quit);
+        }
+        ImGui::SameLine();
+        confirm_quit = !ImGui::Button("Cancel");
+    }
+    ImGui::SameLine();
     const float close_width = ImGui::CalcTextSize("Close").x + ImGui::GetStyle().FramePadding.x * 2;
     ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - close_width);
     if (ImGui::Button("Close")) {
@@ -993,6 +1030,14 @@ bool HandleEvent(const SDL_Event& event) {
         if (event.key.key == SDLK_F12) {
             if (down && !event.key.repeat) {
                 VideoCore::RequestScreenshot(VideoCore::ScreenshotRequest::GameOnly);
+            }
+            return true;
+        }
+        if (event.key.key == SDLK_F8) { // Hide HUD (#68)
+            if (down && !event.key.repeat) {
+                auto& hide = WipeoutOCSettings::Get().hide_hud;
+                hide.store(!hide.load());
+                ShowNotice(hide.load() ? "HUD hidden (F8 shows it)" : "HUD shown", 2000);
             }
             return true;
         }

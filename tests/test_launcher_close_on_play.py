@@ -68,7 +68,8 @@ class CloseOnPlayTest(unittest.TestCase):
         owner.drain_output()
         owner.root.destroy.assert_not_called()
         owner.refresh_status.assert_called_once()
-        owner.root.after.assert_called_once()
+        # It keeps reading output, and an exit code other than 0 shows the crash notice (v0.2.41).
+        self.assertEqual([c.args[1].__name__ for c in owner.root.after.call_args_list], ['report_crash', 'drain_output'])
 
     def test_real_child_keeps_writing_after_window_is_hidden(self):
         # More than a pipe buffer of output after the window disappears. The

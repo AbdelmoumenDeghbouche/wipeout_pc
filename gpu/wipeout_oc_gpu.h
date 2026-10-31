@@ -61,6 +61,8 @@ int wipeout_oc_gpu_music_shuffle(void);
 int wipeout_oc_gpu_music_continue(void);
 /* gow3.ini "music_volume": their loudness in percent (100: about the game's own music). */
 int wipeout_oc_gpu_music_volume(void);
+/* wipeout_oc.ini "game_music_volume": the game's own music in percent, 0 to 300 (#97). */
+int wipeout_oc_gpu_game_music_volume(void);
 /* The pause key (touchpad right) was pressed: it lets go of the mouse lock, or takes it back. */
 void wipeout_oc_gpu_mouse_pause_key(void);
 /* Number of symbols registered by the vendored libraries (diagnostics). */

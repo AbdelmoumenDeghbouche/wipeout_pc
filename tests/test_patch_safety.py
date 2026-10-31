@@ -35,6 +35,80 @@ class PatchSafetyTests(unittest.TestCase):
                                          self.image if image is None else image, skipped)
         return writes, skipped
 
+    def table(self, **attributes):
+        attrs = {'Target': 'rows', 'Size': '16', 'Entry': '8', 'Count': '4', 'Refs': '1', **attributes}
+        body = '<Target Name="rows" Pattern="48 8d 05 ?? ?? ?? ??" At="3" Ref="1"/>'
+        body += '<Table ' + ' '.join(f'{k}="{v}"' for k, v in attrs.items()) + '/>'
+        body += '<PatchList><Line Type="bytes" Pattern="aa bb" Value="90"/></PatchList>'
+        image = bytearray(64); image[:7] = bytes.fromhex('488d05') + struct.pack('<i', 128 - 7)
+        image[16:18] = bytes.fromhex('aabb')
+        return body, bytes(image)
+
+    def test_table_resolves_dependency_not_used_by_a_line(self):
+        body, image = self.table()
+        writes = patches.compile_patches(self.xml(body), ['Safe'], '01.00', [(0, 64), (128, 144)],
+                                         image, {}, reserve=(256, 40))
+        self.assertEqual(writes, [(16, b'\x90'), (3, struct.pack('<i', 257))])
+
+    def test_invalid_table_rejects_whole_patch_including_other_lines(self):
+        cases = [({'Size': '-16'}, (256, 40)), ({'Entry': '0'}, (256, 40)),
+                 ({'Count': '-1'}, (256, 40)), ({'Count': '1'}, (256, 40)),
+                 ({'Size': '17'}, (256, 40)), ({'Refs': '0'}, (256, 40)),
+                 ({'Refs': '2'}, (256, 40)), ({'Count': str(1 << 63)}, (256, 40)),
+                 ({}, (128, 40)), ({}, (-1, 40)), ({}, (256, 32)), ({}, (1 << 63, 40))]
+        for attrs, reserve in cases:
+            with self.subTest(attrs=attrs, reserve=reserve):
+                body, image = self.table(**attrs); skipped = {}
+                writes = patches.compile_patches(self.xml(body), ['Safe'], '01.00', [(0, 64), (128, 144)],
+                                                 image, skipped, reserve=reserve)
+                self.assertEqual(writes, [])
+                self.assertIn('Safe', skipped)
+
+    def test_two_tables_cannot_share_the_single_reserve(self):
+        body, image = self.table(); image = bytearray(image)
+        image[8:15] = bytes.fromhex('488d0d') + struct.pack('<i', 160 - 15)
+        body += '<Target Name="other" Pattern="48 8d 0d ?? ?? ?? ??" At="3" Ref="1"/>'
+        body += '<Table Target="other" Size="16" Entry="8" Count="4" Refs="1"/>'
+        skipped = {}
+        writes = patches.compile_patches(self.xml(body), ['Safe'], '01.00', [(0, 64), (128, 176)],
+                                         bytes(image), skipped, reserve=(256, 40))
+        self.assertEqual(writes, [])
+        self.assertIn('Safe', skipped)
+
+    def test_two_selected_patches_cannot_own_the_same_reserve(self):
+        body, image = self.table(); image = bytearray(image)
+        image[8:15] = bytes.fromhex('488d0d') + struct.pack('<i', 160 - 15)
+        first = self.xml(body); tree = ET.parse(first)
+        other = ET.fromstring(ET.tostring(next(tree.getroot().iter('Metadata'))))
+        other.set('Name', 'Other')
+        other.find('Target').set('Pattern', '48 8d 0d ?? ?? ?? ??')
+        other.find('PatchList/Line').set('Value', '91')
+        tree.getroot().append(other); tree.write(first)
+        skipped = {}
+        writes = patches.compile_patches(first, ['Safe', 'Other'], '01.00', [(0, 64), (128, 176)],
+                                         bytes(image), skipped, reserve=(256, 40))
+        self.assertEqual(writes, [(16, b'\x90'), (3, struct.pack('<i', 257))])
+        self.assertIn('Other', skipped)
+
+    def test_invalid_table_mod_cannot_replace_valid_builtin(self):
+        body, image = self.table(Count='-1')
+        base = self.xml('<PatchList><Line Type="bytes" Pattern="aa bb" Value="91"/></PatchList>', 'base.xml')
+        mod = self.xml(body, 'mod.xml', '01.07'); skipped = {}
+        with mock.patch.object(patches, 'game_sfo', return_value=EU), \
+                mock.patch.object(patches, 'eboot_sha256', return_value=None):
+            out = patches.merge_patch_files(base, [mod], self.root / 'merged.xml', game=self.root,
+                                            image=image, segments=[(0, 64), (128, 144)], skipped=skipped)
+        meta = next(ET.parse(out).getroot().iter('Metadata'))
+        self.assertEqual(meta.get('Note'), 'base.xml')
+        self.assertTrue(any(key.endswith('mod.xml/Safe') for key in skipped))
+
+    def test_table_rejects_source_outside_load_segments(self):
+        body, image = self.table(); skipped = {}
+        writes = patches.compile_patches(self.xml(body), ['Safe'], '01.00', [(0, 64), (128, 136)],
+                                         image, skipped, reserve=(256, 40))
+        self.assertEqual(writes, [])
+        self.assertIn('Safe', skipped)
+
     def test_address_requires_all_three_verified_identity_fields(self):
         for fields, sha, allowed in [(EU, SHA, True), ({**EU, 'TITLE_ID': 'CUSA07671'}, SHA, False),
                                      ({**EU, 'APP_VER': '01.00'}, SHA, False),

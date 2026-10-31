@@ -262,6 +262,37 @@ class GameProcessPresence(unittest.TestCase):
         self.opened = self.enterContext(mock.patch.object(run.subprocess, 'Popen', return_value=self.process))
         self.enterContext(mock.patch.object(sys, 'argv', ['run.py']))
 
+    def test_unlinked_update_archive_is_mounted_in_place_for_the_probe(self):
+        import game_update
+        folder = Path(os.environ['GOW3_DATA_DIR'])
+        view = folder / 'view'; view.mkdir()
+        original = folder / 'archive.psarc'; original.write_bytes(b'original archive')
+        target = view / 'data' / 'archive.psarc'
+        def update(base, patch, out, unlinked):
+            unlinked[str(target)] = str(original)
+            return view
+        def prepare(name, *args, **kwargs):
+            return str(view) if name == 'mods.py' else None
+        with mock.patch.dict(os.environ, WIPEOUT_OC_PATCH_DIR=str(folder / 'update')), \
+                mock.patch.object(game_update, 'create_view', side_effect=update), \
+                mock.patch.object(self.run, 'run_script', side_effect=prepare):
+            self.assertEqual(self.run.main(), 17)
+        command = self.opened.call_args.args[0]
+        index = command.index('--mount')
+        self.assertEqual(command[index + 1], f'/app0/data/archive.psarc={original}')
+        self.assertEqual(original.read_bytes(), b'original archive')
+
+    def test_automatic_backup_uses_the_canonical_external_savedata_folder(self):
+        folder = Path(os.environ['GOW3_DATA_DIR'])
+        external = folder / 'external-saves'; external.mkdir()
+        (external / 'save.bin').write_bytes(b'current save')
+        with mock.patch.dict(os.environ, WIPEOUT_OC_SAVEDATA_DIR=str(external)):
+            self.assertEqual(self.run.main(), 17)
+        copies = list((folder / 'user' / 'savedata_backups').glob('*/save.bin'))
+        self.assertEqual(len(copies), 1)
+        self.assertEqual(copies[0].read_bytes(), b'current save')
+        self.assertEqual((external / 'save.bin').read_bytes(), b'current save')
+
     def test_game_pid_is_used_and_presence_closes_after_wait(self):
         self.assertEqual(self.run.main(), 17)
         self.opened.assert_called_once()

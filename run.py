@@ -155,8 +155,12 @@ def main():
                                                env.get('WIPEOUT_OC_MODS_ENABLED', '1') != '0',
                                                env.get('WIPEOUT_OC_GAME_DIR', PORT.parent / 'CUSA05670'))
     patch_game = env.get('WIPEOUT_OC_PATCH_DIR') or env.get('WIPEOUT_OC_GAME_DIR', PORT.parent / 'CUSA05670')
-    extra_resolutions = [size for size in patches.resolution_names(mod_patch_files, game=patch_game)
-                         if size not in graphics_options.RESOLUTIONS]
+    # Include WipEout profile sizes beyond the shared resolution list (#110).
+    import game_profiles
+    own = game_profiles.PROFILES.get(patches.game_title_id(patch_game), {})
+    own = own.get('env', {}).get('WIPEOUT_OC_ALLOWED_RESOLUTIONS', '').split(';')
+    extra_resolutions = list(dict.fromkeys(s for s in [*patches.resolution_names(mod_patch_files, game=patch_game), *own]
+                                           if s and s not in graphics_options.RESOLUTIONS))
     env['WIPEOUT_OC_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
     derived.append('WIPEOUT_OC_EXTRA_RESOLUTIONS')
     graphics, reverted = graphics_options.prepare(env['WIPEOUT_OC_CONFIG'], out / 'graphics_state.json', extra_resolutions)
@@ -187,14 +191,18 @@ def main():
     if not (game / 'eboot.bin').is_file():
         fail(f'No eboot.bin in {game} (set WIPEOUT_OC_GAME_DIR).')
     update_view = None
+    unlinked = {}  # large files a drive without links kept out of the view: the game reads them in place
     if env.get('WIPEOUT_OC_PATCH_DIR'):
         import game_update
         try:
-            update_view = game_update.create_view(game, env['WIPEOUT_OC_PATCH_DIR'], out)
+            update_view = game_update.create_view(game, env['WIPEOUT_OC_PATCH_DIR'], out, unlinked)
         except (ValueError, OSError) as error:
             fail(str(error))
         game = update_view
         print(f'Game and update combined from {env["WIPEOUT_OC_PATCH_DIR"]}', flush=True)
+        if unlinked:
+            print(f'Game and update: this drive cannot link files; {len(unlinked)} large files are read '
+                  'from their folders', flush=True)
     original_game = game.resolve()
     game = Path(run_script('mods.py', game, '--out', out,
                            '--mods-dir', env.get('WIPEOUT_OC_MODS_DIR', data / 'mods'),
@@ -210,7 +218,8 @@ def main():
             print(f'Game profile: {profile["name"]} ({", ".join(profile["modules"])})', flush=True)
         for name, value in profile.get('env', {}).items():
             env.setdefault(name, value)
-        run_script('link_modules.py', game, '--out', out, '--modules', *profile['modules'])
+        run_script('link_modules.py', game, '--out', out, '--modules', *profile['modules'],
+                   '--reserve', str(profile.get('reserve', 0)))
         if WINDOWS:  # function starts for the loader's red-zone protection (src/redzone.cpp)
             run_script('function_starts.py', game, '--out', out, '--modules', *profile['modules'])
         # A failed rewrite prints its reason and the game starts without the table.
@@ -222,6 +231,9 @@ def main():
             if code == 0:
                 isa_args = ['--isa-rewrite', str(out / 'isa-rewrite.bin')]
         run_script('content_profile.py', game, '--out', out, '--sku', env.get('WIPEOUT_OC_CONTENT_SKU', 'full'))
+        run_script('menu_patches.py', game, '--out', out,  # Eliminator target slider limit (#89)
+                   '--limit', env.get('WIPEOUT_OC_ELIMINATOR_LIMIT', '2000'))
+        env['WIPEOUT_OC_FILE_PATCHES'] = str(out / 'file_patches.txt')
 
         from patches import game_profile_for, patch_requirements, patch_status, selected_patches
         profile = game_profile_for(game)
@@ -303,6 +315,9 @@ def main():
         print(f'Engine frame rate: {engine_fps} FPS'
               + ('' if engine_fps > 60 or graphics['engine_fps'] == '60' else
                  ' (the frame rate patch was not found in this eboot.bin)'), flush=True)
+        mount_args = []
+        for link, target in unlinked.items():
+            mount_args += ['--mount', f'/app0/{Path(link).relative_to(update_view).as_posix()}={target}']
         env['WIPEOUT_OC_DERIVED'] = ','.join(derived)
         # The guest memory pool is committed in full at start: a resolution patch above 1080p
         # can need more than 16 GB of RAM, and the game then closes when the page file cannot grow.
@@ -320,7 +335,7 @@ def main():
         env.setdefault('WIPEOUT_OC_GPU_USER_DIR', str(user_dir))
         from save_backup import backup
         try:
-            if made := backup(user_dir):
+            if made := backup(user_dir, savedata=env.get('WIPEOUT_OC_SAVEDATA_DIR')):
                 print(f'Saves backed up to {made}', flush=True)
         except OSError as error:
             print(f'Save backup failed, starting anyway: {error}', flush=True)
@@ -333,7 +348,7 @@ def main():
         command = [*launch_prefix(env), str(probe), str(out / 'boot-linked.bin'), '--content-profile', str(out / 'content.bin'),
                    '--patches', str(out / 'patches.bin'), '--app0', str(game),
                    '--user', str(user_dir),
-                   '--timeout', env.get('WIPEOUT_OC_TIMEOUT', '0'), *isa_args,  *args]
+                   '--timeout', env.get('WIPEOUT_OC_TIMEOUT', '0'), *isa_args, *mount_args, *args]
         # No stdin: an inherited pipe (shells such as Git Bash) cost the game its console output.
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, creationflags=no_console())
         presence = None

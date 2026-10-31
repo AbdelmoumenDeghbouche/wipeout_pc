@@ -34,6 +34,47 @@ namespace VideoCore {
 static constexpr u64 PageShift = 12;
 static constexpr u64 NumFramesBeforeRemoval = 32;
 
+void LimitTextureSize(ImageInfo& info, ImageViewInfo& view) {
+    static const u32 limit = [] {
+        const char* value = wipeout_oc_getenv("WIPEOUT_OC_TEXTURE_LIMIT");
+        return value ? u32(std::strtoul(value, nullptr, 10)) : 0u;
+    }();
+    if (!limit || !info.props.is_block || info.type != AmdGpu::ImageType::Color2D ||
+        info.resources.layers != 1 || info.guest_samples > 1) {
+        return;
+    }
+    u32 skip = 0;
+    while (skip + 1 < info.resources.levels &&
+           std::max(info.size.width, info.size.height) >> skip > limit) {
+        ++skip;
+    }
+    if (skip == 0) {
+        return;
+    }
+    // The smaller texture's own layout must be the guest's levels from `skip` on (block formats
+    // are micro-tiled or linear: each level is laid out from its own size).
+    ImageInfo small = info;
+    small.size.width = std::max(info.size.width >> skip, 1u);
+    small.size.height = std::max(info.size.height >> skip, 1u);
+    small.pitch = std::max(info.pitch >> skip, 1u);
+    small.resources.levels = info.resources.levels - skip;
+    small.guest_address = info.guest_address + info.mips_layout[skip].offset;
+    small.UpdateSize();
+    for (u32 m = 0; m < small.resources.levels; ++m) {
+        const auto& a = small.mips_layout[m];
+        const auto& b = info.mips_layout[m + skip];
+        if (a.size != b.size || a.pitch != b.pitch || a.height != b.height ||
+            a.offset != b.offset - info.mips_layout[skip].offset) {
+            return;
+        }
+    }
+    info = small;
+    view.range.base.level = view.range.base.level > skip ? view.range.base.level - skip : 0;
+    view.range.extent.levels =
+        std::max(1u, std::min(view.range.extent.levels, small.resources.levels - view.range.base.level));
+    view.min_lod = view.min_lod > skip * 256 ? view.min_lod - skip * 256 : 0;
+}
+
 TextureCache::TextureCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& scheduler_,
                            Vulkan::Runtime& runtime_, AmdGpu::Liverpool* liverpool_,
                            BufferCache& buffer_cache_, PageManager& tracker_)
@@ -248,7 +289,9 @@ void TextureCache::ProcessDownloadImages() {
         std::scoped_lock readback_lock{readback_mutex};
         RetireReadbacks();
         const bool deep_queue = !WipeoutOCToggle::Disabled(WipeoutOCToggle::DeepReadbackQueue);
-        pending_readbacks.SetMaxEntries(deep_queue ? 512 : 64);
+        // Each pending copy watches its pages, and a page counts its watchers in 8 bits (#101):
+        // 192 stays under 255 with room for the images and buffers on the same page.
+        pending_readbacks.SetMaxEntries(deep_queue ? 192 : 64);
         std::unique_lock lock{download_images_mutex};
         for (const ImageId image_id : download_images) {
             const auto& image = slot_images[image_id];
@@ -1259,6 +1302,10 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
 }
 
 ImageId TextureCache::FindImageFromRange(VAddr address, size_t size, bool ensure_valid) {
+    // gow3: under the mutex, as UnmapMemory on a guest thread: both walk the page table and set
+    // Picked; unlocked, an unmap during a race load could list an image twice and free it twice
+    // ("Trying to unregister an already unregistered image", #100).
+    std::scoped_lock lock{mutex};
     ImageIds image_ids;
     ForEachImageInRegion(address, size, [&](ImageId image_id, Image& image) {
         if (image.info.guest_address != address) {
@@ -1331,6 +1378,7 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
     image.usage.render_target = 1u;
     UpdateImage(image_id);
     PublishAliasWrite(image_id);
+    std::scoped_lock lock{mutex}; // gow3: metas, as FindImageFromRange (#100)
 
     // Register meta data for this color buffer
     if (desc.info.meta_info.cmask_addr) {
@@ -1354,6 +1402,7 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
     image.flags |= ImageFlagBits::GpuModified;
     image.usage.depth_target = 1u;
     UpdateImage(image_id);
+    std::scoped_lock lock{mutex}; // gow3: page table and metas, as FindImageFromRange (#100)
 
     // Register meta data for this depth buffer
     if (desc.info.meta_info.htile_addr) {

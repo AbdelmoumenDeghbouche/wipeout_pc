@@ -33,6 +33,18 @@ class SaveBackupTest(unittest.TestCase):
         self.assertEqual(made.name, '20261009-180100')
         self.assertEqual((made / self.save.relative_to(self.user / 'savedata')).read_text(), 'v1')
 
+    def test_saves_in_their_own_folder(self):
+        # #86 (GOW3_SAVEDATA_DIR): the saves live elsewhere, the backups stay in the user folder.
+        own = self.user / 'share' / 'wipeout-saves'
+        save = own / '1' / 'CUSA07671' / 'PROFILE03' / 'DATA.BIN'
+        write(save, 'v1')
+        made = save_backup.backup(self.user, now=self.tick(), savedata=own)
+        self.assertEqual((made / '1/CUSA07671/PROFILE03/DATA.BIN').read_text(), 'v1')
+        write(save, 'v2')
+        save_backup.restore(self.user, made.name, now=self.tick(), savedata=own)
+        self.assertEqual(save.read_text(), 'v1')
+        self.assertFalse((self.user / 'savedata').exists())
+
     def test_no_backup_without_saves(self):
         self.assertIsNone(save_backup.backup(self.user, now=self.tick()))
         (self.user / 'savedata').mkdir()
@@ -105,6 +117,26 @@ class SaveBackupTest(unittest.TestCase):
         save_backup.restore(self.user, oldest.name, now=self.tick())
         self.assertEqual(self.save.read_text(), 'oldest')
         self.assertEqual(len(save_backup.list_backups(self.user)), save_backup.KEEP)
+
+    def test_backup_rejects_savedata_containing_its_backup_destination(self):
+        write(self.save, 'current')
+        for source in (self.user, self.user.parent):
+            with self.subTest(source=source), mock.patch.object(save_backup.shutil, 'copytree', return_value=None):
+                with self.assertRaises(ValueError):
+                    save_backup.backup(self.user, now=self.tick(), savedata=source)
+            self.assertEqual(self.save.read_text(), 'current')
+            self.assertFalse(save_backup.backups_dir(self.user).exists())
+
+    def test_restore_preserves_unrelated_fixed_staging_sibling(self):
+        write(self.save, 'old'); old = save_backup.backup(self.user, now=self.tick())
+        write(self.save, 'current')
+        sibling = (self.user / 'savedata').with_name('savedata.restoring')
+        write(sibling / 'unrelated.txt', 'keep')
+        safety = save_backup.restore(self.user, old.name, now=self.tick())
+        self.assertTrue((sibling / 'unrelated.txt').is_file())
+        self.assertEqual((sibling / 'unrelated.txt').read_text(), 'keep')
+        self.assertEqual(self.save.read_text(), 'old')
+        self.assertEqual((safety / self.save.relative_to(self.user / 'savedata')).read_text(), 'current')
 
     def test_restore_rejects_unknown_or_unsafe_names(self):
         write(self.save, 'v')
