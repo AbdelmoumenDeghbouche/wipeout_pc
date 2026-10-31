@@ -37,7 +37,11 @@ Start the game with your own extracted game folder:
 python scripts/windows_debug.py run --game 'D:\Games\WipEout'
 ```
 
-The folder must contain `eboot.bin`. Debug saves and caches use `user-debug/` in the checkout; normal saves are not selected by this command. Game files are not copied into the repository.
+The folder must contain `eboot.bin`. The wrapper sets `WIPEOUT_OC_USER_DIR` to `user-debug/`
+in the checkout. Without other overrides, saves and caches follow that folder. Explicit
+`WIPEOUT_OC_SAVEDATA_DIR`, `WIPEOUT_OC_GPU_USER_DIR`, `WIPEOUT_OC_CONFIG` and
+`WIPEOUT_OC_DATA_DIR` retain their meanings: `user-debug/` alone does not isolate settings
+and prepared output. See [data paths](../README.md#running). Game files are not copied.
 
 While the game is running, open another PowerShell terminal in the same checkout:
 

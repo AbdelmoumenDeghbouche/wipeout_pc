@@ -3,6 +3,8 @@
 A aba **Mods** ativa cada mod e define a ordem de carga. As mudanças valem no próximo
 início; o último mod vence quando dois trocam o mesmo arquivo. Não há mesclagem de arquivos.
 O dump original não é alterado: o runner monta uma vista temporária em `out/mod-game-*`.
+Em drives sem links, arquivos grandes podem ser lidos diretamente da origem por montagens
+somente de leitura; não é preciso copiar todos os arquivos grandes para essa vista.
 
 ## Como montar um mod
 
@@ -64,7 +66,12 @@ CUSA05670 / APP_VER 01.07 / SHA-256 do `eboot.bin`:
 ```
 
 O hash é calculado novamente a partir do executável. Outras builds precisam de assinaturas
-seguras. O log distingue patches ignorados de nomes realmente aplicados.
+seguras. A correção embutida de modelos de v0.2.49 usa `Table` para 4096 entradas em uma reserva do
+linker. Só uma tabela pode ser dona dessa reserva: geometria, referências e limites são
+validados antes de publicar as escritas; donos conflitantes são ignorados. Isso não muda o
+formato do dump nem autoriza endereços absolutos de outra build.
+
+O log distingue patches ignorados de nomes realmente aplicados.
 `isEnabled="true"` define a ativação inicial; a chave geral de mods também os desliga.
 Um patch `Resolution Patch - <largura>x<altura>` pode adicionar uma resolução; consulte
 [ultrawide](ultrawide.md). Isso não comprova sua qualidade ou desempenho no jogo.

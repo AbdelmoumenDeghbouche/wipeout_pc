@@ -24,6 +24,11 @@ python3 scripts/windows_debug.py build
 
 WSL2 necesita tener habilitada la interoperabilidad Windows y acceso de escritura a la carpeta de compilación. Si una herramienta ejecuta los comandos dentro de un sandbox, debe permitir esos accesos para este flujo.
 
+`run` fija `WIPEOUT_OC_USER_DIR` en `user-debug/` del mirror. Los overrides explícitos de
+`WIPEOUT_OC_SAVEDATA_DIR`, `WIPEOUT_OC_GPU_USER_DIR`, `WIPEOUT_OC_CONFIG` y
+`WIPEOUT_OC_DATA_DIR` conservan su efecto: `user-debug/` por sí solo no aísla configuración
+y salidas preparadas. Consulta las [rutas de datos](../README.md#running).
+
 ## Qué se copia y qué se compila
 
 El destino predeterminado es `%LOCALAPPDATA%\wipeout-debug`. Se puede elegir otra carpeta dedicada con `--windows-dir 'C:\dev\wipeout-debug'`. Se rechazan carpetas no vacías que no pertenezcan al script.

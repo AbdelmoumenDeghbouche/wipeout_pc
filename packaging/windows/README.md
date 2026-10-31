@@ -58,8 +58,19 @@ actual title ID and version before merging. A skipped patch is reported; this do
 guarantee that every game build works. See [patch compatibility](../../README.md#game-patches-and-compatibility).
 From a source tree, `run.py` adds `C:\msys64\clang64\bin` (or `$MSYS2_ROOT`) to `PATH` for DLLs.
 
-Temporal anti-aliasing (Graphics > Temporal anti-aliasing) offers FSR 3.1 and, on NVIDIA RTX cards,
-DLAA. The package ships `bin/wipeout_oc_dlss.dll` (the bridge to NVIDIA's DLSS SDK, built by
+In v0.2.49, **Graphics > Temporal anti-aliasing** offers FSR 3.1 and NVIDIA RTX DLAA/DLSS.
+**Upscaling** Off uses the render resolution for native AA (DLAA with NVIDIA); Quality,
+Balanced and Performance render smaller by factors 1.5, 1.7 and 2 and reconstruct the output.
+HUD and menus stay at the output size. FSR 4 and the inherited TAA mode are not player options
+on this path. Texture quality offers Full, maximum 4096 or maximum 2048 and applies on restart.
+The 144/165 FPS choices are limits, not a promise of measured frame rates.
+
+With supported pipeline binaries and background loading enabled, pipelines are restored on
+demand. Otherwise the background path can show its loading note. Turning **Load shader cache
+in the background** off waits on the loading screen for compatible saved pipelines while
+retaining the **Use pipeline binary cache** setting. New areas can still need compilation.
+
+The package ships `bin/wipeout_oc_dlss.dll` (the bridge to NVIDIA's DLSS SDK, built by
 `build_dlss.sh` with MSVC) but never NVIDIA's `nvngx_dlss.dll`: the launcher's **Download NVIDIA
 DLSS** button fetches it from NVIDIA's GitHub (the SDK release in `DLSS_SDK_VERSION`) and keeps it
 only when its SHA-256 matches. RCAS sharpening remains available. The FSR asset tools in the tree
@@ -67,7 +78,8 @@ are development code, not player setup steps.
 See [the historical research notes](../../docs/upscaler.md) for context.
 
 The updater only notifies and opens the release page in a browser; it does not install updates.
-See [Progress](../../README.md#progress) for current scope and validation limits.
+A local Windows playtest of v0.2.49 was successful; no new FPS or HDR measurements were recorded.
+See [Progress](../../README.md#progress) for scope and validation limits.
 
 The launcher texts are written in English with the Russian beside them; the other languages
 are in `launcher/wipeout_oc_lang.py` (one list per language in the order of `KEYS`; a missing or

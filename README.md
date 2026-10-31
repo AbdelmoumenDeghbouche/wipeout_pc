@@ -8,9 +8,12 @@ graphics are translated to Vulkan by the shadPS4 video core. There is no CPU emu
 > **Status: playable, in active development. Menus and races (HD and 2048) play above 60 FPS.**
 > See [Progress](#progress).
 
-The local gameplay baseline is v0.2.43 (`97766e4`), before the identity migration:
+A local Windows playtest of v0.2.49 was successful. No new FPS or HDR measurements
+were recorded.
+
+The historical local gameplay baseline is v0.2.43 (`97766e4`), before the identity migration:
 Empire Climb / 2048 at 4K, 120 FPS (8.3 ms), VSync on, HDR and Pro off, with no observed
-visual defects. The migrated build has not yet had a manual gameplay test.
+visual defects.
 
 For contributors: [build and debug on Windows](docs/windows-debug.md), or optionally [edit from WSL2](docs/windows-debug-wsl.md). Debugging scripts and tests are versioned; GDB and the compiler are installed as development dependencies.
 
@@ -52,16 +55,19 @@ Thanks to everyone who has played, tested and reported so far!
 | Boot, menus, saves | Done |
 | Races (HD and 2048), race results | Done |
 | Game speed | Done: the game runs on real time at any frame rate |
-| Frame rate above 60 FPS | Done: up to 240 FPS, set by the frame rate limit (110–150 FPS in 2048 races on an RTX 4070 Laptop) |
+| Frame rate above 60 FPS | Limits up to 240 FPS, including 144 and 165 for matching displays. Earlier upstream report: 110–150 FPS in 2048 on an RTX 4070 Laptop |
 | Graphics: Metro Park terrain | Fixed (shader recompiler, #5) |
-| Render resolutions: native 1080p, 2560x1440, 3840x2160 (4K), 2560x1080, 3440x1440, 5120x2160 | Done: pick one in the in-game **Render resolution** menu (Insert key) (`patches/WipEout_Omega_Collection.xml`, #2, #48). The HUD stays 16:9 in the middle of wider screens. 4K and 5120x2160 need a lot of video memory: HD races at 4K can run out on 8 GB |
-| HDR | Done; the darker picture when RCAS runs is fixed, waiting for a test (#4) |
+| Render resolutions: 16:9, ultrawide and 16:10 | Choose **Render resolution** in the launcher or in-game menu (Insert), then restart. Includes 1920x1200, 2560x1600 and 2880x1800; see [all sizes and limits](docs/ultrawide.md). HUD and menus remain centered at 16:9 |
+| HDR | Supported; see [Pro/HDR notes](docs/ps4-pro-video.md) for the earlier output tests and validation limits |
 | Sound: music and effects (Audio3d) | Done; the effects are new, please report anything that sounds wrong |
 | Your own music (custom soundtrack) | Done: see [Your own music](#your-own-music) (#47) |
+| Temporal AA and upscaling | FSR 3.1 or NVIDIA RTX DLAA/DLSS. **Upscaling** Off keeps native AA; Quality/Balanced/Performance use 1.5/1.7/2 scaling ratios. See [Windows settings](packaging/windows/README.md) |
+| Texture quality | Full, maximum 4096 or maximum 2048 for the largest textures; applies on restart |
+| Loaded model slots | Built-in correction expands the model table from 1396 to 4096 entries in a linker reserve; see [memory notes](docs/ps4-memory.md) |
 | Launcher and settings | Done (`launcher/wipeout_oc_launcher_win.py`) |
 | Windows package (zip) | Done (`packaging/windows/package.sh`, Actions > Windows zip) |
 | Linux | Builds from source; no package yet |
-| PS4 Pro mode | Experimental (`WIPEOUT_OC_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
+| PS4 Pro mode | Experimental (`WIPEOUT_OC_NEO=1`); see [memory budgets](docs/ps4-memory.md) and [video/validation limits](docs/ps4-pro-video.md) |
 | PSVR mode | Not planned for now (#7) |
 | Every game and event type (HD, HD Fury, 2048) | Not all tested yet |
 
@@ -93,7 +99,7 @@ the game's own music. Without the launcher, `WIPEOUT_OC_MUSIC_DIR` points to ano
 | Title ID | Region | Version | State |
 |---|---|---|---|
 | CUSA07671 | US | 01.00 + update 01.07 | Supported profile; not validated in the local baseline playtest |
-| CUSA05670 | EU | 01.07 (merged dump) | Local baseline playtest: Empire Climb / 2048, 4K, 120 FPS; HDR and Pro off |
+| CUSA05670 | EU | 01.07 (merged dump) | Local v0.2.49 playtest successful; historical baseline measurements are listed above |
 
 The base game and the update are merged into one folder (the update's files replace the base
 game's). One `eboot.bin` runs all three games: WipEout 2048, WipEout HD and WipEout Fury.
@@ -168,7 +174,8 @@ A migration or read error stops startup and reports the path instead of loading 
 relative overrides are anchored to the caller's working directory. Legacy `GOW3_CONFIG` is
 accepted when the new variable is absent. An empty `WIPEOUT_OC_CONFIG` selects the default
 and suppresses the legacy override. Launcher options remain in `wipeout-launcher/settings.json`
-under the platform's configuration directory.
+under the platform's configuration directory. `WIPEOUT_OC_USER_DIR` holds cache/logs and, by
+default, savedata. `WIPEOUT_OC_SAVEDATA_DIR` overrides savedata alone; it does not move cache or logs.
 
 AppImage and Nix default to `$XDG_DATA_HOME/wipeout_oc` (`~/.local/share/wipeout_oc` without
 `XDG_DATA_HOME`), reuse an existing `gow3` data directory in place when the new directory does
@@ -199,7 +206,8 @@ install or replace the package. Extract an update separately and preserve your d
 ## Game patches and compatibility
 
 Built-in patches use [WipEout_Omega_Collection.xml](patches/WipEout_Omega_Collection.xml).
-Its metadata tag `01.00` is distinct from the dump's actual `APP_VER` (`01.07` in the validated
+The model-slot fix uses the linked image's single table reserve; conflicting table owners are
+rejected before their writes are published. Its metadata tag `01.00` is distinct from the dump's actual `APP_VER` (`01.07` in the validated
 EU dump). Address-only writes require the exact CUSA05670 / 01.07 executable SHA-256
 `3a52e910f6c450cc2f0c85ef994be5d8c951c326a362bcc4775f29e6ff7f644c`.
 Other builds need unique safe signatures and valid relative dependencies; an unsupported or

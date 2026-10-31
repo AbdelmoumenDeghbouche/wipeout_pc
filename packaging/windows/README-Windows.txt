@@ -9,8 +9,8 @@ your own PS4, as a folder containing eboot.bin, sce_module and sce_sys. The loca
 playtest (v0.2.43, 97766e4, before the identity migration) used CUSA05670 (EU), APP_VER
 01.07, merged into one folder: Empire Climb / 2048,
 4K, 120 FPS, VSync on, HDR and Pro off. CUSA07671 (US) has a supported profile; that
-local playtest does not validate it or every track, mode or graphics setting. The migrated
-build has not yet had a manual gameplay test.
+local baseline does not validate it or every track, mode or graphics setting. A local
+Windows playtest of v0.2.49 was successful. No new FPS or HDR measurements were recorded.
 
 Requirements
 - Windows 10 (1903 or newer) or Windows 11, 64-bit.
@@ -30,11 +30,16 @@ Starting
 
 Settings
 - Frame rate: the game runs on real time, so it can go above 60 FPS (up to 240). The Frame
-  rate limit on Home sets the cap.
+  rate limit on Home sets the cap, including 144 and 165 FPS choices for those displays.
 - Render resolution: 1920x1080 by default. 2560x1440, 3840x2160 (4K), 2560x1080, 3440x1440
   and 5120x2160 are in the port's in-game menu, under Performance, and apply on the next start.
+  16:10 choices include 1920x1200, 2560x1600 and 2880x1800.
   The HUD and menus stay 16:9 in the middle of wider screens. 4K and 5120x2160 need a lot of
   video memory.
+- Texture quality: Full, maximum 4096 or maximum 2048 for the largest textures, applied
+  on restart. This changes textures separately from render resolution.
+- Temporal anti-aliasing: FSR 3.1 or NVIDIA RTX DLAA/DLSS. Upscaling Off means native AA;
+  Quality/Balanced/Performance render smaller by factors 1.5/1.7/2 and reconstruct the output.
 - Your own music: the launcher's Music page shows the music folder (user\music, or one you
   choose) and the songs in it: MP3, OGG, FLAC, WAV or M4A. They play instead of the game's
   music. In the game, Insert (or R3 + L2) > Music picks a song, skips, switches shuffle and
@@ -45,8 +50,10 @@ Settings
 While playing
 - Insert on the keyboard, or R3 + L2 on the controller, opens the port's menu: image,
   performance and the performance overlay.
-- Saved pipelines load in the background; a small note shows the progress. New areas can
-  stutter the first time while their shaders compile.
+- With supported pipeline binaries and background loading on, saved pipelines restore on
+  demand. Without that binary path, background loading can show a progress note. Turn off
+  Load shader cache in the background to wait on the loading screen, keeping the binary
+  cache setting. New areas can still stutter while new shaders compile.
 - Keyboard keys: Game -> Controls in the launcher.
 
 Next time
@@ -57,7 +64,11 @@ Next time
   preserve your data. Advanced -> Check for updates checks by hand.
 
 Data
-- Saves, shader cache and the log: user\ next to WipEout.exe (keep it when updating).
+- User data, shader cache and log: user\ next to WipEout.exe, or WIPEOUT_OC_USER_DIR.
+  Savedata defaults to its savedata\ subfolder. The optional Save data folder /
+  WIPEOUT_OC_SAVEDATA_DIR moves only saves; cache and logs stay in the user-data folder.
+  Save backups remain under the user-data folder in savedata_backups\, even with external
+  savedata. Keep these folders when updating.
 - Settings: wipeout_oc.ini next to WipEout.exe (or in WIPEOUT_OC_DATA_DIR). An existing
   gow3.ini is copied byte for byte on first use and kept intact. If both exist, the new file
   wins; no merge or overwrite. Migration/read errors stop startup with an error message.
@@ -68,6 +79,9 @@ Data
 - Generated files (prepared game image, patches): out\.
 
 Patches
+- The built-in model-slot fix expands the game's table to 4096 entries in a linker reserve.
+  Selected high-resolution patches enlarge the game's video arena outside Pro mode; these
+  are separate from physical VRAM and the runtime's PS4/Pro direct-memory budgets.
 - WipEout event unlocks remain available. Inherited God of War III cheats, mouse aiming,
   WAD prompt/pause-menu injection and LightingTest have been removed.
 - Third-party XML must match the actual title ID and APP_VER. Address-only writes require
@@ -80,7 +94,8 @@ Known issues
 
 Problems
 - The game does not open: check Advanced -> Log, and send user\last_run.log with your report.
-  With a custom Saves folder, last_run.log is in that folder instead.
+  With a custom user-data folder, last_run.log follows that folder. The optional Save data
+  folder changes savedata alone and does not move the log.
 - Memory error (error 1450): increase the Windows page file. Win+R ->
   SystemPropertiesAdvanced -> Performance Settings -> Advanced -> Virtual memory Change ->
   set C: to 16384 MB initial, 24576 MB maximum -> Set -> OK, then restart your PC.
