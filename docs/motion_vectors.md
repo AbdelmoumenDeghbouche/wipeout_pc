@@ -1,5 +1,10 @@
 # Векторы движения: доработка после видео 2026-09-26
 
+> **Historical archive.** Below, “current”, “available” and “next run” refer to the dated
+> God of War III experiment, not WipEout v0.2.49. Its TAA/FSR 4 commands and base-port toggles
+> are historical records, not current setup steps. Use the [current Windows guide](../packaging/windows/README.md)
+> and [README](../README.md) for supported options.
+
 > Historical research from the God of War III base port. The measurements, commands and
 > implementation snapshots below are not WipEout gameplay validation. See the
 > [README](../README.md) for current usage and supported scope.

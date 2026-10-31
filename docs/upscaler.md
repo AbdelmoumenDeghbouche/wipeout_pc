@@ -1,9 +1,14 @@
 # Temporal upscaling and frame generation: historical research
 
+> **Historical archive.** Below, “current”, “available” and “next run” refer to the dated
+> God of War III experiment, not WipEout v0.2.49. Its TAA/FSR 4 commands and base-port toggles
+> are historical records, not current setup steps. Use the [current Windows guide](../packaging/windows/README.md)
+> and [README](../README.md) for supported options.
+
 > This document preserves historical God of War III experiments and measurements from the
 > base port. Their commands, releases, frame map and quality/performance claims do not validate
 > WipEout Omega Collection. The inherited frame-map tool was removed. For current options and
-> the FSR 3.1 / DLAA package path, see the [Windows guide](../packaging/windows/README.md)
+> the FSR 3.1 / DLAA/DLSS package path, see the [Windows guide](../packaging/windows/README.md)
 > and [README](../README.md). Historical names and observations below are retained as context.
 
 ## Native TAA and missing FSR 4 assets (2026-10-01)
