@@ -108,3 +108,23 @@ works for menus and movies.
 Linux-specific features include watchdog/`--timeout` thread dumps (Linux signals), userfaultfd
 tracking (`WIPEOUT_OC_UFFD`), MangoHud and PGO (GCC flags). Many Python and C/C++ tests run on Windows;
 some tests still require Linux APIs. See the root README and `gpu/CMakeLists.txt` for test commands.
+
+## Release builds
+
+Use the existing Windows build entry point:
+
+```bash
+WIPEOUT_OC_BUILD_TYPE=Release WIPEOUT_OC_LTO=ON bash build.sh
+```
+
+The locally validated MSYS2 CLANG64 build used `-O3 -DNDEBUG`, ThinLTO and no `-g`;
+PGO remains off on Windows. Check CMake's IPO result rather than the option alone.
+Debug information and optimization are separate choices. Frame pointers remain enabled
+(`-fno-omit-frame-pointer`); staged stripping must preserve PE unwind tables, imports and exports.
+
+The v0.2.49 Release package passed a local playtest; no new FPS or HDR measurements were recorded.
+`package.sh` strips debug information from the probe and capability executables and strips the
+Play stub; it does not automatically remove COFF symbol tables from every copied DLL.
+The validated package also had a separate local audit and strip of 99 unsigned PE copies;
+signed files and files containing only PDB references were preserved. No PDB files or DWARF
+debug sections were shipped.
