@@ -590,12 +590,15 @@ private:
         u32 levels = 0;
         u32 layers = 0;
         u64 generation = ~0ULL;
+        u64 chain_generation = ~0ULL;
         ImageId image_id{};
         int view_mip = -1;
         int view_slice = -1;
     };
     std::array<FindImageCacheEntry, 1024> find_image_cache{};
     std::atomic<u64> registry_generation{0};
+    /// gow3 (#109): bumped when an image with mip levels registers (under `mutex`).
+    u64 chain_generation{0};
     std::mutex samplers_mutex;
     std::mutex download_images_mutex;
     struct MetaDataInfo {

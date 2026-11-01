@@ -1189,10 +1189,30 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     key_hash = (key_hash ^ key_hash >> 33) * 0xC4CEB9FE1A85EC53ull;
     key_hash ^= key_hash >> 33;
     auto& cached = find_image_cache[key_hash % find_image_cache.size()];
+    // gow3 (#109): levels found before the image they belong to are merged into it once it
+    // exists (after the overlap loop); this is the path the code shows leaving a level image
+    // next to its chain. GOW3_MIP_TARGET_MERGE=0 turns it off.
+    static const bool mip_target_merge = [] {
+        const char* value = std::getenv("GOW3_MIP_TARGET_MERGE");
+        return !value || value[0] != '0';
+    }();
+    // gow3 (#109): render targets with an image of their own that are mip levels of another
+    // image draw into that image's level (the redirect after the perfect match below). It
+    // repairs a standalone level however it formed. GOW3_MIP_TARGET_REDIRECT=0 turns it off.
+    static const bool mip_target_redirect = [] {
+        const char* value = std::getenv("GOW3_MIP_TARGET_REDIRECT");
+        return !value || value[0] != '0';
+    }();
+    const bool redirect_target = mip_target_redirect && desc.type == BindingType::RenderTarget;
     // An exact match stays valid while that image is registered with the same description;
     // resolved overlaps (views into other images) only until any image registration changes.
+    // gow3 (#109): with the redirect on, an exact render target only until an image with mip
+    // levels registers: that image may hold it as a level.
     const auto still_exact = [&] {
         if (cached.view_mip >= 0 || cached.view_slice >= 0 || !cached.image_id) {
+            return false;
+        }
+        if (redirect_target && cached.chain_generation != chain_generation) {
             return false;
         }
         const Image& image = slot_images[cached.image_id];
@@ -1262,6 +1282,48 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
     }
 
+    // gow3 (#109): a render target with an image of its own that is also a mip level of another
+    // registered image draws into that level. The image of its own shadows the level: WipEout
+    // renders its sun visibility into levels 2-4 of one 32x32 texture, each pass sampling the
+    // level before, and those reads found the texture's levels empty (no sun glare). Its
+    // contents go into the level first, as ResolveOverlap does with a level it merges. Only
+    // levels after level 0 (mip > 0): array layers of level 0 are left alone.
+    int view_mip{-1};
+    int view_slice{-1};
+    if (image_id && redirect_target && !slot_images[image_id].binding.is_bound &&
+        !slot_images[image_id].binding.is_target) {
+        Image& target = slot_images[image_id];
+        for (const auto cache_id : image_ids) {
+            Image& parent = slot_images[cache_id];
+            // A parent bound in this draw (as a texture, for a target re-resolved in
+            // BeginRenderingFull, or as a target) is not copied into: it is set up for the draw.
+            if (parent.binding.is_bound || parent.binding.is_target ||
+                parent.info.guest_address >= target.info.guest_address ||
+                (exact_fmt && parent.info.pixel_format != target.info.pixel_format)) {
+                continue;
+            }
+            const s32 mip = target.info.MipOf(parent.info);
+            const s32 slice = mip > 0 ? target.info.SliceOf(parent.info, mip) : -1;
+            if (slice < 0) {
+                continue;
+            }
+            if (traced) {
+                LOG_INFO(Render_Vulkan, "tc-trace: mip-target redirect {} -> {} mip {} slice {}",
+                         image_id.index, cache_id.index, mip, slice);
+            }
+            // Both refreshed: CopyMip copies the target's GPU contents as they are and marks the
+            // parent clean, so a CPU write to either since would otherwise be lost.
+            RefreshImage(target);
+            RefreshImage(parent);
+            runtime.CopyMip(&target, &parent, mip, slice);
+            FreeImage(image_id);
+            image_id = cache_id;
+            view_mip = mip;
+            view_slice = slice;
+            break;
+        }
+    }
+
     // gow3 (GOW3_PERF_DIAG): what was cached here, read before overlap resolution may free it.
     const bool diag = Vulkan::WaitDiagnostics::Enabled();
     CreateStat created{info.guest_address, info.size.width, info.size.height, 1, info.pixel_format,
@@ -1284,8 +1346,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     created.tile = static_cast<u32>(info.tile_mode);
 
     // Try to resolve overlaps (if any)
-    int view_mip{-1};
-    int view_slice{-1};
+    ImageIds unmerged_levels;
     if (!image_id) {
         for (const auto& cache_id : image_ids) {
             // gow3: once the request has a place (image_id, view_mip/slice), later rounds resolve
@@ -1298,6 +1359,22 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
             auto [overlap_image_id, overlap_view_mip, overlap_view_slice] =
                 ResolveOverlap(merged_info, desc.type, cache_id, image_id, desc.needs_native);
             if (!overlap_image_id) {
+                // gow3 (#109): a mip level of the request met before the request has an image
+                // ("left:no-merged") stays registered. Merged after the loop, once the image
+                // exists; left alone, it shadowed that image's level from then on.
+                if (mip_target_merge && !merging) {
+                    const Image& level = slot_images[cache_id];
+                    const bool left_level = True(level.flags & ImageFlagBits::Registered) &&
+                                            level.info.guest_address > info.guest_address;
+                    const s32 level_mip = left_level ? level.info.MipOf(info) : -1;
+                    if (level_mip >= 0 && level.info.SliceOf(info, level_mip) >= 0) {
+                        if (traced) {
+                            LOG_INFO(Render_Vulkan, "tc-trace: mip-target defer {}",
+                                     cache_id.index);
+                        }
+                        unmerged_levels.push_back(cache_id);
+                    }
+                }
                 continue;
             }
             if (!merging) {
@@ -1349,6 +1426,31 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
     }
 
+    // gow3 (#109): the levels set aside in the loop go into the image now, the way
+    // ResolveOverlap merges a level into an image that already exists: it copies the level in
+    // and frees it ("left:copymip"; a level bound as render target never gets here, it is freed
+    // and re-resolved in the loop). The image is tracked and refreshed first, in UpdateImage's
+    // order: CopyMip marks it clean, so its other levels would never be uploaded. Each level is
+    // refreshed too, since CopyMip copies its GPU contents as they are. Pending backing writes
+    // are applied first, as UpdateImage does.
+    if (!unmerged_levels.empty()) {
+        ApplyBackingWrites();
+        TrackImage(image_id);
+        RefreshImage(slot_images[image_id]);
+        for (const auto level_id : unmerged_levels) {
+            if (False(slot_images[level_id].flags & ImageFlagBits::Registered)) {
+                continue;
+            }
+            RefreshImage(slot_images[level_id]);
+            if (traced) {
+                LOG_INFO(Render_Vulkan, "tc-trace: mip-target merge {} into {}", level_id.index,
+                         image_id.index);
+            }
+            std::ignore = ResolveOverlap(slot_images[image_id].info, desc.type, level_id,
+                                         image_id, desc.needs_native);
+        }
+    }
+
     Image& image = slot_images[image_id];
     image.tick_accessed_last = scheduler.CurrentTick();
     TouchImage(image);
@@ -1373,6 +1475,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         .levels = info.resources.levels,
         .layers = info.resources.layers,
         .generation = registry_generation.load(std::memory_order_relaxed),
+        .chain_generation = chain_generation,
         .image_id = image_id,
         .view_mip = view_mip,
         .view_slice = view_slice,
@@ -1635,6 +1738,9 @@ void TextureCache::RegisterImage(ImageId image_id) {
                "Trying to register an already registered image");
     image.flags |= ImageFlagBits::Registered;
     ++registry_generation;
+    if (image.info.resources.levels > 1) {
+        ++chain_generation; // gow3 (#109): FindImage's render-target memo (mip-target redirect)
+    }
     total_used_memory += Common::AlignUp(image.info.guest_size, 1024);
     image.lru_id = lru_cache.Insert(image_id, gc_tick);
     image.lru_touched_tick = gc_tick;
