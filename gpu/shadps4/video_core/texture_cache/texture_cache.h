@@ -450,6 +450,14 @@ private:
 
     void FreeImage(ImageId image_id) {
         const auto& image = slot_images[image_id];
+        if (False(image.flags & ImageFlagBits::Registered)) {
+            // gow3 (#107): freed already; a second free stopped the game ("Trying to unregister
+            // an already unregistered image") after hours of play under memory pressure.
+            std::printf("Texture cache: image %#llx %ux%u freed twice, skipped\n",
+                        static_cast<unsigned long long>(image.info.guest_address),
+                        image.info.size.width, image.info.size.height);
+            return;
+        }
         ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,
                          ReadbackSource::ImageFree);
         UntrackImage(image_id);

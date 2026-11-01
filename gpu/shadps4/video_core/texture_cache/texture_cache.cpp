@@ -1869,6 +1869,16 @@ void TextureCache::GarbageCollectImages() {
                 pressure_gc_memory = budget / 100 * 85;
                 critical_gc_memory = budget / 100 * 95;
             }
+        } else if (gc_tick % 64 == 0) {
+            // gow3 (#116): other programs' video memory shrinks the driver's budget. The limits
+            // set at start (pressure at 19 GB of a 24 GB card) were never reached while the
+            // budget ran out: out of memory loading the 8th race at 4K. They follow it now.
+            static const u64 start[3] = {trigger_gc_memory, pressure_gc_memory, critical_gc_memory};
+            if (const u64 budget = instance.GetDeviceMemoryBudgetNow(); budget != 0) {
+                trigger_gc_memory = std::min(start[0], budget / 10 * 7);
+                pressure_gc_memory = std::min(start[1], budget / 100 * 85);
+                critical_gc_memory = std::min(start[2], budget / 100 * 95);
+            }
         }
     }
     runtime.GetStagingPool().SetLowMemory(total_used_memory >= pressure_gc_memory);
