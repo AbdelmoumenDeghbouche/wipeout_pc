@@ -294,10 +294,10 @@ class ControlMapTest(unittest.TestCase):
         for key in ('game_dir', 'user_dir', 'mods_dir', 'patches_dir', 'language', 'hdr',
                     'draw_pipe', 'readbacks', 'background_warmup', 'parallel_warmup', 'controls', 'pad_style', 'glyph_style'):
             self.assertIn(key, launcher.APP_DEFAULTS)
-        # The player name option is gone: an old settings.json value is ignored.
-        self.assertNotIn('player_name', launcher.APP_DEFAULTS)
-        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Kratos '})
-        self.assertNotIn('GOW3_USER_NAME', env)
+        # WipEout's profile name (#129): trimmed, at most 16 characters; empty leaves "Player".
+        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Arial Tetsuo Racer '})
+        self.assertEqual(env['GOW3_USER_NAME'], 'Arial Tetsuo Rac')
+        self.assertNotIn('GOW3_USER_NAME', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 

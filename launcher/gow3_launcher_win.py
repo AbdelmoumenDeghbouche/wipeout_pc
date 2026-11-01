@@ -437,7 +437,7 @@ GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('
                    ('4', ('Fourth connected',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '', 'savedata_dir': '',
-                'music_dir': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
+                'music_dir': '', 'player_name': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached', 'texture_limit': '',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -1228,6 +1228,9 @@ def game_environment(s):
     env['GOW3_PATCHES_DIR'] = s['patches_dir'] or str(DATA_DIR / 'patches')
     env['GOW3_PATCHES_CONFIG'] = str(DATA_DIR / 'patches.json')
     env['GOW3_LANGUAGE'] = s['language']
+    env.pop('GOW3_USER_NAME', None)
+    if s.get('player_name', '').strip():
+        env['GOW3_USER_NAME'] = s['player_name'].strip()[:16]
     env['GOW3_ELIMINATOR_LIMIT'] = str(s.get('eliminator_limit', APP_DEFAULTS['eliminator_limit']))
     env['GOW3_DISCORD'] = '1' if s.get('discord_rpc') else '0'
     if s['hdr']:
@@ -2049,6 +2052,10 @@ class Launcher:
         self.section(f, _('Language'))
         self.row(f, _('Game language', 'Язык игры'), self.choice(f, 'language', 'app',
                                                                   lambda: game_languages(self.meta_dir())))
+        name = self.ttk.Entry(f, textvariable=self.var('player_name', 'app'), width=20, validate='key',
+                              validatecommand=(self.root.register(lambda text: len(text) <= 16), '%P'))
+        self.row(f, _('Player name'), name,
+                 _('Your name in the game (profile, records). Up to 16 characters. Empty: Player.'))
         self.build_patches(f)
         # scripts/menu_patches.py (#89): each digit over 3 takes an indentation space (the menu has 4).
         self.section(f, _('In-game menu patches', 'Патчи меню игры'))
