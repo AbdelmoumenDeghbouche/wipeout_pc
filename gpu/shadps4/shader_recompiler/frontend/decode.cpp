@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 
 #include <algorithm>
+#include <bit>
 #include "common/assert.h"
 #include "core/libraries/kernel/process.h"
 #include "shader_recompiler/frontend/decode.h"
@@ -441,7 +442,7 @@ void GcnDecodeContext::decodeSubDwordAddressing(InstEncoding encoding, GcnCodeSl
         m_instruction.length += sizeof(u32);
 
         if (encoding == InstEncoding::VOPC) {
-            SdwaVopc sdwa = *reinterpret_cast<SdwaVopc*>(&m_instruction.src[0].code);
+            const SdwaVopc sdwa = std::bit_cast<SdwaVopc>(m_instruction.src[0].code);
 
             m_instruction.src[0].field =
                 sdwa.s0 == 0 ? OperandField::VectorGPR : getOperandField(sdwa.src0);
@@ -468,7 +469,7 @@ void GcnDecodeContext::decodeSubDwordAddressing(InstEncoding encoding, GcnCodeSl
             }
 
         } else if (encoding == InstEncoding::VOP1 || encoding == InstEncoding::VOP2) {
-            SdwaVop12 sdwa = *reinterpret_cast<SdwaVop12*>(&m_instruction.src[0].code);
+            const SdwaVop12 sdwa = std::bit_cast<SdwaVop12>(m_instruction.src[0].code);
 
             m_instruction.src[0].field =
                 sdwa.s0 == 0 ? OperandField::VectorGPR : getOperandField(sdwa.src0);
@@ -517,7 +518,7 @@ void GcnDecodeContext::decodeDataParallelPrimitive(InstEncoding encoding, GcnCod
         m_instruction.src[0].code = code.readu32();
         m_instruction.length += sizeof(u32);
 
-        Dpp dpp = *reinterpret_cast<Dpp*>(&m_instruction.src[0].code);
+        const Dpp dpp = std::bit_cast<Dpp>(m_instruction.src[0].code);
 
         m_instruction.src[0].field = OperandField::VectorGPR;
         m_instruction.src[0].code = dpp.src0;
