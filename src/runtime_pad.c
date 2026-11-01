@@ -860,6 +860,7 @@ int runtime_pad_second_user(void) {
 
 static int valid(int32_t handle) { return handle==PAD_HANDLE ? opened : handle==PAD2_HANDLE ? opened2 : 0; }
 static ABI int32_t pad_init(void) { pthread_mutex_lock(&lock); initialized=1; pthread_mutex_unlock(&lock); return 0; }
+volatile int runtime_pad_opened;
 static ABI int32_t pad_open(int32_t user, int32_t type, int32_t index, const void *param) {
     (void)param;
     if (!initialized) return ERR_NOT_INITIALIZED;
@@ -871,6 +872,7 @@ static ABI int32_t pad_open(int32_t user, int32_t type, int32_t index, const voi
     int already=*flag; *flag=1;
     pthread_mutex_unlock(&lock);
     if (already) return ERR_ALREADY_OPENED;
+    runtime_pad_opened=1;
     puts(user==1 ? "Runtime: pad opened for user 1 (SDL gamepad or keyboard)"
                  : "Runtime: pad opened for user 2 (second gamepad)");
     return user==1 ? PAD_HANDLE : PAD2_HANDLE;
