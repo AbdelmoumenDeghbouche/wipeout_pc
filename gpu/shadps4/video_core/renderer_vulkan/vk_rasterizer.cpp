@@ -29,6 +29,7 @@
 #include "video_core/renderer_vulkan/vk_shader_hle.h"
 #include "video_core/texture_cache/image_view.h"
 #include "video_core/texture_cache/texture_cache.h"
+#include "video_core/texture_cache/trace_range.h"
 
 namespace Vulkan {
 
@@ -2519,7 +2520,12 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                 old_image.binding = {};
                 auto& rebind_desc = image_desc_storage.emplace_back(desc);
                 desc_ptr = &rebind_desc;
+                const auto old_id = image_id;
                 image_id = texture_cache.FindImage(rebind_desc);
+                if (VideoCore::IsTraced(desc.info.guest_address, desc.info.guest_size)) {
+                    LOG_INFO(Render_Vulkan, "tc-trace: texture rebind {} -> {}", old_id.index,
+                             image_id.index);
+                }
                 memo_entry = nullptr;
                 set_ok = false;
             }
@@ -2912,8 +2918,13 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         auto* image = &texture_cache.GetImage(image_id);
         if (image->binding.needs_rebind) {
             last_targets[cb].generation = ~0ULL; // FindImage may rewrite the description
+            const auto old_id = image_id;
             image_id = bound_images.emplace_back(texture_cache.FindImage(desc));
             image = &texture_cache.GetImage(image_id);
+            if (VideoCore::IsTraced(desc.info.guest_address, desc.info.guest_size)) {
+                LOG_INFO(Render_Vulkan, "tc-trace: target rebind {} -> {}", old_id.index,
+                         image_id.index);
+            }
         }
         texture_cache.UpdateImage(image_id);
         runtime.SetBackingSamples(image, key.color_samples[cb]);
