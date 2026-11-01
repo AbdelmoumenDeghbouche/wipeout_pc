@@ -345,6 +345,14 @@ private:
     std::array<float, 2> hud_y{1.0f, 0.0f};
     VAddr hud_buffer = 0;  ///< display buffer the HUD draws are counted in
     u32 hud_draws = 0;     ///< draws into hud_buffer; the first one is the scene
+    /// HDR output: the game's own buffer for scene and HUD, copied to the display buffer by one
+    /// draw a frame (learned from the draws, see PrepareRenderState)
+    VAddr hdr_hud_buffer = 0;
+    VAddr hdr_source = 0;     ///< candidate for hdr_hud_buffer from the previous display buffer
+    VAddr display_buffer = 0; ///< display buffer drawn into last
+    VAddr display_source = 0; ///< target drawn last before display_buffer's first draw
+    u32 display_draws = 0;    ///< draws into display_buffer
+    VAddr prev_target = 0;    ///< color target of the previous draw
     bool hud_draw = false; ///< the current draw is a HUD draw (GOW3_HUD_16X9 counting)
     const bool host_markers_enabled;
     const bool guest_markers_enabled;

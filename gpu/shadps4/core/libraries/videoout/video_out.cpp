@@ -364,7 +364,9 @@ s32 sceVideoOutSubmitEopFlip(s32 handle, u32 buf_id, u32 mode, s64 flip_arg, voi
 s32 PS4_SYSV_ABI sceVideoOutGetDeviceCapabilityInfo(
     s32 handle, SceVideoOutDeviceCapabilityInfo* pDeviceCapabilityInfo) {
     pDeviceCapabilityInfo->capability = 0;
-    if (presenter->IsHDRSupported()) {
+    // GOW3_HDR_FAKE=1 (test): the game takes its HDR path on an SDR display (PQ shown as SDR).
+    static const bool fake_hdr = std::getenv("GOW3_HDR_FAKE") != nullptr;
+    if (presenter->IsHDRSupported() || fake_hdr) {
         auto& game_info = Common::ElfInfo::Instance();
         if (game_info.GetPSFAttributes().support_hdr) {
             pDeviceCapabilityInfo->capability |= ORBIS_VIDEO_OUT_DEVICE_CAPABILITY_BT2020_PQ;

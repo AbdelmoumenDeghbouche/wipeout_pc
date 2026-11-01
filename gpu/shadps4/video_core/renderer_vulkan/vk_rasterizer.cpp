@@ -259,10 +259,24 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
     }();
     hud_x = hud_y = {1.0f, 0.0f};
     hud_draw = false;
-    if (hud_16x9 && cb_descs[0].first &&
-        FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address())) {
-        const VAddr address = regs.color_buffers[0].Address();
-        if (address != hud_buffer) {
+    const VAddr address = cb_descs[0].first ? regs.color_buffers[0].Address() : 0;
+    const bool display = address && FrameCapture::IsDisplayBuffer(address);
+    // With HDR output the game draws scene and HUD into a buffer of its own and converts it into
+    // the display buffer with one draw a frame. That buffer is the target drawn last before a
+    // display buffer that took a single draw, two frames in a row. Each pass into it starts with
+    // the scene or a full-screen effect (the menus make three such passes, the race one).
+    if (hud_16x9 && display && address != display_buffer) {
+        const VAddr source = display_draws == 1 ? display_source : 0;
+        hdr_hud_buffer = source == hdr_source ? source : 0;
+        hdr_source = source;
+        display_buffer = address;
+        display_draws = 0;
+        display_source = prev_target;
+    }
+    display_draws += display;
+    const bool hdr_hud = hud_16x9 && address && !display && address == hdr_hud_buffer;
+    if (hud_16x9 && (display || hdr_hud)) {
+        if (address != hud_buffer || (hdr_hud && prev_target != address)) {
             hud_buffer = address;
             hud_draws = 0;
         }
@@ -276,6 +290,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         }
         hud_draw = hud_draws > 1;
     }
+    prev_target = address;
 
     if (GetEffectiveDepthStencilState(regs).needs_attachment) {
         const auto htile_address = regs.depth_htile_data_base.GetAddress();
