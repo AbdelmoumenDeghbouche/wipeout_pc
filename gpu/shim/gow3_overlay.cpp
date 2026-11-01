@@ -105,7 +105,9 @@ void SetOpen(bool value) {
     if (menu_open.exchange(value) == value) {
         return;
     }
-    ImGui::GetIO().MouseDrawCursor = value;
+    // The SDL window shows the compositor cursor while this menu has input. It stays outside
+    // the swapchain, so it remains sharp at every render scale and needs no overlay draw.
+    ImGui::GetIO().MouseDrawCursor = false;
     if (value) {
         requested_tab = Gow3Settings::Get().menu_tab;
     }
