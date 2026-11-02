@@ -14,10 +14,13 @@ int main() {
 #ifdef _WIN32
     _set_error_mode(_OUT_TO_STDERR);
 #endif
-    assert(UseOnDemandPipelines(true, true, false));
-    assert(!UseOnDemandPipelines(false, true, false));
-    assert(!UseOnDemandPipelines(true, false, false));
-    assert(!UseOnDemandPipelines(true, true, true));
+    // Explicit loading-screen mode must not be bypassed by supported pipeline binaries.
+    assert(!UseOnDemandPipelines(true, true, false, false));
+    // Background mode keeps on-demand binaries and the existing warm-up fallbacks.
+    assert(UseOnDemandPipelines(true, true, false, true));
+    assert(!UseOnDemandPipelines(false, true, false, true));
+    assert(!UseOnDemandPipelines(true, false, false, true));
+    assert(!UseOnDemandPipelines(true, true, true, true));
     assert(WarmupThreadCount(1) == 1 && WarmupThreadCount(2) == 1 && WarmupThreadCount(4) == 1);
     assert(WarmupThreadCount(6) == 4 && WarmupThreadCount(8) == 6 && WarmupThreadCount(32) == 6);
 

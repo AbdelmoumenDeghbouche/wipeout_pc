@@ -17,6 +17,12 @@ void runtime_memory_set_gpu_hooks(void (*)(uintptr_t, uint64_t),
     void (*)(uintptr_t, uint64_t), void (*)(uintptr_t, uint64_t)) { std::abort(); }
 void runtime_thread_attach_host(const char*) {}
 void runtime_memory_gpu_protect(uintptr_t, uint64_t, int, int) { std::abort(); }
+int runtime_music_songs() { std::abort(); }
+const char* runtime_music_song(int) { std::abort(); }
+const char* runtime_music_folder() { std::abort(); }
+int runtime_music_playing() { std::abort(); }
+void runtime_music_play(int) { std::abort(); }
+void runtime_music_step(int) { std::abort(); }
 void runtime_restart() { std::abort(); }
 void runtime_report() {}
 uint64_t runtime_process_time_counter() { return runtime_process_time_us() * 1000; }

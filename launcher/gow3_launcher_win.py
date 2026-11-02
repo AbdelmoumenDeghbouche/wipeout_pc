@@ -1568,7 +1568,7 @@ class Launcher:
         names = ([n for n in self.mod_order if self.mod_vars.get(n) is None or self.mod_vars[n].get()]
                  if getattr(self, 'mod_vars', None) else selected(root, DATA_DIR / 'mods.json', self.var('game_dir', 'app').get()))
         files = [f for n in names for f in patch_files(root / n)]
-        return [(size, (graphics_options.resolution_label(size) + ' (mod)',)) for size in resolution_names(files)
+        return [(size, (graphics_options.resolution_label(size) + ' (mod)',)) for size in resolution_names(files, game=self.meta_dir() or '')
                 if size not in graphics_options.RESOLUTIONS]
 
     def resolution_options(self):
@@ -1978,8 +1978,9 @@ class Launcher:
                    _('Reuse saved Vulkan pipelines. Disable to compare FPS with normal compilation. '
                      'Takes effect on the next launch; saved caches are preserved.'))
         self.check(f, 'background_warmup', 'app', _('Load shader cache in the background'),
-                   _('The game opens at once and the saved shaders load while you play; a small note in the '
-                     'corner shows the progress. Switch it off to wait on the loading screen instead.'))
+                   _('On: start at once, using pipeline binaries on demand or loading shaders in the background. '
+                     'Off: wait on the loading screen for saved pipelines without disabling the binary cache. '
+                     'New areas can still need shader compilation.'))
         self.check(f, 'async_shaders', 'ini', _('Compile new shaders in the background'),
                    _('Fewer stutters in new areas: the game keeps running while new shaders compile. An object '
                      'or effect may appear a moment later. Switch it off if something stays missing.'))
@@ -2187,12 +2188,16 @@ class Launcher:
             self.note(f, _('No built-in patches for this game.', 'Для этой игры нет встроенных патчей.'), top=0)
             return
         _ids, xml, version = profile[:3]
+        from patches import address_patch_problem, game_app_version
+        actual_version = game_app_version(folder)
         metas = [m for m in ET.parse(xml).getroot().iter('Metadata') if m.get('AppVer') == version]
         chosen = self.app.get('game_patches', {}).get(title_id)
         on = set(chosen) if chosen is not None else {m.get('Name') for m in metas
                                                          if m.get('isEnabled', 'false').lower() == 'true'}
         self.note(f, _('{} · version {} · {}. Resolution and frame rate patches follow Performance.',
-                       '{} · версия {} · {}.').format(title_id, version, xml.name), top=0)
+                       '{} · версия {} · {}.').format(title_id, actual_version or '?', xml.name), top=0)
+        if problem := address_patch_problem(folder):
+            self.note(f, problem, top=4)
         for meta in metas:
             name = meta.get('Name')
             if name.startswith((EXCLUSIVE_PREFIX, 'Frame Rate Patch', 'Cheat - ')) or name in ALWAYS_ON:
@@ -2655,7 +2660,7 @@ class Launcher:
             return
         tk, ttk = self.tk, self.ttk
         from mods import discover, mod_info
-        from patches import external_patches
+        from patches import external_patches, game_app_version
         for holder in (self.mods_frame, self.patches_frame):
             for widget in holder.winfo_children():
                 widget.destroy()
@@ -2700,8 +2705,10 @@ class Launcher:
         self.preset_choice.configure(values=sorted(load_json(MOD_PRESETS, {})))
         chosen = load_json(DATA_DIR / 'patches.json', {})
         _title_id, game = game_profile_of(self.meta_dir())
+        rejected = {}
         found = external_patches(Path(self.var('patches_dir', 'app').get() or DATA_DIR / 'patches'),
-                                 game[2], game[1], game[0]) if game else []
+                                 game_app_version(self.meta_dir()), game[1], {_title_id}, game=self.meta_dir(),
+                                 skipped=rejected) if game else []
         old = {n: v.get() for n, v in self.patch_vars.items()}
         self.patch_vars = {}
         if not found:
@@ -2714,6 +2721,9 @@ class Launcher:
             self.patch_vars[key] = var
             author = meta.get('Author')
             ttk.Checkbutton(self.patches_frame, text=key + (f'  ·  {author}' if author else ''), variable=var).pack(anchor='w')
+        for key, reason in rejected.items():
+            ttk.Label(self.patches_frame, text=f'{key}: {reason}', style='Muted.TLabel',
+                      wraplength=self.px(600), justify='left').pack(anchor='w')
 
     def empty_mods(self, root):
         """The list's place when the folder has no mod yet: where to put one."""

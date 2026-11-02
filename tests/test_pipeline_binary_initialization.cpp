@@ -26,7 +26,7 @@ void SetCache(const char* value) {
 #endif
 }
 
-VKAPI_ATTR VkResult VKAPI_CALL GetKey(VkDevice, const VkPipelineCreateInfoKHR* info,
+extern "C" VKAPI_ATTR VkResult VKAPI_CALL PipelineKeyFixture(VkDevice, const VkPipelineCreateInfoKHR* info,
                                      VkPipelineBinaryKeyKHR* key) {
     assert(!info);
     ++key_queries;
@@ -35,10 +35,18 @@ VKAPI_ATTR VkResult VKAPI_CALL GetKey(VkDevice, const VkPipelineCreateInfoKHR* i
     return key_result;
 }
 
+#ifdef _WIN32
+// Model the NVIDIA query's Win64 ABI violation without depending on a particular driver.
+__attribute__((naked)) VKAPI_ATTR VkResult VKAPI_CALL ClobberingKey(VkDevice,
+    const VkPipelineCreateInfoKHR*, VkPipelineBinaryKeyKHR*) {
+    __asm__ volatile("xor %edi, %edi\njmp PipelineKeyFixture");
+}
+#endif
+
 void TestFallbacks() {
     auto& dispatch = VULKAN_HPP_DEFAULT_DISPATCHER;
     const auto original = dispatch;
-    dispatch.vkGetPipelineKeyKHR = GetKey;
+    dispatch.vkGetPipelineKeyKHR = PipelineKeyFixture;
     dispatch.vkCreatePipelineBinariesKHR = [](VkDevice, const VkPipelineBinaryCreateInfoKHR*,
         const VkAllocationCallbacks*, VkPipelineBinaryHandlesInfoKHR*) -> VkResult {
         std::abort();
@@ -84,6 +92,12 @@ void TestFallbacks() {
     key_size = VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR;
     assert(Vulkan::InitializePipelineBinaryCache(device, true, key));
     assert(key_queries == 4 && key.keySize == key_size && key.key[0] == 7);
+#ifdef _WIN32
+    dispatch.vkGetPipelineKeyKHR = ClobberingKey;
+    key_size = 2;
+    assert(Vulkan::InitializePipelineBinaryCache(device, true, key));
+    assert(key_queries == 5 && key.keySize == 2 && key.key[0] == 7);
+#endif
     dispatch = original;
 }
 }

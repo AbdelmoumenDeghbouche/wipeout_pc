@@ -3,6 +3,7 @@ import os
 import struct
 import tempfile
 import unittest
+from unittest import mock
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -42,15 +43,17 @@ class ExternalPatchTests(unittest.TestCase):
             (folder / 'extra.xml').write_text(EXTERNAL)
             (folder / 'other.xml').write_text(EXTERNAL.replace('CUSA01623', 'CUSA99999'))
             (folder / 'broken.xml').write_text('<Patch>')
-            found = external_patches(folder, '01.02', GOW3, GOW3_IDS)
+            # This tests serialization of a trusted synthetic reference, independently of game authorization.
+            with mock.patch('patches.address_patch_problem', return_value=None):
+                found = external_patches(folder, '01.02', GOW3, GOW3_IDS)
             self.assertEqual([key for key, _, _ in found],
-                             ['extra.xml/On', 'extra.xml/Off', 'extra.xml/Mask'])
+                             ['extra.xml/On', 'extra.xml/Off'])
             # The file's isEnabled; the mask patch is skipped as a whole.
-            writes = compile_external(external_selection(found, None), SEGMENTS)
+            writes = compile_external(external_selection(found, None), SEGMENTS, allow_address=True)
             self.assertEqual(writes, [(0x1000, bytes.fromhex('9090'))])
             config = folder / 'patches.json'
             config.write_text('{"enabled": ["extra.xml/Off"], "disabled": ["extra.xml/On"]}')
-            writes = compile_external(external_selection(found, config), SEGMENTS)
+            writes = compile_external(external_selection(found, config), SEGMENTS, allow_address=True)
             self.assertEqual(writes, [(0x2000, (0x12345678).to_bytes(4, 'little'))])
 
     def test_built_in_file_is_not_external(self):
@@ -155,7 +158,7 @@ class SignatureTests(unittest.TestCase):
         self.assertEqual(skipped, {'Found': 'signature found more than once'})
 
     def test_without_the_image_the_reference_addresses_are_used(self):
-        writes = compile_patches(self.xml, ['Found', 'Call'], '01.02', [(0, 0x10000)])
+        writes = compile_patches(self.xml, ['Found', 'Call'], '01.02', [(0, 0x10000)], allow_address=True)
         self.assertEqual(writes[0], (0x1004, b'\x90\x90'))
         self.assertEqual(writes[1][0], 0x1010)
 
@@ -163,7 +166,7 @@ class SignatureTests(unittest.TestCase):
         # The variable has no bytes of its own to find: the code that stores to it points at it.
         self.assertEqual(compile_patches(self.xml, ['Data'], None, [(0, 0x400)], self.image, {}),
                          [(0x3f0, (2).to_bytes(4, 'little'))])
-        self.assertEqual(compile_patches(self.xml, ['Data'], '01.02', [(0, 0x10000)]),
+        self.assertEqual(compile_patches(self.xml, ['Data'], '01.02', [(0, 0x10000)], allow_address=True),
                          [(0x2000, (2).to_bytes(4, 'little'))])
         image = bytearray(self.image)
         image[0x280:0x288] = bytes(8)  # store not found: the whole patch is left out
@@ -211,7 +214,7 @@ class SignatureTests(unittest.TestCase):
         # The reference build: the signatures give exactly the Address writes.
         for name in names:
             self.assertEqual(compile_patches(GOW3, [name], None, segments, image, {}),
-                             compile_patches(GOW3, [name], '01.02', segments), name)
+                             compile_patches(GOW3, [name], '01.02', segments, allow_address=True), name)
         # A build whose code moved like the full 01.02 update's: +0x120 from 0x1f0000 to 0x210000,
         # data unchanged (the bytes taken out keep the data at its address).
         moved = image[:0x1f0000] + bytes(0x120) + image[0x1f0000:0x210000] + image[0x210120:]
@@ -230,16 +233,16 @@ class SignatureTests(unittest.TestCase):
 
     def test_gow3_patches_compile(self):
         names = [m.get('Name') for m in ET.parse(GOW3).getroot().iter('Metadata')]
-        self.assertTrue(compile_patches(GOW3, names, '01.02', SEGMENTS))
+        self.assertTrue(compile_patches(GOW3, names, '01.02', SEGMENTS, allow_address=True))
 
     def test_gow3_startup_black_screen(self):
         # The frame index variable (.bss) starts at 2, the index before the first frame's 0.
-        self.assertEqual(compile_patches(GOW3, ['Bug Fix - Startup Black Screen'], '01.02', SEGMENTS),
+        self.assertEqual(compile_patches(GOW3, ['Bug Fix - Startup Black Screen'], '01.02', SEGMENTS, allow_address=True),
                          [(0x14ba600, (2).to_bytes(4, 'little'))])
 
     def test_gow3_skip_intro_targets(self):
         # Ported from the other 01.02 build: every jump must land where this eboot has the code.
-        writes = dict(compile_patches(GOW3, ['Skip Intro'], '01.02', SEGMENTS))
+        writes = dict(compile_patches(GOW3, ['Skip Intro'], '01.02', SEGMENTS, allow_address=True))
         rel = lambda data, at, end: end + int.from_bytes(data[at:at + 4], 'little', signed=True)
         self.assertEqual(writes[0x184950], bytes.fromhex('eb34'))  # jne over the logo start
         getter = writes[0x0c8440]  # mov [flag], 1; mov eax, 1; ret
@@ -277,13 +280,13 @@ class ModPatchTests(unittest.TestCase):
 <Patch>
   <TitleID><ID>CUSA01623</ID></TitleID>
   <Metadata Name="Resolution Patch - 3440x1440" Note="Requires setting DMEM to 4608 MB or more." AppVer="01.02" AppElf="eboot.bin" isEnabled="false">
-    <PatchList><Line Type="bytes" Address="0x00401000" Value="9090"/></PatchList>
+    <PatchList><Line Type="bytes" Pattern="90 91" Address="0x00401000" Value="9090"/></PatchList>
   </Metadata>
   <Metadata Name="Resolution Patch - 2560x1080" AppVer="01.02" AppElf="eboot.bin" isEnabled="false">
-    <PatchList><Line Type="bytes" Address="0x00401000" Value="9090"/></PatchList>
+    <PatchList><Line Type="bytes" Pattern="90 91" Address="0x00401000" Value="9090"/></PatchList>
   </Metadata>
   <Metadata Name="Skip Any Video With X Button" Note="replaced by the mod" AppVer="01.02" AppElf="eboot.bin" isEnabled="true">
-    <PatchList><Line Type="bytes" Address="0x00401002" Value="90"/></PatchList>
+    <PatchList><Line Type="bytes" Pattern="90 91" Address="0x00401002" Value="90"/></PatchList>
   </Metadata>
 </Patch>"""
     OTHER_GAME = '<Patch><TitleID><ID>CUSA99999</ID></TitleID><Metadata Name="Elsewhere" AppVer="01.02"><PatchList/></Metadata></Patch>'
@@ -294,15 +297,17 @@ class ModPatchTests(unittest.TestCase):
         self.dir = Path(directory.name)
         self.mod = self.dir / 'mod.xml'
         self.mod.write_text(self.MOD)
+        sfo = mock.patch('patches.game_sfo', side_effect=lambda game: {'TITLE_ID': 'CUSA01623', 'APP_VER': '01.02'} if game == 'fixture' else {})
+        sfo.start(); self.addCleanup(sfo.stop)
 
     def test_resolution_names_of_patch_files_smallest_first(self):
-        self.assertEqual(resolution_names([self.mod]), ['2560x1080', '3440x1440'])
-        self.assertEqual(resolution_names([self.dir / 'missing.xml']), [])
+        self.assertEqual(resolution_names([self.mod], game="fixture"), ['2560x1080', '3440x1440'])
+        self.assertEqual(resolution_names([self.dir / 'missing.xml'], game='fixture'), [])
 
     def test_merge_adds_replaces_and_skips_other_titles(self):
         other = self.dir / 'other.xml'
         other.write_text(self.OTHER_GAME)
-        merged = merge_patch_files(GOW3, [self.mod, other], self.dir / 'out' / 'merged.xml')
+        merged = merge_patch_files(GOW3, [self.mod, other], self.dir / 'out' / 'merged.xml', game='fixture')
         names = [m.get('Name') for m in ET.parse(merged).getroot().iter('Metadata')]
         self.assertIn('Resolution Patch - 3440x1440', names)
         self.assertNotIn('Elsewhere', names)
@@ -320,13 +325,13 @@ class ModPatchTests(unittest.TestCase):
     def test_a_broken_mod_file_is_left_out(self):
         broken = self.dir / 'broken.xml'
         broken.write_text('<Patch><Metadata')
-        merged = merge_patch_files(GOW3, [broken, self.mod], self.dir / 'merged.xml')
+        merged = merge_patch_files(GOW3, [broken, self.mod], self.dir / 'merged.xml', game='fixture')
         self.assertIn('Resolution Patch - 2560x1080',
                       [m.get('Name') for m in ET.parse(merged).getroot().iter('Metadata')])
 
     def test_default_enabled_patches_of_a_mod(self):
-        self.assertEqual(default_enabled([self.mod], '01.02'), ['Skip Any Video With X Button'])
-        self.assertEqual(default_enabled([self.mod], '01.00'), [])
+        self.assertEqual(default_enabled([self.mod], '01.02', game='fixture'), ['Skip Any Video With X Button'])
+        self.assertEqual(default_enabled([self.mod], '01.00', game='fixture'), [])
 
     # --- the Ultrawide mod (extras/mods/Ultrawide): ULTRAWIDE sizes -> (extra direct memory MiB, k)
     SIZES = {
@@ -361,7 +366,7 @@ class ModPatchTests(unittest.TestCase):
         rel = lambda data, at, end: end + int.from_bytes(data[at:at + 4], 'little', signed=True)
         for (width, height), (_dmem, k) in self.SIZES.items():
             name = f'Resolution Patch - {width}x{height}'
-            writes = dict(compile_patches(ULTRAWIDE, [name], '01.02', SEGMENTS))
+            writes = dict(compile_patches(ULTRAWIDE, [name], '01.02', SEGMENTS, allow_address=True))
             self.assertEqual(writes[0x1f0c77], struct.pack('<f', width / height) * 2, name)  # the aspect ratio
             constant = [at for at, data in writes.items() if data == struct.pack('<f', k)]
             self.assertEqual(len(constant), 1, name)
@@ -380,7 +385,7 @@ class ModPatchTests(unittest.TestCase):
 
     def test_taller_than_16_9_changes_no_camera(self):
         for (width, height) in self.TALLER:
-            writes = dict(compile_patches(ULTRAWIDE, [f'Resolution Patch - {width}x{height}'], '01.02', SEGMENTS))
+            writes = dict(compile_patches(ULTRAWIDE, [f'Resolution Patch - {width}x{height}'], '01.02', SEGMENTS, allow_address=True))
             aspect = struct.pack('<f', width / height)
             # the aspect ratio, twice; for 4:3 the second float is one unit above 4/3, which the game's letterbox
             # test (function at 0x56fc60, "== 4/3") does not match
@@ -435,7 +440,7 @@ class HalfResolutionTests(unittest.TestCase):
                           'Bug Fix - Model slots'])
         # The model slots fix needs the game's code (test_wipeout_model_slots_move_to_the_reserve).
         self.assertTrue(compile_patches(WIPEOUT, [n for n in names[1:] if n != 'Bug Fix - Model slots'],
-                                        '01.00', SEGMENTS))
+                                        '01.00', SEGMENTS, allow_address=True))
         # FSR 3.1 and DLAA read the game's motion and run before its first post pass, in both
         # regions (#85: without them on the EU build, Temporal AA only turned multisampling off).
         import game_profiles
@@ -450,14 +455,14 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertIn('Bug Fix - Startup Hang', selected_patches(WIPEOUT, '01.00', '', only=True))
         # The shield and effects fix (#37, #73) too: saved lists from before v0.2.27 leave it out.
         self.assertIn('Bug Fix - Effects above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
-        self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Startup Hang'], '01.00', SEGMENTS),
+        self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Startup Hang'], '01.00', SEGMENTS, allow_address=True),
                          [(0x67a514, bytes.fromhex('488903 c605a84f470001 e8bd7bd5ff 803d664e470000'))])
 
     def test_wipeout_zone_fix_draws_the_last_opened_list(self):
         # #79: the render thread's step INDEX += 1 (0x9a80ac) becomes INDEX = (NEXT - 1) & 3, NEXT being
         # the game thread's next slot (0xed5dc4); the same 17 bytes, the rel32 to INDEX unchanged.
         self.assertIn('Bug Fix - Zone crash above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
-        self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS),
+        self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS, allow_address=True),
                          [(0x665e66, bytes.fromhex('8b0558ff8600 ffc8 83e003 890535223400'))])
 
     def test_wipeout_model_slots_move_to_the_reserve(self):
@@ -476,9 +481,9 @@ class HalfResolutionTests(unittest.TestCase):
             lea(0x40 + 8 * i, table + (0x114 if i == 0 else 0x126780 if i == 1 else 0), 0x0d)
         self.assertIn(name, selected_patches(WIPEOUT, '01.00', '', only=True))
         skipped = {}
-        self.assertEqual(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), skipped), [])
+        self.assertEqual(compile_patches(WIPEOUT, [name], None, [(0, 0x1000), (table, table + 0x126780)], bytes(code), skipped), [])
         self.assertEqual(skipped, {name: 'no memory reserved for the bigger table'})
-        writes = dict(compile_patches(WIPEOUT, [name], None, SEGMENTS, bytes(code), {}, (reserve, 4097 * 0x360)))
+        writes = dict(compile_patches(WIPEOUT, [name], None, [(0, 0x1000), (table, table + 0x126780)], bytes(code), {}, reserve=(reserve, 4097 * 0x360)))
         self.assertEqual(writes.pop(0x2e), (4096).to_bytes(4, 'little'))
         moved = {at: at + 4 + struct.unpack('<i', data)[0] for at, data in writes.items()}
         self.assertEqual(len(moved), 192)
@@ -491,12 +496,12 @@ class HalfResolutionTests(unittest.TestCase):
         # The Cheats page adds them; the points total returns 99998 (mov eax; ret) and the rank table holds 0.
         self.assertNotIn('Cheat - Top rank in 2048', selected_patches(WIPEOUT, '01.00', ''))
         self.assertEqual(compile_patches(WIPEOUT, ['Cheat - Unlock all HD and Fury events', 'Cheat - Top rank in 2048'],
-                                         '01.00', SEGMENTS),
+                                         '01.00', SEGMENTS, allow_address=True),
                          [(0x4a7200, bytes.fromhex('b89e860100c3')), (0x3f5406, bytes.fromhex('31db42895ca8fc'))])
         # The ship cheat drops the grid, medal, loyalty and play-time rules (six stores become nops; Purchase
         # stays), the 2048 ship lookup always takes its 'already open' jump (jne -> jmp), and Tigron's own
         # check (a count above 4) becomes mov r13b,1 (#35, #54).
-        writes = compile_patches(WIPEOUT, ['Cheat - Unlock all ships'], '01.00', SEGMENTS)
+        writes = compile_patches(WIPEOUT, ['Cheat - Unlock all ships'], '01.00', SEGMENTS, allow_address=True)
         self.assertEqual([o for o, _d in writes], [0x3f9024, 0x3f9183, 0x3f91f8, 0x3f926d, 0x3f92e5, 0x3f935d, 0x5a36ee,
                                                  0x3f9b4d])
         self.assertEqual(writes[6][1], b'\xeb')
@@ -504,7 +509,7 @@ class HalfResolutionTests(unittest.TestCase):
 
     def test_wipeout_native_4k_keeps_the_4k_mode_flag_false(self):
         # (field & 0xff00) > imm: 0xff00 can never be exceeded, the original 0xeff is from 3840 wide.
-        self.assertEqual(compile_patches(WIPEOUT, ['Native 4K rendering (no checkerboard)'], '01.00', SEGMENTS),
+        self.assertEqual(compile_patches(WIPEOUT, ['Native 4K rendering (no checkerboard)'], '01.00', SEGMENTS, allow_address=True),
                          [(0x7fb659, (0xff00).to_bytes(4, 'little'))])
 
     def test_wipeout_resolution_patches_size_output_half_buffers_and_aspect(self):
