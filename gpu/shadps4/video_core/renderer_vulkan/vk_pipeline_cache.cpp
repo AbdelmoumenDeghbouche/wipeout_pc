@@ -26,6 +26,7 @@
 #include "video_core/amdgpu/liverpool.h"
 #include "video_core/cache_storage.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
+#include "video_core/renderer_vulkan/vk_compile_policy.h"
 #include "video_core/renderer_vulkan/vk_depth_stencil_state.h"
 #include "video_core/renderer_vulkan/motion_history.h"
 #include "video_core/renderer_vulkan/vk_draw_prep.h"
@@ -636,7 +637,11 @@ void PipelineCache::FinishCompilations() {
 }
 
 bool PipelineCache::AsyncCompilation() const {
-    return compiler && Gow3Settings::Get().async_shaders.load(std::memory_order_relaxed);
+    // gow3: builds go to the workers only while this launch is compiling for real; a build from
+    // the binary cache is done on the GPU thread, so its draw is never skipped (vk_compile_policy.h).
+    return compiler &&
+           g_compile_policy.Background(CompilePolicy::Now(),
+                                       Gow3Settings::Get().async_shaders.load(std::memory_order_relaxed));
 }
 
 void PipelineCache::SeedWorkerCaches() {
@@ -721,12 +726,16 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         }
         return nullptr;
     }
-    if (AsyncCompilation() && !sel.regs->stage_enable.hs_en && !EmulatorSettings.IsShaderCollect()) {
+    const bool background =
+        AsyncCompilation() && !sel.regs->stage_enable.hs_en && !EmulatorSettings.IsShaderCollect();
+    // gow3: a build a worker already has stays with it, even when the policy has since gone back
+    // to building on the GPU thread (the draw waits for its publication, as before).
+    if (background || pending_graphics.contains(sel.graphics_key)) {
         const auto found = graphics_pipelines.find(sel.graphics_key);
         if (found != graphics_pipelines.end()) {
             return found->second.get();
         }
-        if (!pending_graphics.contains(sel.graphics_key) && compiler->HasCapacity()) {
+        if (background && !pending_graphics.contains(sel.graphics_key) && compiler->HasCapacity()) {
             PhaseTimer capture{g_gow3_snapshot_ns};
             auto build = std::make_shared<AsyncGraphicsCompilation>();
             build->selection = sel;

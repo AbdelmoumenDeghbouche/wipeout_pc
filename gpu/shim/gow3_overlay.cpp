@@ -539,7 +539,8 @@ void PerformanceTab() {
         ChoiceRow("Frames queued", s.frames_queued, queued_labels, G::FramesQueued.data(),
                   int(G::FramesQueued.size()), "More frames queued: steadier FPS, slower response to input.");
         CheckRow("Compile new shaders in the background", s.async_shaders,
-                 "Fewer stutters in new areas; an object or effect may appear a moment later.");
+                 "Shaders seen for the first time on this PC: fewer stutters in new areas; an object "
+                 "or effect may appear a moment later. Shaders in the cache never wait.");
         ImGui::EndTable();
     }
     ImGui::SeparatorText("Applied on restart");
