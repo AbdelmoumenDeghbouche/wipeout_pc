@@ -96,9 +96,14 @@ void runtime_user_events(void) {
     const int32_t event[2]={present ? 0 : 1,USER2_ID}; /* LOGIN / LOGOUT */
     callback(event,arg);
 }
+/* The first player's name: WIPEOUT_OC_USER_NAME (launcher: Game > Player name, #129), else "Player". */
+static const char *player_name(void) {
+    const char *name=wipeout_oc_getenv("WIPEOUT_OC_USER_NAME");
+    return name && *name ? name : USER_NAME;
+}
 static ABI int32_t user_name(int32_t id,char *name,uint64_t size) {
     if ((id!=USER_ID && id!=USER2_ID) || !name) return USER_INVALID_ARGUMENT;
-    const char *text=id==USER_ID ? USER_NAME : USER2_NAME;
+    const char *text=id==USER_ID ? player_name() : USER2_NAME;
     if (strlen(text)+1>size) return (int32_t)0x8096000a; /* BUFFER_TOO_SHORT */
     strcpy(name,text); return 0;
 }
@@ -453,7 +458,7 @@ static ABI int32_t ime_init(const ImeParam *param, const void *extended) {
     if (preset) { ime_complete(0,preset); return 0; }
     /* An empty field starts with the user name: a controller alone can accept it (the port
      * has no on-screen keyboard). */
-    const char *start=initial[0] ? initial : USER_NAME;
+    const char *start=initial[0] ? initial : player_name();
     if (!wipeout_oc_gpu_text_input_begin(start,prompt[0] ? prompt : "Text")) ime_complete(0,start);
     else printf("Runtime: ImeDialog opened: shown on screen; keyboard Enter or Cross accepts, Esc or Circle cancels\n");
     return 0;

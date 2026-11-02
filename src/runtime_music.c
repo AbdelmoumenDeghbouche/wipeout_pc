@@ -43,6 +43,8 @@ static char notice[600];      /* "Now playing" once the ring reaches frame notic
 static size_t notice_at;
 static long notice_file=-1, playing=-1;
 static unsigned char *menu_song; /* per file: in the "menu" subfolder */
+static unsigned char *played;    /* per file: played in this round (music_played.txt, #124) */
+static char played_path[1100];
 static size_t menu_songs;
 static volatile int in_race;     /* the game loaded a race's sound banks, not the menus' */
 static volatile unsigned loads;  /* sound bank loads of a race or the menus: a loading screen */
@@ -111,6 +113,40 @@ static void arrange(int shuffle, size_t first) {
     order_shuffled=shuffle;
 }
 
+/* #124: the songs of this round already played are kept in the user folder, so the next start
+ * plays the others first: every song plays once before any plays again, however short the
+ * sessions. A round ends when all have played. */
+static void load_played(void) {
+    snprintf(played_path,sizeof(played_path),"%s/music_played.txt",runtime_file_user_dir());
+    FILE *f=fopen(played_path,"r");
+    if (!f) return;
+    char line[1100];
+    const size_t root=strlen(dir);
+    while (fgets(line,sizeof(line),f)) {
+        line[strcspn(line,"\r\n")]=0;
+        for (size_t i=0;i<file_count;++i) if (!strcmp(files[i]+root,line)) played[i]=1;
+    }
+    fclose(f);
+}
+static void mark_played(size_t file) { /* under lock */
+    size_t left=0;
+    played[file]=1;
+    for (size_t i=0;i<file_count;++i) left+=!played[i];
+    FILE *f=fopen(played_path,left ? "a" : "w");
+    if (!left) memset(played,0,file_count);
+    else if (f) fprintf(f,"%s\n",files[file]+strlen(dir));
+    if (f) fclose(f);
+}
+/* The shuffled order with the songs not played yet in this round first (under lock). */
+static void unplayed_first(void) {
+    for (size_t i=0, k=0;i<file_count;++i) if (!played[order[i]]) {
+        const size_t song=order[i];
+        memmove(order+k+1,order+k,(i-k)*sizeof(*order));
+        order[k++]=song;
+    }
+    pos=0;
+}
+
 static void push(const float *pcm, int frames) {
     pthread_mutex_lock(&lock);
     for (size_t i=0;i<(size_t)frames && !skipping;) {
@@ -136,7 +172,7 @@ static void convert(SwrContext *swr, const AVFrame *frame) {
         out=grown; cap=need;
     }
     uint8_t *planes[1]={(uint8_t *)out};
-    int n=swr_convert(swr,planes,cap,frame ? (const uint8_t *const *)frame->extended_data : NULL,frame ? frame->nb_samples : 0);
+    int n=swr_convert(swr,planes,cap,frame ? (const uint8_t **)frame->extended_data : NULL,frame ? frame->nb_samples : 0);
     if (n>0) push(out,n);
 }
 static void announce(const AVFormatContext *format, const AVStream *stream, size_t file) {
@@ -193,7 +229,8 @@ static void *decode(void *unused) {
         names=malloc(file_count*sizeof(*names));
         order=malloc(file_count*sizeof(*order));
         menu_song=calloc(file_count,1);
-        if (!names || !order || !menu_song) file_count=0;
+        played=calloc(file_count,1);
+        if (!names || !order || !menu_song || !played) file_count=0;
         const size_t root=strlen(dir);
         for (size_t i=0;i<file_count;++i) {
             if (!(names[i]=display_name(files[i]))) names[i]=files[i];
@@ -208,12 +245,15 @@ static void *decode(void *unused) {
     if (menu_songs) printf("Music: %zu of them in menu/ play in the menus\n",menu_songs);
     srand((unsigned)time(NULL));
     pthread_mutex_lock(&lock);
+    load_played();
     arrange(wipeout_oc_gpu_music_shuffle(),(size_t)rand()%file_count);
+    if (order_shuffled) unplayed_first();
     for (size_t tries=0; tries<file_count && !fits(order[pos]); ++tries) pos=(pos+1)%file_count;
     pthread_mutex_unlock(&lock);
     for (size_t failures=0; failures<file_count;) {
         pthread_mutex_lock(&lock);
         const size_t file=order[pos];
+        mark_played(file);
         pthread_mutex_unlock(&lock);
         failures=play(file) ? 0 : failures+1;
         pthread_mutex_lock(&lock);

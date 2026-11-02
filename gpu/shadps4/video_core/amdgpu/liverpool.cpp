@@ -27,6 +27,8 @@
 #include "wipeout_oc_write_log.h"
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/renderdoc.h"
+#include "video_core/renderer_vulkan/vk_frame_capture.h"
+#include "video_core/renderer_vulkan/vk_occlusion_query.h"
 #include "video_core/renderer_vulkan/vk_rasterizer.h"
 
 namespace AmdGpu {
@@ -934,6 +936,9 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 static std::once_flag predication_logged;
                 std::call_once(predication_logged,
                                [] { LOG_WARNING(Render, "Unimplemented IT_SET_PREDICATION"); });
+                if (Vulkan::FrameCapture::Active()) {
+                    Vulkan::FrameCapture::Note("\n  set_predication");
+                }
                 break;
             }
             case PM4ItOpcode::IndexType: {
@@ -1141,6 +1146,22 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 if (event->event_type.Value() == EventType::SoVgtStreamoutFlush) {
                     // registers: ApplyGraphicsRegisterPacket
                 } else if (event->event_index.Value() == EventIndex::ZpassDone) {
+                    // gow3: evidence for #109 (sun glare): which games dump the Z-pass counters,
+                    // where, and with which DB_COUNT_CONTROL. Once in the log, every dump in a
+                    // frame capture.
+                    static std::once_flag occlusion_logged;
+                    std::call_once(occlusion_logged, [&] {
+                        LOG_INFO(Render,
+                                 "gow3: occlusion queries in use: event type {}, results at {:#x}",
+                                 u32(event->event_type.Value()), event->Address<u64>());
+                    });
+                    if (Vulkan::FrameCapture::Active()) {
+                        char note[128];
+                        Vulkan::Occlusion::FormatDumpNote(
+                            note, sizeof(note), u32(event->event_type.Value()),
+                            event->Address<u64>(), regs.reg_array[0xA001]);
+                        Vulkan::FrameCapture::Note(note);
+                    }
                     if (event->event_type.Value() == EventType::PixelPipeStatDump) {
                         static constexpr u64 OcclusionCounterValidMask = 0x8000000000000000ULL;
                         static constexpr u64 OcclusionCounterStep = 0x2FFFFFFULL;
@@ -1176,6 +1197,17 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
                 const auto* dma_data = reinterpret_cast<const PM4DmaData*>(header);
                 if (dma_data->dst_addr_lo == 0x3022C || !rasterizer) {
                     break;
+                }
+                if (Vulkan::FrameCapture::Active() && dma_data->src_sel == DmaDataSrc::Data &&
+                    (dma_data->dst_sel == DmaDataDst::Memory ||
+                     dma_data->dst_sel == DmaDataDst::MemoryUsingL2)) {
+                    // gow3: #109 — a fill is how GNM clears occlusion-query results
+                    // (kOcclusionQueryOpClearAndBegin); its place among the dumps matters.
+                    char note[96];
+                    std::snprintf(note, sizeof(note), "\n  dma fill 0x%llx bytes %u value 0x%x",
+                                  static_cast<unsigned long long>(dma_data->DstAddress<VAddr>()),
+                                  dma_data->NumBytes(), dma_data->data);
+                    Vulkan::FrameCapture::Note(note);
                 }
                 if (rasterizer->RunInOrder(&RunDmaData, dma_data, sizeof(PM4DmaData),
                                            WipeoutOCToggle::PipelinedMemoryWrites) &&

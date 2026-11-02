@@ -22,6 +22,14 @@ static ABI void heard_event(const int32_t *event, void *arg) {
     ++heard.count; heard.event[0]=event[0]; heard.event[1]=event[1];
 }
 
+static void name_env(const char *key,const char *value) {
+#ifdef _WIN32
+    _putenv_s(key,value ? value : "");
+#else
+    if (value) setenv(key,value,1); else unsetenv(key);
+#endif
+}
+
 int main(void) {
     unsigned char param[128]={0}, result[64]={0}; /* the game zeroes the pointers it does not want */
     uint32_t value;
@@ -91,6 +99,17 @@ int main(void) {
     /* Users: 1 logs in at start; 2 logs in and out with the second gamepad (split-screen). */
     int32_t event[2], ids[4];
     char name[17];
+    name_env("WIPEOUT_OC_USER_NAME",NULL); name_env("GOW3_USER_NAME",NULL);
+    assert(user_name(USER_ID,name,sizeof name)==0 && !strcmp(name,"Player"));
+    name_env("GOW3_USER_NAME","Arial");
+    assert(user_name(USER_ID,name,sizeof name)==0 && !strcmp(name,"Arial"));
+    name_env("WIPEOUT_OC_USER_NAME","Tetsuo");
+    assert(user_name(USER_ID,name,sizeof name)==0 && !strcmp(name,"Tetsuo"));
+#ifndef _WIN32 /* _putenv_s removes an empty value instead of retaining its presence. */
+    name_env("WIPEOUT_OC_USER_NAME","");
+    assert(user_name(USER_ID,name,sizeof name)==0 && !strcmp(name,"Player"));
+#endif
+    name_env("WIPEOUT_OC_USER_NAME",NULL); name_env("GOW3_USER_NAME",NULL);
     assert(user_event(event)==0 && event[0]==0 && event[1]==USER_ID);
     assert(user_event(event)==USER_NO_EVENT);
     assert(user_list(ids)==0 && ids[0]==USER_ID && ids[1]==-1);

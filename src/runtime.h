@@ -97,6 +97,7 @@ int runtime_music_bgm(float *pcm, int frames, int channels);
 void runtime_music_scene(const char *guest_path);
 uintptr_t runtime_pad_resolve(const char *name);
 void runtime_pad_report(void);
+extern volatile int runtime_pad_opened; /* the game opened a pad (start watch, #113) */
 /* probe --gamepad: prints one "Gamepad:" line for the first pad found (returns 1) or none (0). */
 int runtime_pad_describe(void);
 int runtime_pad_second_user(void);

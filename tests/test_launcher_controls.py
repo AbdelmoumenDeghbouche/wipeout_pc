@@ -289,12 +289,22 @@ class ControlMapTest(unittest.TestCase):
         for key in ('game_dir', 'user_dir', 'mods_dir', 'patches_dir', 'language', 'hdr',
                     'draw_pipe', 'readbacks', 'background_warmup', 'parallel_warmup', 'controls', 'pad_style'):
             self.assertIn(key, launcher.APP_DEFAULTS)
-        # The player name option is gone: an old settings.json value is ignored.
-        self.assertNotIn('player_name', launcher.APP_DEFAULTS)
-        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Kratos '})
-        self.assertNotIn('WIPEOUT_OC_USER_NAME', env)
+        # WipEout's profile name (#129): trimmed, at most 16 characters; empty leaves "Player".
+        env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Arial Tetsuo Racer '})
+        self.assertEqual(env['WIPEOUT_OC_USER_NAME'], 'Arial Tetsuo Rac')
+        self.assertNotIn('WIPEOUT_OC_USER_NAME', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
+
+    def test_player_name_cannot_inherit_either_environment_alias(self):
+        inherited = {'GOW3_USER_NAME': 'Old legacy', 'WIPEOUT_OC_USER_NAME': 'Old canonical'}
+        with mock.patch.dict(os.environ, inherited):
+            env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Arial Tetsuo Racer '})
+            self.assertEqual(env['WIPEOUT_OC_USER_NAME'], 'Arial Tetsuo Rac')
+            self.assertNotIn('GOW3_USER_NAME', env)
+            env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': '   '})
+            self.assertNotIn('WIPEOUT_OC_USER_NAME', env)
+            self.assertNotIn('GOW3_USER_NAME', env)
 
     def test_graphics_defaults_match_the_game(self):
         d = launcher.INI_DEFAULTS
@@ -819,9 +829,9 @@ class TextureQualityTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.49')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.50'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.48'))
+        self.assertEqual(launcher.VERSION, '0.2.50')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.51'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.49'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.

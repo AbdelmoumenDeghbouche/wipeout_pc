@@ -1685,6 +1685,22 @@ EXTRA['pl'] = {
         'Najwyższy cel suwaka Eliminatora w ustawieniach wyścigu (w samej grze: 600 punktów).',
 }
 
+EXTRA['pt'].update({
+    'Player name': 'Nome do jogador',
+    'Your name in the game (profile, records). Up to 16 characters. Empty: Player.':
+        'Seu nome no jogo (perfil, recordes). Até 16 caracteres. Vazio: Player.',
+})
+EXTRA['es'].update({
+    'Player name': 'Nombre del jugador',
+    'Your name in the game (profile, records). Up to 16 characters. Empty: Player.':
+        'Tu nombre en el juego (perfil, récords). Hasta 16 caracteres. Vacío: Player.',
+})
+EXTRA['pl'].update({
+    'Player name': 'Nazwa gracza',
+    'Your name in the game (profile, records). Up to 16 characters. Empty: Player.':
+        'Twoja nazwa w grze (profil, rekordy). Do 16 znaków. Puste: Player.',
+})
+
 _tables = {}
 
 

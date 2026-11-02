@@ -17,6 +17,7 @@
 #include "core/memory.h"
 #include "video_core/buffer_cache/buffer_cache.h"
 #include "video_core/page_manager.h"
+#include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
@@ -24,6 +25,7 @@
 #include "video_core/texture_cache/aliasing.h"
 #include "video_core/texture_cache/host_compatibility.h"
 #include "video_core/texture_cache/texture_cache.h"
+#include "video_core/texture_cache/trace_range.h"
 
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_format_traits.hpp>
@@ -33,6 +35,25 @@ namespace VideoCore {
 
 static constexpr u64 PageShift = 12;
 static constexpr u64 NumFramesBeforeRemoval = 32;
+
+// WIPEOUT_OC_TC_TRACE=0xlo-0xhi (#109). While a frame capture records, the cache logs its
+// decisions ("tc-trace:" lines) for images and requests that intersect this guest range.
+static const std::optional<TraceRange> trace_range = [] {
+    return ParseTraceRange(wipeout_oc_getenv("WIPEOUT_OC_TC_TRACE"));
+}();
+
+bool IsTraced(u64 address, u64 size) {
+    return trace_range && trace_range->Contains(address, size) &&
+           Vulkan::FrameCapture::IsRecording();
+}
+
+static void TraceRegistration(const char* what, ImageId image_id, const Image& image) {
+    if (IsTraced(image.info.guest_address, image.info.guest_size)) {
+        LOG_INFO(Render_Vulkan, "tc-trace: {} image {} {:#x} {}x{} levels {} is_target {}", what,
+                 image_id.index, image.info.guest_address, image.info.size.width,
+                 image.info.size.height, image.info.resources.levels, +image.binding.is_target);
+    }
+}
 
 void LimitTextureSize(ImageInfo& info, ImageViewInfo& view) {
     static const u32 limit = [] {
@@ -816,6 +837,17 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
     const bool safe_to_delete =
         scheduler.CurrentTick() - cache_image.tick_accessed_last > NumFramesBeforeRemoval;
 
+    // gow3 (GOW3_TC_TRACE): which branch decided, logged before it acts on the images.
+    const bool traced =
+        trace_range && (IsTraced(image_info.guest_address, image_info.guest_size) ||
+                        IsTraced(cache_image.info.guest_address, cache_image.info.guest_size));
+    const auto trace = [&](const char* branch) {
+        if (traced) {
+            LOG_INFO(Render_Vulkan, "tc-trace: resolve {} cache {} merged {}", branch,
+                     cache_image_id.index, merged_image_id.index);
+        }
+    };
+
     // Equal address
     if (image_info.guest_address == cache_image.info.guest_address) {
         const u32 lhs_block_size = image_info.num_bits * image_info.guest_samples;
@@ -858,11 +890,13 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             if (Vulkan::WaitDiagnostics::Enabled() && !merged_image_id) {
                 NotePartialView(a, b, binding);
             }
+            trace("partial-view");
             return {cache_image_id, -1, -1};
         }
         if (image_info.BlockDim() != cache_image.info.BlockDim() ||
             lhs_block_size != rhs_block_size) {
             // Very likely this kind of overlap is caused by allocation from a pool.
+            trace("pool-realloc");
             if (safe_to_delete) {
                 FreeImage(cache_image_id);
             }
@@ -870,17 +904,20 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
         }
 
         if (const auto depth_image_id = ResolveDepthOverlap(image_info, binding, cache_image_id)) {
+            trace("depth");
             return {depth_image_id, -1, -1};
         }
 
         // Compressed view of uncompressed image with same block size.
         if (image_info.props.is_block && !cache_image.info.props.is_block) {
+            trace("block-view");
             return {ExpandImage(image_info, cache_image_id), -1, -1};
         }
 
         if (image_info.guest_size == cache_image.info.guest_size &&
             (image_info.type == AmdGpu::ImageType::Color3D ||
              cache_image.info.type == AmdGpu::ImageType::Color3D)) {
+            trace("3d-expand");
             return {ExpandImage(image_info, cache_image_id), -1, -1};
         }
 
@@ -899,18 +936,21 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             const auto& result_image = slot_images[result_id];
             const bool is_compatible =
                 IsVulkanFormatCompatible(result_image.info.pixel_format, image_info.pixel_format);
+            trace("view");
             return {is_compatible ? result_id : ImageId{}, -1, -1};
         }
 
         // Size and resources are greater, expand the image.
         if (image_info.type == cache_image.info.type &&
             image_info.resources > cache_image.info.resources) {
+            trace("expand");
             return {ExpandImage(image_info, cache_image_id), -1, -1};
         }
 
         // Size is greater but resources are not, because the tiling mode is different.
         // Likely the address is reused for a image with a different tiling mode.
         if (image_info.tile_mode != cache_image.info.tile_mode) {
+            trace("tile-realloc");
             if (safe_to_delete) {
                 FreeImage(cache_image_id);
             }
@@ -926,6 +966,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             image_info.size == cache_image.info.size &&
             image_info.resources == cache_image.info.resources &&
             image_info.pitch == cache_image.info.pitch) {
+            trace("grown");
             if (safe_to_delete) {
                 FreeImage(cache_image_id);
             }
@@ -1054,11 +1095,13 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
     if (image_info.guest_address > cache_image.info.guest_address) {
         if (auto mip = image_info.MipOf(cache_image.info); mip >= 0) {
             if (auto slice = image_info.SliceOf(cache_image.info, mip); slice >= 0) {
+                trace("right:mip");
                 return {cache_image_id, mip, slice};
             }
         }
 
         // Image isn't a subresource but a chance overlap.
+        trace("right:chance");
         if (safe_to_delete) {
             FreeImage(cache_image_id);
         }
@@ -1071,6 +1114,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
                 // We have a larger image created and a separate one, representing a subres of it
                 // bound as render target. In this case we need to rebind render target.
                 if (cache_image.binding.is_target) {
+                    trace("left:rebind");
                     cache_image.binding.needs_rebind = 1u;
                     if (merged_image_id) {
                         GetImage(merged_image_id).binding.is_target = 1u;
@@ -1082,12 +1126,17 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
 
                 // We need to have a larger, already allocated image to copy this one into
                 if (merged_image_id) {
+                    trace("left:copymip");
                     auto& merged_image = slot_images[merged_image_id];
                     runtime.CopyMip(&cache_image, &merged_image, mip, slice);
                     FreeImage(cache_image_id);
+                    return {merged_image_id, -1, -1};
                 }
+                trace("left:no-merged");
+                return {merged_image_id, -1, -1};
             }
         }
+        trace("left:not-subresource");
     }
 
     return {merged_image_id, -1, -1};
@@ -1107,6 +1156,11 @@ ImageId TextureCache::ExpandImage(const ImageInfo& info, ImageId image_id) {
         src_image.binding.needs_rebind = 1u;
     }
 
+    if (IsTraced(info.guest_address, info.guest_size)) {
+        LOG_INFO(Render_Vulkan, "tc-trace: expand {} -> {} levels {} -> {}", image_id.index,
+                 new_image_id.index, src_image.info.resources.levels, info.resources.levels);
+    }
+
     FreeImage(image_id);
     TrackImage(new_image_id);
     return new_image_id;
@@ -1118,6 +1172,17 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
 
     std::scoped_lock lock{mutex};
 
+    // gow3 (GOW3_TC_TRACE): the request and every decision below for it.
+    const bool traced = IsTraced(info.guest_address, info.guest_size);
+    if (traced) {
+        LOG_INFO(Render_Vulkan,
+                 "tc-trace: find binding {} {:#x} size {:#x} {}x{} {} levels {} pitch {} tile {} "
+                 "exact_fmt {}",
+                 static_cast<int>(desc.type), info.guest_address, info.guest_size,
+                 info.size.width, info.size.height, vk::to_string(info.pixel_format),
+                 info.resources.levels, info.pitch, static_cast<u32>(info.tile_mode), exact_fmt);
+    }
+
     u64 key_hash = info.guest_address ^ info.guest_size << 17 ^ u64(info.pixel_format) << 40 ^
                    u64(info.size.width) << 24 ^ info.size.height ^ u64(desc.type) << 58 ^
                    u64(exact_fmt) << 63 ^ u64(desc.needs_native) << 62;
@@ -1125,6 +1190,13 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     key_hash = (key_hash ^ key_hash >> 33) * 0xC4CEB9FE1A85EC53ull;
     key_hash ^= key_hash >> 33;
     auto& cached = find_image_cache[key_hash % find_image_cache.size()];
+    // gow3 (#109): levels found before the image they belong to are merged into it once it
+    // exists (after the overlap loop); left out, a level image stayed next to its chain. On the
+    // Steam Deck this alone restored WipEout's sun glare. WIPEOUT_OC_MIP_TARGET_MERGE=0 turns it off.
+    static const bool mip_target_merge = [] {
+        const char* value = wipeout_oc_getenv("WIPEOUT_OC_MIP_TARGET_MERGE");
+        return !value || value[0] != '0';
+    }();
     // An exact match stays valid while that image is registered with the same description;
     // resolved overlaps (views into other images) only until any image registration changes.
     const auto still_exact = [&] {
@@ -1152,6 +1224,10 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
         if (cached.view_slice > 0) {
             desc.view_info.range.base.layer = cached.view_slice;
+        }
+        if (traced) {
+            LOG_INFO(Render_Vulkan, "tc-trace: find memo hit image {} mip {}",
+                     cached.image_id.index, cached.view_mip);
         }
         return cached.image_id;
     }
@@ -1183,6 +1259,16 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
         image_id = cache_id;
     }
+    if (traced) {
+        LOG_INFO(Render_Vulkan, "tc-trace: find perfect match {}",
+                 image_id ? fmt::format("image {}", image_id.index) : "none");
+        for (const auto cache_id : image_ids) {
+            const auto& candidate = slot_images[cache_id].info;
+            LOG_INFO(Render_Vulkan, "tc-trace: find candidate {} {:#x} {}x{} levels {} size {:#x}",
+                     cache_id.index, candidate.guest_address, candidate.size.width,
+                     candidate.size.height, candidate.resources.levels, candidate.guest_size);
+        }
+    }
 
     // gow3 (GOW3_PERF_DIAG): what was cached here, read before overlap resolution may free it.
     const bool diag = Vulkan::WaitDiagnostics::Enabled();
@@ -1208,6 +1294,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     // Try to resolve overlaps (if any)
     int view_mip{-1};
     int view_slice{-1};
+    ImageIds unmerged_levels;
     if (!image_id) {
         for (const auto& cache_id : image_ids) {
             // gow3: once the request has a place (image_id, view_mip/slice), later rounds resolve
@@ -1220,6 +1307,22 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
             auto [overlap_image_id, overlap_view_mip, overlap_view_slice] =
                 ResolveOverlap(merged_info, desc.type, cache_id, image_id, desc.needs_native);
             if (!overlap_image_id) {
+                // gow3 (#109): a mip level of the request met before the request has an image
+                // ("left:no-merged") stays registered. Merged after the loop, once the image
+                // exists; left alone, it shadowed that image's level from then on.
+                if (mip_target_merge && !merging) {
+                    const Image& level = slot_images[cache_id];
+                    const bool left_level = True(level.flags & ImageFlagBits::Registered) &&
+                                            level.info.guest_address > info.guest_address;
+                    const s32 level_mip = left_level ? level.info.MipOf(info) : -1;
+                    if (level_mip >= 0 && level.info.SliceOf(info, level_mip) >= 0) {
+                        if (traced) {
+                            LOG_INFO(Render_Vulkan, "tc-trace: mip-target defer {}",
+                                     cache_id.index);
+                        }
+                        unmerged_levels.push_back(cache_id);
+                    }
+                }
                 continue;
             }
             if (!merging) {
@@ -1249,7 +1352,8 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
     }
     // Create and register a new image
-    if (!image_id) {
+    const bool is_new = !image_id;
+    if (is_new) {
         image_id = slot_images.insert(instance, runtime, slot_image_views, info);
         RegisterImage(image_id);
         if (diag) {
@@ -1267,6 +1371,31 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
                 slot = std::ranges::min_element(create_stats, {}, &CreateStat::count);
             }
             *slot = created;
+        }
+    }
+
+    // gow3 (#109): the levels set aside in the loop go into the image now, the way
+    // ResolveOverlap merges a level into an image that already exists: it copies the level in
+    // and frees it ("left:copymip"; a level bound as render target never gets here, it is freed
+    // and re-resolved in the loop). The image is tracked and refreshed first, in UpdateImage's
+    // order: CopyMip marks it clean, so its other levels would never be uploaded. Each level is
+    // refreshed too, since CopyMip copies its GPU contents as they are. Pending backing writes
+    // are applied first, as UpdateImage does.
+    if (!unmerged_levels.empty()) {
+        ApplyBackingWrites();
+        TrackImage(image_id);
+        RefreshImage(slot_images[image_id]);
+        for (const auto level_id : unmerged_levels) {
+            if (False(slot_images[level_id].flags & ImageFlagBits::Registered)) {
+                continue;
+            }
+            RefreshImage(slot_images[level_id]);
+            if (traced) {
+                LOG_INFO(Render_Vulkan, "tc-trace: mip-target merge {} into {}", level_id.index,
+                         image_id.index);
+            }
+            std::ignore = ResolveOverlap(slot_images[image_id].info, desc.type, level_id,
+                                         image_id, desc.needs_native);
         }
     }
 
@@ -1298,6 +1427,10 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         .view_mip = view_mip,
         .view_slice = view_slice,
     };
+    if (traced) {
+        LOG_INFO(Render_Vulkan, "tc-trace: find result image {} mip {} slice {} created {}",
+                 image_id.index, view_mip, view_slice, is_new);
+    }
     return image_id;
 }
 
@@ -1579,6 +1712,8 @@ void TextureCache::RegisterImage(ImageId image_id) {
 
     ForEachPage(image.info.guest_address, image.info.guest_size,
                 [this, image_id](u64 page) { page_table[page].push_back(image_id); });
+
+    TraceRegistration("register", image_id, image);
 }
 
 void TextureCache::UnregisterImage(ImageId image_id) {
@@ -1587,6 +1722,7 @@ void TextureCache::UnregisterImage(ImageId image_id) {
                "Trying to unregister an already unregistered image");
     image.flags &= ~ImageFlagBits::Registered;
     ++registry_generation;
+    TraceRegistration("unregister", image_id, image);
     lru_cache.Free(image.lru_id);
     total_used_memory -= Common::AlignUp(image.info.guest_size, 1024);
     ForEachPage(image.info.guest_address, image.info.guest_size, [this, image_id](u64 page) {
@@ -1733,6 +1869,16 @@ void TextureCache::GarbageCollectImages() {
                 trigger_gc_memory = budget / 10 * 7;
                 pressure_gc_memory = budget / 100 * 85;
                 critical_gc_memory = budget / 100 * 95;
+            }
+        } else if (gc_tick % 64 == 0) {
+            // gow3 (#116): other programs' video memory shrinks the driver's budget. The limits
+            // set at start (pressure at 19 GB of a 24 GB card) were never reached while the
+            // budget ran out: out of memory loading the 8th race at 4K. They follow it now.
+            static const u64 start[3] = {trigger_gc_memory, pressure_gc_memory, critical_gc_memory};
+            if (const u64 budget = instance.GetDeviceMemoryBudgetNow(); budget != 0) {
+                trigger_gc_memory = std::min(start[0], budget / 10 * 7);
+                pressure_gc_memory = std::min(start[1], budget / 100 * 85);
+                critical_gc_memory = std::min(start[2], budget / 100 * 95);
             }
         }
     }
