@@ -1978,8 +1978,9 @@ class Launcher:
                    _('Reuse saved Vulkan pipelines. Disable to compare FPS with normal compilation. '
                      'Takes effect on the next launch; saved caches are preserved.'))
         self.check(f, 'background_warmup', 'app', _('Load shader cache in the background'),
-                   _('The game opens at once and the saved shaders load while you play; a small note in the '
-                     'corner shows the progress. Switch it off to wait on the loading screen instead.'))
+                   _('On: start at once, using pipeline binaries on demand or loading shaders in the background. '
+                     'Off: wait on the loading screen for saved pipelines without disabling the binary cache. '
+                     'New areas can still need shader compilation.'))
         self.check(f, 'async_shaders', 'ini', _('Compile new shaders in the background'),
                    _('Fewer stutters in new areas: the game keeps running while new shaders compile. An object '
                      'or effect may appear a moment later. Switch it off if something stays missing.'))
