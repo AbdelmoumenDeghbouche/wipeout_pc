@@ -294,7 +294,7 @@ vk::UniqueInstance CreateInstance(Frontend::WindowSystemType window_type, bool e
     }
 
     const vk::ApplicationInfo application_info = {
-        .pApplicationName = "shadPS4",
+        .pApplicationName = "WipEout Omega Collection",
         .applicationVersion = VK_MAKE_VERSION(1, 0, 0),
         .pEngineName = "shadPS4 Vulkan",
         .engineVersion = VK_MAKE_VERSION(1, 0, 0),
