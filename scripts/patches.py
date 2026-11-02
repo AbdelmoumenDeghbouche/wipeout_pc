@@ -6,6 +6,7 @@ image places eboot vaddr 0 at image offset 0. Only literal writes are supported
 The built-in file's lines carry signatures (Pattern/At) that find each site in any build.
 """
 import argparse
+import copy
 import hashlib
 import json
 import os
@@ -69,33 +70,79 @@ def find_pattern(image, pattern, limit=2):
     return found
 
 
-def locate(image, element, prefix=''):
-    """Image offset of a Line's or Target's site: its Pattern (unique) plus At, else Address."""
+def locate(image, element, prefix='', *, allow_address=False, validate_only=False):
+    """Resolve a unique signature; absolute addresses require an explicit verified-build policy."""
     pattern=element.get(prefix+'Pattern')
-    if not pattern:
-        return int(element.get('Address'),0)-EBOOT_BASE
-    found=find_pattern(image,parse_pattern(pattern))
-    if len(found)!=1:
-        raise LookupError('signature not found' if not found else 'signature found more than once')
-    return found[0]+int(element.get(prefix+'At','0'),0)
+    if pattern and (image is not None or validate_only):
+        parsed=parse_pattern(pattern)
+        if not any(b is not None for b in parsed):
+            raise ValueError('pattern without fixed bytes')
+        at=int(element.get(prefix+'At','0'),0)
+        if validate_only:
+            return 0
+        found=find_pattern(image,parsed)
+        if len(found)!=1:
+            raise LookupError('signature not found' if not found else 'signature found more than once')
+        return found[0]+at
+    if not allow_address:
+        raise LookupError('absolute Address requires the verified CUSA05670 / APP_VER 01.07 eboot.bin')
+    return int(element.get('Address') or '',0)-EBOOT_BASE
 
 
-def resolve_targets(image, meta, sites):
-    """Image offsets of a patch's named Targets: a site (Pattern/At), or the address a rip-relative
-    or rel32 operand points to (Ref: the operand's offset in its Pattern; Tail: the instruction's
-    bytes after the operand)."""
-    targets={}
+def resolve_targets(image, meta, *, allow_address=False, segments=None, validate_only=False):
+    """Resolve only effective Line/Target/rel dependencies, using the existing XML syntax."""
+    lines=list(meta.iter('Line'))
+    definitions={}
     for target in meta.iter('Target'):
-        name=target.get('Name')
-        if target.get('Line'):
-            targets[name]=sites[int(target.get('Line'))]
-            continue
-        at=locate(image,target)
-        if target.get('Ref'):
-            disp,=struct.unpack_from('<i',image,at)
-            at=at+4+int(target.get('Tail','0'))+disp
-        targets[name]=at
-    return targets
+        definitions.setdefault(target.get('Name'),[]).append(target)
+    sites,targets,visiting={},{},set()
+
+    def resolve(kind, key):
+        cache=sites if kind=='Line' else targets
+        if key in cache:
+            return cache[key]
+        node=(kind,key)
+        if node in visiting:
+            raise LookupError(f'cyclic {kind} dependency {key}')
+        visiting.add(node)
+        if kind=='Line':
+            if not 0<=key<len(lines):
+                raise LookupError(f'Target Line {key} is outside the patch')
+            element=lines[key]
+            at=resolve('Target',element.get('Target')) if element.get('Target') else locate(
+                image,element,allow_address=allow_address,validate_only=validate_only)
+        else:
+            choices=definitions.get(key,[])
+            if len(choices)!=1:
+                raise LookupError(f'Target {key!r} is missing or duplicated')
+            element=choices[0]
+            if element.get('Target'):
+                raise LookupError('Target-to-Target attributes are unsupported; use the existing Line reference')
+            if element.get('Line') is not None:
+                at=resolve('Line',int(element.get('Line')))
+            else:
+                at=locate(image,element,allow_address=allow_address,validate_only=validate_only)
+                if element.get('Ref'):
+                    int(element.get('Ref'),0)
+                    tail=int(element.get('Tail','0'),0)
+                    if not validate_only and image is not None:
+                        if not 0<=at<=len(image)-4:
+                            raise LookupError('relative Target operand is outside the eboot')
+                        disp,=struct.unpack_from('<i',image,at)
+                        at=at+4+tail+disp
+            if not validate_only and segments is not None and not any(start<=at<end for start,end in segments):
+                raise LookupError(f'Target {key!r} is outside the eboot')
+        visiting.remove(node)
+        cache[key]=at
+        return at
+
+    for index,line in enumerate(lines):
+        resolve('Line',index)
+        for name in re.findall(r'\{rel:([^:}]+):[^}]+\}',line.get('Value','')):
+            resolve('Target',name)
+    for table in meta.iter('Table'):
+        resolve('Target',table.get('Target'))
+    return [sites[i] for i in range(len(lines))],targets
 
 
 def fill(value, at, targets):
@@ -106,13 +153,17 @@ def fill(value, at, targets):
         if not part.startswith('{'):
             out+=bytes.fromhex(part)
             continue
-        _,name,tail=part[1:-1].split(':')
+        kind,name,tail=part[1:-1].split(':')
+        if kind!='rel':
+            raise ValueError(f'unsupported placeholder {kind!r}')
         out+=struct.pack('<i',targets[name]-(at+len(out)+4+int(tail)))
     return bytes(out)
 
 
 def encode(line):
     kind,value=line.get('Type'),line.get('Value')
+    if value is None:
+        raise ValueError('missing patch Value')
     if kind=='bytes': return bytes.fromhex(value.replace(' ',''))
     if kind in ('bytes16','bytes32','bytes64'):
         return int(value,0).to_bytes(int(kind[5:])//8,'little')
@@ -123,79 +174,106 @@ def encode(line):
     raise ValueError(f'unsupported patch type {kind!r}')
 
 
-# rip-relative lea (REX.W, any register): the operand's 4 bytes follow these 3.
+# RIP-relative LEA (REX.W, any register), followed by its signed 32-bit operand.
 LEA_RIP=re.compile(rb'[\x48\x4c]\x8d[\x05\x0d\x15\x1d\x25\x2d\x35\x3d]')
 
 
-def move_table(image, table, old, reserve):
-    """Writes that point every rip-relative lea into a full game table (Target; Size bytes, its
-    end included) at a bigger copy in the linked image's reserve (link_modules.py), Count
-    entries of Entry bytes: the table's end becomes the copy's end. The game's own code
-    initializes the copy; the patch's Lines raise its limit. Refs: how many leas the build has.
-    The copy starts one entry into the reserve: code that reads entry -1 (an index of -1 for "no
-    entry") reads zeros there, as it read the .bss before the table."""
-    size,entry,count=(int(table.get(k),0) for k in ('Size','Entry','Count'))
-    if not reserve or reserve[1]<(count+1)*entry:
+def move_table(image, table, old, reserve, segments, *, validate_only=False):
+    size,entry,count,refs=(int(table.get(k),0) for k in ('Size','Entry','Count','Refs'))
+    needed=(count+1)*entry
+    if min(size,entry,count,refs)<=0 or size%entry or count*entry<size or needed>(1<<63)-1:
+        raise ValueError('invalid table layout')
+    if validate_only:
+        return []
+    if not reserve or len(reserve)!=2 or reserve[1]<needed:
         raise LookupError('no memory reserved for the bigger table')
+    base,capacity=reserve
+    if base<0 or capacity<=0 or base+capacity>(1<<63)-1:
+        raise ValueError('invalid table reserve')
+    if any(base<end and start<base+capacity for start,end in segments):
+        raise ValueError('table reserve overlaps an eboot segment')
+    if old<0 or not any(start<=old and old+size<=end for start,end in segments):
+        raise ValueError('source table is outside the eboot segments')
     writes=[]
     for m in LEA_RIP.finditer(image):
-        at=m.start()+3
+        at=m.end()
+        if at+4>len(image):
+            continue
         target=at+4+struct.unpack_from('<i',image,at)[0]
         if old<=target<=old+size:
-            moved=reserve[0]+entry+(target-old if target<old+size else count*entry)
+            if not any(start<=m.start() and at+4<=end for start,end in segments):
+                raise ValueError('table reference is outside the eboot segments')
+            moved=base+entry+(target-old if target<old+size else count*entry)
             writes.append((at,struct.pack('<i',moved-at-4)))
-    if len(writes)!=int(table.get('Refs')):
-        raise LookupError(f'{len(writes)} table references, not {table.get("Refs")}')
+    if len(writes)!=refs:
+        raise LookupError(f'{len(writes)} table references, not {refs}')
     return writes
 
 
-def compile_patches(xml, names, app_version, segments, image=None, skipped=None, reserve=None):
-    """Writes of the named patches. With the game's image, each site is found by its signature
-    (any build); without it, at the reference build's Address. A Line with a Target writes at that
-    Target instead: data the code points to, such as a .bss variable (no bytes of its own to find).
-    A Table moves a full game table into reserve, (offset, bytes) after the modules (needs image).
-    A patch whose sites are not all found is left out whole, with the reason in skipped[name].
-    app_version None: any version."""
-    found={}
-    for meta in ET.parse(xml).getroot().iter('Metadata'):
-        if meta.get('Name') in names and app_version in (None,meta.get('AppVer')) and meta.get('AppElf','eboot.bin')=='eboot.bin':
-            found[meta.get('Name')]=meta
-    missing=[n for n in names if n not in found]
-    if missing: raise ValueError(f'patches not found for app version {app_version}: {missing}')
+def metadata_writes(meta, segments, image=None, *, allow_address=False, validate_only=False, reserve=None):
+    """Validate one patch atomically; UI may check policy/syntax without loading the ELF."""
+    if meta.get('AppElf','eboot.bin')!='eboot.bin':
+        raise ValueError('AppElf is not eboot.bin')
+    if len(list(meta.iter('Table')))>1:
+        raise ValueError('only one table can own the linked reserve')
+    lines=list(meta.iter('Line'))
+    if not lines:
+        raise ValueError('patch has no Lines')
+    sites,targets=resolve_targets(image,meta,allow_address=allow_address,segments=segments,
+                                  validate_only=validate_only)
     writes=[]
+    for line,offset in zip(lines,sites):
+        if '{' in line.get('Value',''):
+            if line.get('Type')!='bytes':
+                raise ValueError('relative values require bytes')
+            data=fill(line.get('Value'),offset,targets)
+        else:
+            data=encode(line)
+        if not data:
+            raise ValueError('empty patch write')
+        if not validate_only and not any(start<=offset and offset+len(data)<=end for start,end in segments):
+            raise ValueError(f'address {offset+EBOOT_BASE:#x} is outside the eboot')
+        writes.append((offset,data))
+    for table in meta.iter('Table'):
+        writes += move_table(image,table,targets[table.get('Target')],reserve,segments,
+                             validate_only=validate_only)
+    return writes
+
+
+def compile_patches(xml, names, app_version, segments, image=None, skipped=None, *, allow_address=False, reserve=None):
+    """Compile selected metadata, with no absolute fallback unless its build was verified."""
+    found={m.get('Name'):m for m in ET.parse(xml).getroot().iter('Metadata')
+           if m.get('Name') in names and app_version in (None,m.get('AppVer'))}
+    writes=[]
+    table_owner=None
     for name in names:
-        lines=list(found[name].iter('Line'))
         try:
-            sites=[locate(image,line) if image is not None else int(line.get('Address'),0)-EBOOT_BASE
-                   for line in lines]
-            targets=(resolve_targets(image,found[name],sites) if image is not None else
-                     {t.get('Name'):int(t.get('Address'),0)-EBOOT_BASE for t in found[name].iter('Target')})
-            sites=[targets[line.get('Target')] if line.get('Target') else site for line,site in zip(lines,sites)]
-            moved=[w for table in found[name].iter('Table')
-                   for w in move_table(image,table,targets[table.get('Target')],reserve)]
-        except LookupError as error:
-            if skipped is None: raise ValueError(f'{name}: {error}')
+            if name not in found:
+                raise LookupError(f'patch not found for metadata version {app_version}')
+            has_table=next(found[name].iter('Table'),None) is not None
+            if has_table and table_owner is not None:
+                raise ValueError(f'table reserve already owned by {table_owner}')
+            ours=metadata_writes(found[name],segments,image,allow_address=allow_address,reserve=reserve)
+            if has_table:
+                table_owner=name
+        except (LookupError,ValueError,TypeError,OverflowError,struct.error) as error:
+            if skipped is None:
+                raise ValueError(f'{name}: {error}') from error
             skipped[name]=str(error)
             continue
-        for line,offset in zip(lines,sites):
-            data=fill(line.get('Value'),offset,targets) if '{' in line.get('Value','') else encode(line)
-            if not any(start<=offset and offset+len(data)<=end for start,end in segments):
-                raise ValueError(f'{name}: address {offset+EBOOT_BASE:#x} is outside the eboot')
-            writes.append((offset,data))
-        writes+=moved
+        writes+=ours
     return writes
 
 
 PATCHES_DIR=Path(__file__).resolve().parent.parent/'patches'
-# Built-in patch file per game: its title IDs, the AppVer its metadata is tagged with and the
-# title that also recognizes a release under an ID not listed. The signatures find the sites in
-# any region or version whose code matches, so the eboot.bin build is not checked.
+# Profile selection and its XML metadata tag do not authorize absolute addresses.
+# Signatures may resolve in other versions/regions; Address has its own exact-build policy.
 GAMES=[({'CUSA01623','CUSA01715','CUSA01720'},PATCHES_DIR/'God_of_War_III_Remastered.xml','01.02',
         'God of War III'),
        ({'CUSA07671','CUSA05670'},PATCHES_DIR/'WipEout_Omega_Collection.xml','01.00',
         'WipEout Omega Collection')]
-# The build the built-in Address values and third-party patch files are written for.
-REFERENCE_SHA256='d85c8135d330c3b601bf5dc3f1dd86bd6119fb8a9fce372bed2c9785f9a79299'
+# Provenance verified against the original EU dump used for the B0 playtest.
+ADDRESS_BUILD=('CUSA05670','01.07','3a52e910f6c450cc2f0c85ef994be5d8c951c326a362bcc4775f29e6ff7f644c')
 DMEM_RETAIL_MB=5056  # runtime_memory.c POOL_SIZE default
 
 
@@ -224,19 +302,21 @@ def game_profile_for(game):
     """The profile of a game folder, by title ID or by the title in its param.sfo."""
     values=game_sfo(game) if game else {}
     return game_profile(values.get('TITLE_ID'),values.get('TITLE'))
-_SHA_CACHE={}
 
 
 def eboot_sha256(game):
+    # Permission cannot survive a same-size/mtime replacement; hash current bytes each context.
     try:
-        path=Path(game)/'eboot.bin'
-        stat=path.stat()
-        key=(str(path),stat.st_mtime_ns,stat.st_size)
-        if key not in _SHA_CACHE:
-            _SHA_CACHE[key]=hashlib.sha256(path.read_bytes()).hexdigest()
-        return _SHA_CACHE[key]
-    except (OSError, TypeError):
+        return hashlib.sha256((Path(game)/'eboot.bin').read_bytes()).hexdigest()
+    except (OSError,TypeError):
         return None
+
+
+def address_patch_problem(game):
+    """None only for the exact authorized title, real SFO version and current eboot.bin hash."""
+    if (game_title_id(game),game_app_version(game),eboot_sha256(game))==ADDRESS_BUILD:
+        return None
+    return 'absolute Address requires the verified CUSA05670 / APP_VER 01.07 eboot.bin'
 
 
 def game_patchable(game):
@@ -281,15 +361,23 @@ def selected_patches(xml, app_version, extra, only=False):
     return [n for n in names if not (exclusive and n in REPLACED_BY_EXCLUSIVE)]
 
 
-def resolution_names(xmls):
-    """Sizes ("3440x1440") of the "Resolution Patch - <size>" entries of these patch files, smallest first."""
+def resolution_names(xmls, game=None, *, image=None, segments=None):
+    """Sizes of patch entries, smallest first; a supplied game filters eligible mod metadata.
+    Without game this is read-only XML introspection for built-in tooling, never authorization.
+    """
     found = []
+    version=game_app_version(game) if game is not None else None
+    ids={game_title_id(game)} if game is not None else set()
+    allow_address=address_patch_problem(game) is None if game is not None else False
     for path in xmls:
-        try:
-            root = ET.parse(path).getroot()
-        except (OSError, ET.ParseError):
-            continue
-        for meta in root.iter('Metadata'):
+        if game is None:
+            try:
+                metas=list(ET.parse(path).getroot().iter('Metadata'))
+            except (OSError,ET.ParseError):
+                continue
+        else:
+            metas=eligible_metadata(path,version,ids,allow_address=allow_address,image=image,segments=segments)
+        for meta in metas:
             name = meta.get('Name') or ''
             if name.startswith(EXCLUSIVE_PREFIX) and name[len(EXCLUSIVE_PREFIX):].startswith(' - '):
                 size = name[len(EXCLUSIVE_PREFIX) + 3:].strip()
@@ -301,45 +389,72 @@ def resolution_names(xmls):
     return sorted(found, key=pixels)
 
 
-def merge_patch_files(base, extras, out):
-    """Writes `out`: the patches of `base` plus those of the mods' patch files (`extras`, in load order).
-    A patch with a name that is already there is replaced; a file for other titles or one that does not
-    parse is left out with a note. Returns `out`."""
-    tree = ET.parse(base)
-    root = tree.getroot()
-    ids = {e.text.strip() for e in root.iter('ID') if e.text}
-    for path in extras:
+def eligible_metadata(path, app_version, ids, *, allow_address=False, image=None, segments=None, skipped=None, reserve=None):
+    """Metadata accepted before offering/merging it; runtime also resolves the real signatures."""
+    accepted=[]
+    try:
+        root=ET.parse(path).getroot()
+    except (OSError,ET.ParseError) as error:
+        if skipped is not None:
+            skipped[str(path)]=str(error)
+        print(f'Patches: {Path(path).name}: {error}',file=sys.stderr)
+        return accepted
+    file_ids={e.text.strip() for e in root.iter('ID') if e.text}
+    for meta in root.iter('Metadata'):
+        key=f'{path}/{meta.get("Name")}'
         try:
-            extra = ET.parse(path).getroot()
-        except (OSError, ET.ParseError) as error:
-            print(f'Patches: {Path(path).name}: {error}', file=sys.stderr)
+            if not (meta.get('Name') or '').strip():
+                raise ValueError('missing patch Name')
+            if not app_version or meta.get('AppVer')!=app_version:
+                raise ValueError(f'AppVer does not match real APP_VER {app_version or "unknown"}')
+            if file_ids and not file_ids&ids:
+                raise ValueError('TitleID does not match this game')
+            metadata_writes(meta,segments,image,allow_address=allow_address,validate_only=image is None,reserve=reserve)
+        except (LookupError,ValueError,TypeError,OverflowError,struct.error) as error:
+            if skipped is not None:
+                skipped[key]=str(error)
+            print(f'Patches: skipped {key}: {error}',file=sys.stderr)
             continue
-        extra_ids = {e.text.strip() for e in extra.iter('ID') if e.text}
-        if extra_ids and not extra_ids & ids:
-            continue
-        for meta in extra.iter('Metadata'):
-            name = meta.get('Name')
-            for old in [m for m in root.iter('Metadata') if m.get('Name') == name]:
+        accepted.append(meta)
+    return accepted
+
+
+def merge_patch_files(base, extras, out, *, game=None, image=None, segments=None, skipped=None, reserve=None):
+    """Validate each mod metadata before replacing a built-in Name. Originals are never changed."""
+    tree=ET.parse(base)
+    root=tree.getroot()
+    tag=next((m.get('AppVer') for m in root.iter('Metadata')),None)
+    version=game_app_version(game)
+    ids={game_title_id(game)}
+    allow_address=address_patch_problem(game) is None
+    for path in extras:
+        for meta in eligible_metadata(path,version,ids,allow_address=allow_address,image=image,
+                                      segments=segments,skipped=skipped,reserve=reserve):
+            name=meta.get('Name')
+            if next(meta.iter('Table'),None) is not None and any(m.get('Name')!=name and next(m.iter('Table'),None) is not None for m in root.iter('Metadata')):
+                if skipped is not None:
+                    skipped[f'{path}/{name}']='table reserve already owned by another built-in patch'
+                continue
+            for old in [m for m in root.iter('Metadata') if m.get('Name')==name]:
                 root.remove(old)
+            meta=copy.deepcopy(meta)
+            # The merged selection uses the built-in XML tag; eligibility used the real SFO version.
+            meta.set('AppVer',tag)
             root.append(meta)
             print(f'Patches: {name} from the mod file {Path(path).parent.parent.name}/{Path(path).name}')
     ET.indent(tree)
-    Path(out).parent.mkdir(parents=True, exist_ok=True)
-    tree.write(out, encoding='utf-8', xml_declaration=True)
+    Path(out).parent.mkdir(parents=True,exist_ok=True)
+    tree.write(out,encoding='utf-8',xml_declaration=True)
     return Path(out)
 
 
-def default_enabled(xmls, app_version):
-    """Names of the patches of these files that are on by default (isEnabled), for this app version."""
-    names = []
-    for path in xmls:
-        try:
-            root = ET.parse(path).getroot()
-        except (OSError, ET.ParseError):
-            continue
-        names += [m.get('Name') for m in root.iter('Metadata')
-                  if m.get('AppVer') == app_version and m.get('isEnabled', 'false').lower() == 'true']
-    return names
+def default_enabled(xmls, app_version, *, game=None, image=None, segments=None):
+    """Enabled mod metadata of the real game version, using the same acceptance rules as merging."""
+    allow_address=address_patch_problem(game) is None
+    ids={game_title_id(game)}
+    return [m.get('Name') for path in xmls
+            for m in eligible_metadata(path,app_version,ids,allow_address=allow_address,image=image,segments=segments)
+            if m.get('isEnabled','false').lower()=='true']
 
 
 def patch_requirements(xml, names, app_version):
@@ -354,25 +469,16 @@ def patch_requirements(xml, names, app_version):
     return dmem,vblank
 
 
-def external_patches(directory, app_version, exclude, ids):
-    """[(key, file, metadata)] of eboot patches for this version in directory/*.xml (third-party
-    shadPS4/GoldHEN files in the data directory's patches/ folder).
-    key is "<file name>/<patch name>" (the launcher's selection, patches.json)."""
+def external_patches(directory, app_version, exclude, ids, *, game=None, skipped=None):
+    """External metadata for the real APP_VER and actual TitleID, under the shared safety policy."""
     found=[]
     directory=Path(directory)
+    allow_address=address_patch_problem(game) is None
     for path in sorted(directory.glob('*.xml')) if directory.is_dir() else []:
         if path.resolve()==Path(exclude).resolve() or path.resolve() in {g[1].resolve() for g in GAMES}:
-            continue  # built-in files (patches/ in a checkout) are not also offered as external
-        try:
-            root=ET.parse(path).getroot()
-        except ET.ParseError as error:
-            print(f'Patches: {path.name}: {error}',file=sys.stderr)
             continue
-        file_ids={e.text.strip() for e in root.iter('ID') if e.text}
-        if file_ids and not file_ids&ids: continue
-        for meta in root.iter('Metadata'):
-            if meta.get('AppVer')==app_version and meta.get('AppElf','eboot.bin')=='eboot.bin':
-                found.append((f'{path.name}/{meta.get("Name")}',path,meta))
+        for meta in eligible_metadata(path,app_version,ids,allow_address=allow_address,skipped=skipped):
+            found.append((f'{path.name}/{meta.get("Name")}',path,meta))
     return found
 
 
@@ -387,19 +493,20 @@ def external_selection(found, config):
             if key in enabled or (key not in disabled and meta.get('isEnabled','false').lower()=='true')]
 
 
-def compile_external(selected, segments):
-    """Writes of the selected external patches; a patch with unsupported lines is skipped whole."""
+def compile_external(selected, segments, image=None, *, allow_address=False, skipped=None, reserve=None, table_owner=None):
+    """External patches use the same atomic resolver and absolute-address policy as built-ins."""
     writes=[]
     for key,_,meta in selected:
         try:
-            ours=[]
-            for line in meta.iter('Line'):
-                offset=int(line.get('Address') or '',0)-EBOOT_BASE
-                data=encode(line)
-                if not any(start<=offset and offset+len(data)<=end for start,end in segments):
-                    raise ValueError(f'address {line.get("Address")} is outside the eboot')
-                ours.append((offset,data))
-        except ValueError as error:
+            has_table=next(meta.iter('Table'),None) is not None
+            if has_table and table_owner is not None:
+                raise ValueError(f'table reserve already owned by {table_owner}')
+            ours=metadata_writes(meta,segments,image,allow_address=allow_address,reserve=reserve)
+            if has_table:
+                table_owner=key
+        except (LookupError,ValueError,TypeError,OverflowError,struct.error) as error:
+            if skipped is not None:
+                skipped[key]=str(error)
             print(f'Patches: skipped {key}: {error}',file=sys.stderr)
             continue
         writes+=ours
@@ -431,33 +538,41 @@ def main():
         write_patches(a.out,[])
         print(f'Patches: no patch profile for {title}: none applied')
         return
-    ids,xml,tag,_name=profile
-    if a.mod_patches:
-        xml=merge_patch_files(xml,a.mod_patches,a.out/'patches-merged.xml')
+    _ids,xml,tag,_name=profile
     sha=eboot_sha256(a.game_dir)
-    print(f'Patches: {title} {game_app_version(a.game_dir)}, eboot.bin sha256 {sha}')
-    names=selected_patches(xml,tag,a.extra,os.environ.get('GOW3_PATCHES_ONLY')=='1')
+    version=game_app_version(a.game_dir)
+    allow_address=(title,version,sha)==ADDRESS_BUILD
+    print(f'Patches: {title} APP_VER {version}, XML tag {tag}, eboot.bin sha256 {sha}')
     elf=(a.out/'eboot.elf').read_bytes()
     segments=eboot_segments(elf)
-    skipped={}
+    image=eboot_image(elf)
     link=json.loads((a.out/'link.json').read_text()) if (a.out/'link.json').is_file() else {}
-    reserve=link.get('reserve')
-    writes=compile_patches(xml,names,None,segments,eboot_image(elf),skipped,
-                           reserve and (int(reserve['base'],0),reserve['size']))
+    record=link.get('reserve')
+    reserve=(int(record['base'],0),record['size']) if record else None
+    mod_skipped={}
+    if a.mod_patches:
+        xml=merge_patch_files(xml,a.mod_patches,a.out/'patches-merged.xml',game=a.game_dir,
+                              image=image,segments=segments,skipped=mod_skipped,reserve=reserve)
+    names=selected_patches(xml,tag,a.extra,os.environ.get('GOW3_PATCHES_ONLY')=='1')
+    skipped={}
+    writes=compile_patches(xml,names,tag,segments,image,skipped,allow_address=allow_address,reserve=reserve)
     for name,reason in skipped.items():
         print(f'Patches: {name} skipped ({reason} in this eboot.bin)')
-    if a.patches_dir and sha==REFERENCE_SHA256:
-        # Third-party files use the absolute addresses of the reference build, so they are only
-        # applied there. After the built-in ones: an external patch of the same bytes wins.
-        writes+=compile_external(external_selection(external_patches(a.patches_dir,tag,xml,ids),
-                                                    a.patches_config),segments)
+    table_owner=next((m.get('Name') for m in ET.parse(xml).getroot().iter('Metadata')
+                      if m.get('Name') in names and m.get('Name') not in skipped and next(m.iter('Table'),None) is not None),None)
+    external_skipped={}
+    if a.patches_dir:
+        found=external_patches(a.patches_dir,version,xml,{title},game=a.game_dir,skipped=external_skipped)
+        writes+=compile_external(external_selection(found,a.patches_config),segments,image,
+                                 allow_address=allow_address,skipped=external_skipped,reserve=reserve,table_owner=table_owner)
     write_patches(a.out,writes)
     applied=[n for n in names if n not in skipped]
     if skipped and not applied:
         # Every signature misses: in the reports (#39, #54) an eboot.bin without its update.
         print('Patches: none of the patches fit this eboot.bin: is the game update installed? '
               '(launcher: Game > Folders > Update folder)')
-    (a.out/'patch_status.json').write_text(json.dumps({'sha256':sha,'applied':applied,'skipped':skipped}))
+    (a.out/'patch_status.json').write_text(json.dumps({'sha256':sha,'app_version':version,'xml_tag':tag,'applied':applied,'skipped':skipped,
+                                                                   'mod_skipped':mod_skipped,'external_skipped':external_skipped}))
     print(f'Patches: {title}; {len(writes)} writes from {applied or "none"}')
 
 if __name__=='__main__':

@@ -1,5 +1,5 @@
 <?xml version="1.0"?>
-<!-- WipEout Omega Collection (CUSA07671 01.07): render resolution patches, found on the US eboot.bin with sha256
+<!-- WipEout Omega Collection (EU CUSA05670 APP_VER 01.07; XML metadata tag 01.00): render resolution patches, found on the EU eboot.bin with sha256
      3a52e910f6c450cc2f0c85ef994be5d8c951c326a362bcc4775f29e6ff7f644c. Each site is found by its signature
      (Pattern/At); Address is that build's address.
 

@@ -190,12 +190,13 @@ def main():
                                                env.get('GOW3_MODS_CONFIG', data / 'mods.json'),
                                                env.get('GOW3_MODS_ENABLED', '1') != '0',
                                                env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623'))
-    # A game's own sizes beyond the shared list (WipEout's 2880x1800, #110) come from its profile.
+    patch_game = env.get('GOW3_PATCH_DIR') or env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623')
+    # Preserve built-in profile sizes while filtering mod metadata against the selected build.
     import game_profiles
-    own = game_profiles.PROFILES.get(patches.game_title_id(env.get('GOW3_GAME_DIR', PORT.parent / 'CUSA01623')), {})
+    own = game_profiles.PROFILES.get(patches.game_title_id(patch_game), {})
     own = own.get('env', {}).get('GOW3_ALLOWED_RESOLUTIONS', '').split(';')
-    extra_resolutions = list(dict.fromkeys(s for s in [*patches.resolution_names(mod_patch_files), *own]
-                                           if s and s not in graphics_options.RESOLUTIONS))
+    extra_resolutions = list(dict.fromkeys(size for size in [*patches.resolution_names(mod_patch_files, game=patch_game), *own]
+                                          if size and size not in graphics_options.RESOLUTIONS))
     env['GOW3_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
     derived.append('GOW3_EXTRA_RESOLUTIONS')
     graphics, reverted = graphics_options.prepare(env['GOW3_CONFIG'], out / 'graphics_state.json', extra_resolutions)
@@ -299,13 +300,24 @@ def main():
             env['GOW3_NO_MSAA'] = '1'
         env.setdefault('GOW3_READBACK_LINEAR', '1')
         patch_xml = profile[1] if profile else None
+        if profile:
+            patch_elf = (out / 'eboot.elf').read_bytes()
+            patch_image, patch_segments = patches.eboot_image(patch_elf), patches.eboot_segments(patch_elf)
+            # A mod offered by structural UI checks may not match this executable's signatures.
+            extra_resolutions = list(dict.fromkeys(size for size in [*patches.resolution_names(mod_patch_files, game=game,
+                                 image=patch_image, segments=patch_segments), *own] if size and size not in graphics_options.RESOLUTIONS))
+            env['GOW3_EXTRA_RESOLUTIONS'] = ';'.join(extra_resolutions)
+            graphics = graphics_options.startup_options(graphics, extra_resolutions)
+            env.update(graphics_options.environment(graphics))
         if profile and mod_patch_files:
             # The built-in patches plus the enabled mods' (the same file for the selection and the notes).
-            patch_xml = patches.merge_patch_files(profile[1], mod_patch_files, out / 'patches-merged.xml')
+            patch_xml = patches.merge_patch_files(profile[1], mod_patch_files, out / 'patches-merged.xml',
+                                                         game=game, image=patch_image, segments=patch_segments)
         if profile:
             names = selected_patches(patch_xml, profile[2], env.get('GOW3_PATCHES', ''), env.get('GOW3_PATCHES_ONLY') == '1')
             # A mod's patches that are on by default (isEnabled) stay on when the launcher chose the list.
-            names += [n for n in patches.default_enabled(mod_patch_files, profile[2]) if n not in names]
+            names += [n for n in patches.default_enabled(mod_patch_files, patches.game_app_version(game), game=game,
+                                                        image=patch_image, segments=patch_segments) if n not in names]
             # gow3.ini decides the resolution and frame rate patches (in-game menu, launcher).
             names = graphics_options.patch_names(names, graphics)
             names = graphics_options.restrict_to_available(names, patches.available_patches(patch_xml, profile[2]))
