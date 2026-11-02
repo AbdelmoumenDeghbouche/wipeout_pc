@@ -637,8 +637,7 @@ void PipelineCache::FinishCompilations() {
 }
 
 bool PipelineCache::AsyncCompilation() const {
-    // gow3: builds go to the workers only while this launch is compiling for real; a build from
-    // the binary cache is done on the GPU thread, so its draw is never skipped (vk_compile_policy.h).
+    // gow3: the workers only while this launch is compiling for real (vk_compile_policy.h).
     return compiler &&
            g_compile_policy.Background(CompilePolicy::Now(),
                                        Gow3Settings::Get().async_shaders.load(std::memory_order_relaxed));
@@ -726,15 +725,14 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         }
         return nullptr;
     }
+    if (const auto found = graphics_pipelines.find(sel.graphics_key);
+        found != graphics_pipelines.end()) {
+        return found->second.get();
+    }
+    // gow3: the policy decides only for a missing build; one a worker already has stays with it.
     const bool background =
         AsyncCompilation() && !sel.regs->stage_enable.hs_en && !EmulatorSettings.IsShaderCollect();
-    // gow3: a build a worker already has stays with it, even when the policy has since gone back
-    // to building on the GPU thread (the draw waits for its publication, as before).
     if (background || pending_graphics.contains(sel.graphics_key)) {
-        const auto found = graphics_pipelines.find(sel.graphics_key);
-        if (found != graphics_pipelines.end()) {
-            return found->second.get();
-        }
         if (background && !pending_graphics.contains(sel.graphics_key) && compiler->HasCapacity()) {
             PhaseTimer capture{g_gow3_snapshot_ns};
             auto build = std::make_shared<AsyncGraphicsCompilation>();
@@ -1225,25 +1223,27 @@ PipelineCache::Result PipelineCache::GetProgram(PipelineSelection& sel, HwStage 
     }
 
     auto it_pgm = program_cache.find(params.hash); // this thread is the only writer
-    const bool compile_async = AsyncCompilation() && hw_stage != HwStage::Compute &&
-                               !sel.regs->stage_enable.hs_en &&
-                               !EmulatorSettings.IsShaderCollect();
-    if (!compile_async && it_pgm != program_cache.end() && it_pgm->second->pending) {
+    // gow3: asked only for a missing program or permutation (CompilePolicy reads the clock).
+    const auto compile_async = [&] {
+        return hw_stage != HwStage::Compute && !sel.regs->stage_enable.hs_en &&
+               !EmulatorSettings.IsShaderCollect() && AsyncCompilation();
+    };
+    if (it_pgm != program_cache.end() && it_pgm->second->pending && !compile_async()) {
         {
             PhaseTimer waiting{g_gow3_compile_wait_ns};
             it_pgm->second->pending->job.Wait();
         }
         PublishShaders();
     }
-    if (!compile_async && it_pgm != program_cache.end() && it_pgm->second->modules.empty() &&
-        !it_pgm->second->compilation_failed) {
+    if (it_pgm != program_cache.end() && it_pgm->second->modules.empty() &&
+        !it_pgm->second->compilation_failed && !compile_async()) {
         std::unique_lock lock{programs_mutex};
         program_cache.erase(it_pgm);
         it_pgm = program_cache.end();
     }
     if (it_pgm == program_cache.end()) {
         auto new_program = std::make_unique<Program>(hw_stage, sw_stage, params);
-        if (compile_async) {
+        if (compile_async()) {
             QueueShader(*new_program, hw_stage, sw_stage, params, runtime_info, binding, 0, true);
             std::unique_lock lock{programs_mutex};
             program_cache.emplace(params.hash, std::move(new_program));
@@ -1271,7 +1271,7 @@ PipelineCache::Result PipelineCache::GetProgram(PipelineSelection& sel, HwStage 
     if (program->compilation_failed || (program->modules.empty() && program->pending)) {
         return {};
     }
-    if (program->modules.empty() && compile_async) {
+    if (program->modules.empty() && compile_async()) {
         QueueShader(*program, hw_stage, sw_stage, params, runtime_info, binding, 0, true);
         return {};
     }
@@ -1304,7 +1304,7 @@ PipelineCache::Result PipelineCache::GetProgram(PipelineSelection& sel, HwStage 
                                     program->failed_permutations.end()) {
             return {};
         }
-        if (compile_async) {
+        if (compile_async()) {
             QueueShader(*program, hw_stage, sw_stage, params, runtime_info, binding, perm_idx, false,
                         std::move(spec));
             return {};

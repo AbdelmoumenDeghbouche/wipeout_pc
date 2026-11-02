@@ -294,7 +294,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
                                                               : create(nullptr, used_info, false);
     };
     if (!enabled) {
-        g_compile_policy.Compiled(CompilePolicy::Now()); // every build is a compile
+        g_compile_policy.Compiled(CompilePolicy::Now()); // gow3: no cache, every build compiles
         return create_any(info);
     }
     SCOPE_EXIT {
@@ -396,7 +396,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         destroy();
     }
     ++binary_misses;
-    g_compile_policy.Compiled(CompilePolicy::Now()); // gow3: a real compile (vk_compile_policy.h)
+    g_compile_policy.Compiled(CompilePolicy::Now()); // gow3: a real compile
     flags.flags = vk::PipelineCreateFlags2{static_cast<VkPipelineCreateFlags>(info.flags)} |
                   vk::PipelineCreateFlagBits2::eCaptureDataKHR;
     auto result = create(nullptr, captured_info, false);
