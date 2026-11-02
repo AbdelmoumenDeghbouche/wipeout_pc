@@ -75,6 +75,9 @@ public:
 
     void SetHDR(bool enable) {
         if (!IsHDRSupported()) {
+            // gow3: GOW3_HDR_FAKE=1 (test) runs the HDR output pass on an SDR display too.
+            static const bool fake_hdr = std::getenv("GOW3_HDR_FAKE") != nullptr;
+            pp_settings.hdr = fake_hdr && enable ? 1 : 0;
             return;
         }
         swapchain.SetHDR(enable);

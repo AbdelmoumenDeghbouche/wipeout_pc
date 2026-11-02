@@ -50,7 +50,7 @@ int main() {
         std::ofstream out(path);
         out << "display_mode=borderless\nvsync=0\nfps_limit=240\nasync_shaders=0\n"
                "render_resolution=1440p\nengine_fps=240\ndeferred_readback=0\nstale_readback=1\n"
-               "fsr1=1\nrcas=0\nrcas_strength=40\nframes_queued=2\n";
+               "fsr1=1\nrcas=0\nrcas_strength=40\nframes_queued=2\nhdr_brightness=60\nhdr_peak=800\n";
     }
     _putenv_s("GOW3_CONFIG", path);
     _putenv_s("GOW3_ASYNC_SHADERS", "");
@@ -60,6 +60,7 @@ int main() {
     assert(v.render_resolution == 4 && v.engine_fps == 240 && !v.deferred_readback && v.stale_readback);
     // FSR 1 left the menus in 2.2.0: a saved fsr1=1 (or GOW3_FSR1) no longer turns it on.
     assert(!v.fsr1 && !v.rcas && v.rcas_strength == 40 && v.frames_queued == 2);
+    assert(v.hdr_brightness == 60 && v.hdr_peak == 800);
     _putenv_s("GOW3_FSR1", "1");
     Gow3Settings::Load();
     assert(!v.fsr1);
@@ -81,7 +82,7 @@ int main() {
     for (const char* line : {"display_mode=borderless\n", "vsync=0\n", "fps_limit=60\n", "async_shaders=0\n",
                              "render_resolution=1440p\n", "engine_fps=240\n", "deferred_readback=0\n",
                              "stale_readback=1\n", "fsr1=0\n", "rcas=0\n", "rcas_strength=40\n",
-                             "frames_queued=2\n"}) {
+                             "frames_queued=2\n", "hdr_brightness=60\n", "hdr_peak=800\n"}) {
         assert(saved.find(line) != std::string::npos);
     }
 

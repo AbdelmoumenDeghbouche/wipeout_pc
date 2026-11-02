@@ -108,6 +108,10 @@ void Set(Values& v, const std::string& key, const std::string& value) {
         v.rcas = i != 0;
     } else if (key == "rcas_strength") {
         v.rcas_strength = Gow3Graphics::ParseRcasStrength(value.empty() ? -1 : i);
+    } else if (key == "hdr_brightness") {
+        v.hdr_brightness = value.empty() ? 100 : std::clamp(i, 10, 200);
+    } else if (key == "hdr_peak") {
+        v.hdr_peak = value.empty() ? 10000 : std::clamp(i, 100, 10000);
     } else if (key == "frames_queued") {
         v.frames_queued = Gow3Graphics::ParseFramesQueued(value.empty() ? -1 : i);
     } else if (key == "render_resolution") {
@@ -326,6 +330,7 @@ void Save() {
                  int(v.cheats[3].load()), int(v.cheats[4].load()),
                  int(v.cheats[5].load()), int(v.cheats[6].load()));
     std::fprintf(file, "enemy_health_bar=%d\n", int(v.enemy_health_bar.load()));
+    std::fprintf(file, "hdr_brightness=%d\nhdr_peak=%d\n", v.hdr_brightness.load(), v.hdr_peak.load());
     std::fprintf(file,
                  "overlay_fps=%d\noverlay_frametime=%d\noverlay_upscaler=%d\noverlay_gpu=%d\n"
                  "overlay_cpu=%d\noverlay_ram=%d\noverlay_vram=%d\noverlay_scale=%d\noverlay_corner=%d\n"

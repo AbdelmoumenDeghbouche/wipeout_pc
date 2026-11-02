@@ -485,6 +485,18 @@ void ImageTab() {
         ImGui::EndDisabled();
         ImGui::EndTable();
     }
+    ImGui::SeparatorText("HDR");
+    if (BeginRows("##hdr")) {
+        ImGui::BeginDisabled(!s.hdr_active);
+        const char* off = s.hdr_active ? nullptr : "HDR is off: turn on HDR in the launcher and in Windows.";
+        SliderRow("HDR brightness", s.hdr_brightness, 10, 200, "%d%%",
+                  off ? off : "Brightness of the whole picture. 100%: the game's own.");
+        SliderRow("HDR peak brightness", s.hdr_peak, 100, 10000, "%d nits",
+                  off ? off : "Set it to your display's peak brightness: the brightest parts then keep "
+                              "their detail. 10000: no limit (the game's own).");
+        ImGui::EndDisabled();
+        ImGui::EndTable();
+    }
     ImGui::SeparatorText("Textures (applied on restart)");
     if (BeginRows("##textures")) {
         static const char* const anisotropy_labels[] = {"Game default", "2x", "4x", "8x", "16x"};

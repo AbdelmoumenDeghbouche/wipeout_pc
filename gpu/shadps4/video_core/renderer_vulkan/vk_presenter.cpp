@@ -675,6 +675,9 @@ Frame* Presenter::PrepareFrame(const Libraries::VideoOut::BufferAttributeGroup& 
     // gow3: black bars around a cutscene when the render resolution is not 16:9 (movie_bars.h).
     pp_settings.picture = MovieBars::Cutscenes().Bars(image_size.width, image_size.height,
                                                       MovieBars::NowMs());
+    pp_settings.hdr_scale = float(graphics.hdr_brightness) / 100.0f;
+    pp_settings.hdr_peak = float(graphics.hdr_peak);
+    Gow3Settings::Get().hdr_active = pp_settings.hdr != 0;
     pp_pass.Render(cmdbuf, image_view, image_size, *frame, pp_settings);
     if (frame_dump) {
         // The presented image as the swapchain blit reads it (General after the pass).

@@ -66,6 +66,10 @@ struct Values {
     std::atomic<bool> fsr1{false};
     std::atomic<bool> rcas{true};
     std::atomic<int> rcas_strength{75};
+    /// HDR output (post_process.frag): brightness in percent and the highlight peak in nits
+    /// (10000: no limit). Live. hdr_active is set by the presenter: the output is HDR.
+    std::atomic<int> hdr_brightness{100}, hdr_peak{10000};
+    std::atomic<bool> hdr_active{false};
     /// Set by the presenter: sharpening ran on the last frame (it needs FSR 1 when the game's
     /// image is smaller than the window).
     std::atomic<bool> rcas_applied{false};
