@@ -1873,11 +1873,16 @@ void TextureCache::GarbageCollectImages() {
             // gow3 (#116): other programs' video memory shrinks the driver's budget. The limits
             // set at start (pressure at 19 GB of a 24 GB card) were never reached while the
             // budget ran out: out of memory loading the 8th race at 4K. They follow it now.
+            // gow3 (#27, #103): with 6 GB or more the start limits (pressure at ~40% of the card)
+            // evicted ~90,000 images in one 1080p 2048 race on 8 GB: re-uploads, and render targets
+            // back from stale guest memory. Those cards use the budget as integrated GPUs do;
+            // smaller cards keep the start limits, they ran out of memory with less room left.
             static const u64 start[3] = {trigger_gc_memory, pressure_gc_memory, critical_gc_memory};
             if (const u64 budget = instance.GetDeviceMemoryBudgetNow(); budget != 0) {
-                trigger_gc_memory = std::min(start[0], budget / 10 * 7);
-                pressure_gc_memory = std::min(start[1], budget / 100 * 85);
-                critical_gc_memory = std::min(start[2], budget / 100 * 95);
+                const bool roomy = budget >= 6_GB;
+                trigger_gc_memory = roomy ? budget / 10 * 7 : std::min(start[0], budget / 10 * 7);
+                pressure_gc_memory = roomy ? budget / 100 * 85 : std::min(start[1], budget / 100 * 85);
+                critical_gc_memory = roomy ? budget / 100 * 95 : std::min(start[2], budget / 100 * 95);
             }
         }
     }
