@@ -199,11 +199,15 @@ union Regs {
 // draw-preparation scanner records one per submission so a worker reaches the state at the
 // start of any later submission without replaying the packets in between.
 struct RegDirty {
-    static constexpr u32 BlockWords = 32;
+    /// 16 words: half the bytes per marked block in the draw packet and in stage B's copy
+    /// (2026-11-03, Steam Deck pack start).
+    static constexpr u32 BlockWords = 16;
     static constexpr u32 NumBlocks = Regs::NumRegs / BlockWords;
+    // Whole blocks only: PostDraw and RunDrawPacket copy BlockWords from each block's start.
+    static_assert(Regs::NumRegs % BlockWords == 0);
     /// One bit per block, in 64-bit words: every draw lists the marked blocks (PostDraw), and
-    /// testing 1664 bits one by one there was 40% of the GPU command thread with libc++,
-    /// which has no std::bitset find-next.
+    /// testing 1664 bits (32-word blocks) one by one there was 40% of the GPU command thread
+    /// with libc++, which has no std::bitset find-next.
     static constexpr u32 NumMaskWords = (NumBlocks + 63) / 64;
     std::array<u64, NumMaskWords> blocks{};
     bool reset = false; ///< ClearState: defaults, then only the blocks marked after it
@@ -228,6 +232,19 @@ struct RegDirty {
                 func(i * 64 + u32(std::countr_zero(bits)));
             }
         }
+    }
+    /// ForEach, and the mask is empty afterwards: one pass over the words instead of a scan
+    /// and a 208-byte clear (32-word blocks) per draw (1.5 % + 1.5 % of the GPU command thread
+    /// at WipEout's pack start on the Steam Deck). `reset` is cleared after the calls.
+    template <typename Func>
+    void ForEachAndClear(Func&& func) {
+        for (u32 i = 0; i < NumMaskWords; ++i) {
+            for (u64 bits = blocks[i]; bits; bits &= bits - 1) {
+                func(i * 64 + u32(std::countr_zero(bits)));
+            }
+            blocks[i] = 0;
+        }
+        reset = false;
     }
     template <typename T>
     void MarkField(const Regs& regs, const T& field) {

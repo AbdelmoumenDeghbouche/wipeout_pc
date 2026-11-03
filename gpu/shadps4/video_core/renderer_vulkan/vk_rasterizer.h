@@ -525,6 +525,10 @@ private:
         u32 count;
     };
     std::array<RingStage, Shader::MaxStageTypes> ring_stages{};
+    /// PostDraw's per-stage constant ring bindings (stage A only; was thread_local: 0.7 % of
+    /// the command thread in __tls_get_addr at the pack start).
+    std::array<boost::container::static_vector<RingBinding, Shader::NUM_BUFFERS>,
+               Shader::MaxStageTypes> post_rings;
     u32 num_ring_stages = 0;
     const RingBinding* FindRingBinding(const Shader::Info& stage, u32 index) const {
         for (u32 i = 0; i < num_ring_stages; ++i) {

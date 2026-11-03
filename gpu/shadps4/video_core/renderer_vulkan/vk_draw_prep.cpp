@@ -361,7 +361,7 @@ void DrawPreparation::ScannerLoop(std::stop_token stop) {
         submission->start_checksum = checksum;
         dirty.Clear();
         ForEachPacket(submission->commands, [&](const AmdGpu::PM4Header* header) {
-            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, checksum, &dirty);
+            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, &checksum, &dirty);
         });
         submission->delta.Capture(*regs, dirty);
         submission->end_checksum = checksum;
@@ -433,7 +433,7 @@ void DrawPreparation::WorkerLoop(std::stop_token stop, u32 index) {
         u32 ordinal = 0;
         arena = FlatArena{};
         ForEachPacket(target->commands, [&](const AmdGpu::PM4Header* header) {
-            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, checksum);
+            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, &checksum);
             if (!IsDirectDraw(header->type3.opcode)) {
                 return;
             }

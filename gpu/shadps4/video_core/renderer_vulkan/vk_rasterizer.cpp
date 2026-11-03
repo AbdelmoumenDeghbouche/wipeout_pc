@@ -14,6 +14,7 @@
 #include "core/memory.h"
 #include "shader_recompiler/runtime_info.h"
 #include "video_core/amdgpu/liverpool.h"
+#include "video_core/amdgpu/liverpool_hash.h"
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/buffer_cache/buffer_cache.h"
@@ -56,6 +57,9 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
       guest_markers_enabled{EmulatorSettings.IsVkGuestMarkersEnabled()} {
     // Before the rasterizer is bound: Liverpool enqueues buffers only once it sees it.
     draw_prep = std::make_unique<DrawPreparation>(pipeline_cache);
+    // Only the workers read the register checksum. Set before any command buffer: the guest
+    // submits after the presenter (and this) exist; until then the default hashes as before.
+    liverpool->hash_registers = AmdGpu::HashRegisters(draw_prep ? draw_prep->WorkerCount() : 0);
     scene_targets = std::make_unique<SceneTargets>(instance, scheduler, runtime, texture_cache);
     // Object motion first: it fixes the buffer addresses the motion shader variants embed.
     object_motion = std::make_unique<ObjectMotion>(instance, scheduler);
@@ -637,13 +641,12 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
     }
     std::array<u16, AmdGpu::RegDirty::NumBlocks> blocks;
     u32 num_blocks = 0;
-    dirty.ForEach([&](u32 block) { blocks[num_blocks++] = static_cast<u16>(block); });
+    const bool regs_reset = dirty.reset;
+    dirty.ForEachAndClear([&](u32 block) { blocks[num_blocks++] = static_cast<u16>(block); });
     const auto stages =
         pipeline ? pipeline->GetStages() : std::span<const Shader::Info* const>{};
     // Constants: copied here into the ring, the recording thread only binds them.
-    thread_local std::array<boost::container::static_vector<RingBinding, Shader::NUM_BUFFERS>,
-                            Shader::MaxStageTypes>
-        rings;
+    auto& rings = post_rings;
     u32 num_stages = 0;
     u32 size = sizeof(DrawPacket) + AlignPacket(num_blocks * sizeof(u16)) +
                num_blocks * AmdGpu::RegDirty::BlockWords * sizeof(u32);
@@ -684,7 +687,7 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
     packet.prepared = used_prepared;
     packet.index_offset = index_offset;
     packet.is_indexed = is_indexed;
-    packet.regs_reset = dirty.reset;
+    packet.regs_reset = regs_reset;
     packet.num_blocks = static_cast<u16>(num_blocks);
     packet.num_stages = num_stages;
     packet.verify = verify;
@@ -734,7 +737,6 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
         std::memcpy(out, &liverpool->regs, sizeof(AmdGpu::Regs));
         out += sizeof(AmdGpu::Regs);
     }
-    dirty.Clear();
     draw_pipe->Commit(static_cast<u32>(out - start));
     PrintPipeStats();
 }
