@@ -118,6 +118,53 @@ class SaveBackupTest(unittest.TestCase):
         self.assertEqual(self.save.read_text(), 'oldest')
         self.assertEqual(len(save_backup.list_backups(self.user)), save_backup.KEEP)
 
+    def test_backup_rejects_savedata_containing_its_backup_destination(self):
+        write(self.save, 'current')
+        for source in (self.user, self.user.parent):
+            with self.subTest(source=source), mock.patch.object(save_backup.shutil, 'copytree', return_value=None):
+                with self.assertRaises(ValueError):
+                    save_backup.backup(self.user, now=self.tick(), savedata=source)
+            self.assertEqual(self.save.read_text(), 'current')
+            self.assertFalse(save_backup.backups_dir(self.user).exists())
+
+    def test_restore_preserves_unrelated_fixed_staging_sibling(self):
+        write(self.save, 'old'); old = save_backup.backup(self.user, now=self.tick())
+        write(self.save, 'current')
+        sibling = (self.user / 'savedata').with_name('savedata.restoring')
+        write(sibling / 'unrelated.txt', 'keep')
+        safety = save_backup.restore(self.user, old.name, now=self.tick())
+        self.assertTrue((sibling / 'unrelated.txt').is_file())
+        self.assertEqual((sibling / 'unrelated.txt').read_text(), 'keep')
+        self.assertEqual(self.save.read_text(), 'old')
+        self.assertEqual((safety / self.save.relative_to(self.user / 'savedata')).read_text(), 'current')
+
+    def test_backup_rejects_savedata_inside_the_backup_destination(self):
+        source = save_backup.backups_dir(self.user) / 'external-saves'
+        write(source / 'data.bin', 'current')
+        with self.assertRaises(ValueError):
+            save_backup.backup(self.user, now=self.tick(), savedata=source)
+        self.assertEqual((source / 'data.bin').read_text(), 'current')
+        self.assertEqual(list(save_backup.backups_dir(self.user).iterdir()), [source])
+
+    def test_failed_restore_copy_preserves_current_saves_and_cleans_staging(self):
+        write(self.save, 'old')
+        old = save_backup.backup(self.user, now=self.tick())
+        write(self.save, 'current')
+        copytree = save_backup.shutil.copytree
+        for error in (OSError('disk full'), KeyboardInterrupt()):
+            with self.subTest(error=type(error).__name__):
+                def interrupted(source, destination, *args, **kwargs):
+                    if source == old:
+                        write(Path(destination) / 'partial.bin', 'incomplete')
+                        raise error
+                    return copytree(source, destination, *args, **kwargs)
+                with mock.patch.object(save_backup.shutil, 'copytree', side_effect=interrupted):
+                    with self.assertRaises(type(error)):
+                        save_backup.restore(self.user, old.name, now=self.tick())
+                self.assertEqual(self.save.read_text(), 'current')
+                self.assertEqual(sorted(p.name for p in self.user.iterdir()),
+                                 ['savedata', 'savedata_backups'])
+
     def test_restore_rejects_unknown_or_unsafe_names(self):
         write(self.save, 'v')
         for name in ('missing', '..', '../savedata', ''):
