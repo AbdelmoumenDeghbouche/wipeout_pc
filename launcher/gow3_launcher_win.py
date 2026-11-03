@@ -762,8 +762,25 @@ def ini_path():
     return Path(os.environ.get('GOW3_CONFIG', DATA_DIR / 'gow3.ini'))
 
 
+DMI_PRODUCT_NAME = Path('/sys/devices/virtual/dmi/id/product_name')
+
+
+def steam_deck():
+    """A Steam Deck (LCD: Jupiter, OLED: Galileo), by the product name Linux reads from the firmware."""
+    if WINDOWS:
+        return False
+    try:
+        return DMI_PRODUCT_NAME.read_text(encoding='utf-8').strip() in ('Jupiter', 'Galileo')
+    except OSError:
+        return False
+
+
 def load_ini():
     values, lines = dict(INI_DEFAULTS), []
+    # The Deck shows 16:9 letterboxed in its 1280x800 panel: a 1280x720 output is the same picture,
+    # races 47-53 -> 58-60 FPS (2026-11-02, docs/steam-deck-performance.md). A saved value wins.
+    if steam_deck():
+        values['output_res'] = '1280x720'
     try:
         lines = ini_path().read_text(encoding='utf-8').splitlines()
     except OSError:
@@ -1881,6 +1898,9 @@ class Launcher:
         self.row(f, _('Render resolution'), self.choice(f, 'render_resolution', 'ini', self.game_resolution_options()),
                  _('Sizes with a resolution patch for this game. Wider than 16:9 keeps the HUD at 16:9.'),
                  restart=True)
+        self.row(f, _('Output resolution', 'Разрешение вывода'), self.choice(f, 'output_res', 'ini', OUTPUTS),
+                 _('What the upscaler produces; the HUD is drawn at this size too.',
+                   'Что выдаёт апскейлер; интерфейс рисуется в этом же размере.'), restart=True)
         self.row(f, _('Texture quality'), self.choice(f, 'texture_limit', 'app', TEXTURE_LIMITS),
                  _('Low loads the largest textures at half size or less: about 1 GB less video memory in a race. '
                    'For graphics cards with 4 GB that crash or freeze in races.'), restart=True)
@@ -1931,9 +1951,6 @@ class Launcher:
         # self.row(f, _('Quality preset', 'Пресет'), self.choice(f, 'preset', 'ini', PRESETS),
         #          _('Render scale per axis: Quality renders at 1/1.5 of the output size.',
         #            'Масштаб рендера по каждой оси: Quality рисует в 1/1.5 размера вывода.'))
-        # self.row(f, _('Output resolution', 'Разрешение вывода'), self.choice(f, 'output_res', 'ini', OUTPUTS),
-        #          _('What the upscaler produces; the HUD is drawn at this size too.',
-        #            'Что выдаёт апскейлер; интерфейс рисуется в этом же размере.'))
         # self.row(f, _('Live resolution changes', 'Смена разрешения на лету'), self.choice(f, 'live_resolution', 'ini', LIVE),
         #          _('Off: outputs other than 1080p are set by a patch at start (fastest; changing them in the '
         #            'game restarts it). On: change output and preset in the game without a restart, at a cost.',
@@ -3641,10 +3658,22 @@ def _close_quietly(log):
         pass
 
 
+def write_deck_defaults():
+    """The Steam Deck's output default (load_ini) written into gow3.ini when it has no value: the
+    game reads the file itself, and --play never opens the window whose Play and Save write it."""
+    if not steam_deck():
+        return
+    values, lines = load_ini()
+    keys = {line.split('=', 1)[0].strip() for line in lines if '=' in line and not line.lstrip().startswith('#')}
+    if 'output_res' not in keys:
+        save_ini({'output_res': values['output_res']}, lines)
+
+
 def play_without_window(settings):
     """--play: the game with the saved settings (shortcuts, Steam). Output goes to the console
     when there is one and to <saves folder>/last_run.log."""
     attach_stdio()
+    write_deck_defaults()
     with open_run_log(settings) as log:
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
