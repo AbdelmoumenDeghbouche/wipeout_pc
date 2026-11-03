@@ -411,6 +411,10 @@ target_compile_options(scene-signature-test PRIVATE -UNDEBUG -Wall -Wextra -Werr
 target_include_directories(scene-signature-test PRIVATE shim shadps4)
 target_link_libraries(scene-signature-test PRIVATE Vulkan::Headers)
 
+add_executable(prep-workers-test EXCLUDE_FROM_ALL ../tests/test_prep_workers.cpp)
+target_compile_options(prep-workers-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+target_include_directories(prep-workers-test PRIVATE shim shadps4)
+
 add_executable(scene-resolution-test EXCLUDE_FROM_ALL ../tests/test_scene_resolution.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(scene-resolution-test PRIVATE shim shadps4 third_party/gcn/include)
 # The test's Vulkan-Hpp inline methods have a different set of platform extensions
