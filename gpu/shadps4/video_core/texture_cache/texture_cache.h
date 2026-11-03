@@ -316,10 +316,21 @@ public:
     }
 
     /// gow3: the color target of a CMask surface and the clear color it was last cleared with.
-    std::pair<ImageId, vk::ClearValue> MetaTarget(VAddr address) const {
+    /// Only a live, registered image that still owns the CMask: a stale entry (the image deleted,
+    /// or moved to another CMask) crashed a race in the clear (#135). Images go on guest threads.
+    std::pair<ImageId, vk::ClearValue> MetaTarget(VAddr address) {
+        std::scoped_lock lock{mutex};
         const auto it = surface_metas.find(address);
-        return it != surface_metas.end() ? std::pair{it->second.image, it->second.clear_value}
-                                         : std::pair{ImageId{}, vk::ClearValue{}};
+        if (it == surface_metas.end() || !it->second.image ||
+            !slot_images.is_allocated(it->second.image)) {
+            return {ImageId{}, vk::ClearValue{}};
+        }
+        const Image& image = slot_images[it->second.image];
+        if (False(image.flags & ImageFlagBits::Registered) ||
+            image.info.meta_info.cmask_addr != address) {
+            return {ImageId{}, vk::ClearValue{}};
+        }
+        return {it->second.image, it->second.clear_value};
     }
 
     void SetMetaClearValue(VAddr address, const vk::ClearValue& value) {
