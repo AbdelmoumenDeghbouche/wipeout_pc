@@ -428,6 +428,30 @@ FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',
 PAGES = ('home', 'graphics', 'performance', 'game', 'cheats', 'music', 'controls', 'mods', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
                 'mods': ('refresh_lists',)}
+# #145: XInput buttons (the left stick reads as the D-pad) and what they do in the launcher.
+PAD_ACTIONS = ((0x1, 'up'), (0x2, 'down'), (0x4, 'left'), (0x8, 'right'), (0x10, 'play'), (0x20, 'save'),
+               (0x100, 'prev_page'), (0x200, 'next_page'), (0x1000, 'select'), (0x2000, 'back'))
+
+
+def xinput_buttons():
+    """The first connected Xbox controller's buttons, None when there is none (Windows only)."""
+    global _xinput
+    if '_xinput' not in globals():
+        _xinput = None
+        for name in ('xinput1_4', 'xinput9_1_0'):
+            with contextlib.suppress(OSError):
+                _xinput = ctypes.WinDLL(name).XInputGetState
+                break
+    if not _xinput:
+        return None
+    state = (ctypes.c_ubyte * 16)()  # dwPacketNumber, wButtons, triggers, thumb LX, LY, RX, RY
+    for pad in range(4):
+        if _xinput(pad, state) == 0:
+            buttons, lx, ly = int.from_bytes(bytes(state[4:6]), 'little'), \
+                int.from_bytes(bytes(state[8:10]), 'little', signed=True), \
+                int.from_bytes(bytes(state[10:12]), 'little', signed=True)
+            return buttons | (ly > 16000) | (ly < -16000) << 1 | (lx < -16000) << 2 | (lx > 16000) << 3
+    return None
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
@@ -1356,6 +1380,8 @@ class Launcher:
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after(100, self.drain_output)
         root.after(500, self.watch_changes)
+        if WINDOWS:
+            root.after(500, self.poll_gamepad)
         if WINDOWS and self.app['update_popup']:
             threading.Thread(target=self.check_update, daemon=True).start()
 
@@ -1711,6 +1737,14 @@ class Launcher:
         canvas.pack(side='left', fill='both', expand=True)
         outer.scroll = lambda units: canvas.yview_scroll(units, 'units') if inner.winfo_height() > canvas.winfo_height() else None
 
+        def see(widget):  # a controller moved the focus (#145): keep it in view
+            height = max(1, inner.winfo_height())
+            y = widget.winfo_rooty() - inner.winfo_rooty()
+            top, bottom = (f * height for f in canvas.yview())
+            if y < top or y + widget.winfo_height() > bottom:
+                canvas.yview_moveto(max(0.0, (y - canvas.winfo_height() / 3) / height))
+        outer.see = see
+
         def fit():  # after a section is hidden: the shorter content, kept in view
             canvas.update_idletasks()
             canvas.configure(scrollregion=(0, 0, canvas.winfo_width(), inner.winfo_reqheight()))
@@ -1785,6 +1819,8 @@ class Launcher:
         self.game_changed()
 
     def wheel(self, event):
+        if hasattr(self, 'pad_marker'):  # it would stay put over the scrolled page
+            self.pad_marker.place_forget()
         if self.capture_wheel:
             return self.capture_wheel(event)
         page = self.pages.get(self.current_page)
@@ -1792,7 +1828,61 @@ class Launcher:
                 and 'popdown' not in str(event.widget):
             page.scroll({4: -1, 5: 1}.get(event.num) or int(-event.delta / 120))
 
+    def poll_gamepad(self):
+        """#145: an Xbox (XInput) controller drives the launcher while its window is in front:
+        LB/RB pages, D-pad or left stick up/down moves, left/right changes a choice or a slider,
+        A selects, B goes home, Start plays, Back saves."""
+        state = xinput_buttons()
+        held = state if state and ctypes.windll.user32.GetForegroundWindow() == int(self.root.wm_frame(), 16) else 0
+        now = time.monotonic()
+        fire = held & ~getattr(self, 'pad_prev', 0)
+        if fire:
+            self.pad_repeat_at = now + 0.4
+        elif held & 0xF and now >= getattr(self, 'pad_repeat_at', now):  # a held direction repeats
+            fire, self.pad_repeat_at = held & 0xF, now + 0.12
+        self.pad_prev = held
+        for bit, action in PAD_ACTIONS:
+            if fire & bit:
+                self.gamepad_action(action)
+        self.root.after(33 if state is not None else 1000, self.poll_gamepad)
+
+    def gamepad_action(self, action):
+        page = self.pages[self.current_page]
+        widget = self.root.focus_get()
+        if action in ('prev_page', 'next_page'):
+            i = PAGES.index(self.current_page) + (1 if action == 'next_page' else -1)
+            self.show(PAGES[i % len(PAGES)])
+        elif action in ('up', 'down'):
+            nxt = (widget.tk_focusNext() if action == 'down' else widget.tk_focusPrev()) if widget else \
+                page.tk_focusNext()
+            if nxt:
+                nxt.focus_set()
+                if hasattr(page, 'see') and str(nxt).startswith(str(page)):
+                    page.see(nxt)
+                if not hasattr(self, 'pad_marker'):  # the focus ring of the theme is hard to see
+                    self.pad_marker = self.tk.Frame(self.root, bg=ACCENT_HI)
+                self.pad_marker.place(in_=nxt, x=-self.px(10), y=0, width=self.px(4), relheight=1)
+                self.pad_marker.lift()
+        elif action in ('left', 'right', 'select') and widget:
+            step = -1 if action == 'left' else 1
+            if isinstance(widget, self.ttk.Combobox) and widget['values']:
+                widget.current((widget.current() + step) % len(widget['values']))
+                widget.event_generate('<<ComboboxSelected>>')
+            elif isinstance(widget, (self.ttk.Scale, self.tk.Scale)):
+                low, high = sorted((float(widget.cget('from')), float(widget.cget('to'))))
+                widget.set(min(high, max(low, float(widget.get()) + step * max(1.0, (high - low) / 20))))
+            elif action == 'select' and hasattr(widget, 'invoke'):
+                widget.invoke()
+        elif action == 'back':
+            self.show('home')
+        elif action == 'play':
+            self.play()
+        elif action == 'save' and str(self.save_button['state']) != 'disabled':
+            self.save()
+
     def show(self, name):
+        if hasattr(self, 'pad_marker'):
+            self.pad_marker.place_forget()
         for page in self.pages.values():
             page.pack_forget()
         self.pages[name].pack(fill='both', expand=True)
