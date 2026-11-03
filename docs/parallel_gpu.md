@@ -130,9 +130,12 @@ Draw preparation used to replay the whole command stream in every worker and was
 off below 12 hardware threads (Steam Deck: no workers). Now:
 
 - One scanner (`bb:DrawScan`) replays the register writes in order and stores, per buffer,
-  its starting checksum and a delta of the 32-word register blocks it wrote
-  (`AmdGpu::RegDirty/RegDelta`, recorded by `ApplyGraphicsRegisterPacket`).
-- Workers (`bb:DrawPrepN`, half the hardware threads in the affinity mask, 1..8) claim the
+  its starting checksum (the GPU thread computes it only when there are draw-preparation
+  workers: `AmdGpu::HashRegisters`) and a delta of the 16-word register blocks it
+  wrote (`AmdGpu::RegDirty/RegDelta`, recorded by `ApplyGraphicsRegisterPacket`).
+- Workers (`bb:DrawPrepN`, half the hardware threads in the affinity mask, 1..8; none on
+  machines with 8 hardware threads or fewer: `vk_prep_workers.h`, Steam Deck measurement in
+  `docs/steam-deck-performance.md`) claim the
   nearest scanned buffer ahead of the GPU thread, reach its starting state by applying the
   deltas since their last buffer (or from the queue's tail state), and prepare its draws.
   More workers now mean more buffers prepared in parallel, not more duplicated replay.
@@ -331,7 +334,7 @@ Scaling needs splits where each thread owns its data for long stretches:
 
 `vk_draw_pipe.h`. The GPU command thread (stage A) keeps PM4 decoding, the register file, the
 constant engine and pipeline selection. A direct draw or dispatch becomes a packet in a 16 MiB
-ring: the 32-word register blocks written since the previous packet (`Liverpool::pipe_dirty`,
+ring: the 16-word register blocks written since the previous packet (`Liverpool::pipe_dirty`,
 marked by `ApplyGraphicsRegisterPacket`), the CB/DB size hints, each stage's user data, flattened
 user data and program base, and the draw parameters (for a dispatch the `ComputeProgram`).
 The draw recording thread `bb:DrawRec` (stage B) applies the blocks to its own register copy and
