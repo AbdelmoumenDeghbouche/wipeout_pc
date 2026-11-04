@@ -199,6 +199,25 @@ void LoadVector(BlobType type, std::filesystem::path& path, std::vector<T>& v) {
     }
 }
 
+void DataBase::Remove(BlobType type, const std::string& name) {
+    if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
+        return;
+    }
+    auto path = cache_path / name;
+    path.replace_extension(GetBlobFileExtension(type));
+    {
+        auto request = std::packaged_task<void()>{[path] {
+            std::error_code error;
+            std::filesystem::remove(path, error);
+        }};
+        std::scoped_lock lock{m_request};
+        req_queue.emplace(std::move(request));
+    }
+    std::scoped_lock lk{submit_mutex};
+    ++num_requests;
+    request_cv.notify_one();
+}
+
 bool DataBase::Save(BlobType type, const std::string& name, std::vector<u8>&& data) {
     if (!opened) {
         return false;

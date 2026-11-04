@@ -41,6 +41,9 @@ public:
 
     void Load(BlobType type, const std::string& name, std::vector<u8>& data);
     void Load(BlobType type, const std::string& name, std::vector<u32>& data);
+    /// gow3: deletes one blob, queued behind the writes already submitted (so a Save of the same
+    /// name submitted earlier lands first and one submitted later is kept). No-op for the archive.
+    void Remove(BlobType type, const std::string& name);
 
     /// gow3: `stop` returning true ends the walk early (background warm-up at exit).
     void ForEachBlob(BlobType type, const std::function<void(std::vector<u8>&& data)>& func,

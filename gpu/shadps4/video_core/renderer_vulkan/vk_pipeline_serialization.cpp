@@ -1177,7 +1177,11 @@ void PipelineCache::IndexDiskShaders() {
 
 // gow3: GPU thread, once per program: every saved permutation at its saved index, so names and
 // pipeline keys stay those of the store. Rejected blobs (other versions, motion vertex shaders,
-// damaged SPIR-V) leave their slot empty for the next compile (NewPermutationIndex).
+// damaged SPIR-V) leave their slot empty for the next compile
+// (NewPermutationIndex), and both files of the slot are deleted: the meta and the SPIR-V are
+// separate writes, and a slot refilled with another shader must never pair an old meta with
+// the new SPIR-V. The deletes queue in the store's write order, meta first: SPIR-V is written
+// first, so an exit at any point leaves at most a SPIR-V without a meta, rejected next start.
 bool PipelineCache::LoadDiskProgram(u64 hash) {
     const auto found = disk_permutations.find(hash);
     if (found == disk_permutations.end()) {
@@ -1189,13 +1193,19 @@ bool PipelineCache::LoadDiskProgram(u64 hash) {
     bool have_info = false;
     size_t inserted = 0;
     for (const u32 idx : found->second) {
+        const auto meta_name = fmt::format("{:#018x}", HashCombine(hash, u64{idx}));
+        const auto spv_name = fmt::format("{:#018x}_{}", hash, idx);
+        const auto reject = [&] {
+            ++disk_stats.rejected;
+            db.Remove(Storage::BlobType::ShaderMeta, meta_name);
+            db.Remove(Storage::BlobType::ShaderBinary, spv_name);
+        };
         std::vector<u8> meta, spv;
-        db.Load(Storage::BlobType::ShaderMeta, fmt::format("{:#018x}", HashCombine(hash, u64{idx})),
-                meta);
-        db.Load(Storage::BlobType::ShaderBinary, fmt::format("{:#018x}_{}", hash, idx), spv);
+        db.Load(Storage::BlobType::ShaderMeta, meta_name, meta);
+        db.Load(Storage::BlobType::ShaderBinary, spv_name, spv);
         disk_stats.spirv_bytes += spv.size();
         if (meta.empty() || !ValidSpirv(spv)) {
-            ++disk_stats.rejected;
+            reject();
             continue;
         }
         Serialization::Archive meta_ar{std::move(meta)};
@@ -1205,7 +1215,7 @@ bool PipelineCache::LoadDiskProgram(u64 hash) {
         size_t perm_idx{};
         if (!LoadShaderMeta(meta_ar, info, fetch, spec, perm_idx) || perm_idx != idx ||
             info.pgm_hash != hash) {
-            ++disk_stats.rejected;
+            reject();
             continue;
         }
         std::vector<u32> code(spv.size() / sizeof(u32));
