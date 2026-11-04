@@ -34,7 +34,7 @@ run_one() { # <run dir> <spec>
         if [ $t -gt 10 ] && ! systemctl --user is-active --quiet wipeout-bench; then status=crashed; break; fi
     done
     if [ $status = ok ]; then
-        sleep 25
+        sleep 30
         local before; before=$(ls "$SHOTS" 2>/dev/null | tail -1)
         echo shot > "$DIAG/pad.ctl"; sleep 3
         local after; after=$(ls "$SHOTS" 2>/dev/null | tail -1)
