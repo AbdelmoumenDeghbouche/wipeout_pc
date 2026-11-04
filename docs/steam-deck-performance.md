@@ -64,13 +64,18 @@ are not ready), so it is no guide on the Deck.
 
 ### The CPU bench
 
-Hands-off, same route every run. Record the pad route once with `tools/deck/route-record.sh`
-(`routes/vinetak-photo.pad` and `.marks` hold `countdown_ms` and `photo_ms`). `tools/deck/bench-run.sh
-<N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted AppImage dirs), replays the
-route from gamepad connect, holds photo mode 30 s and takes a screenshot. Run one warm-up pair first
-so the shader cache is filled. `python3 -I tools/deck/bench-summary.py <dir>` reads each run's
-`GOW3_FRAME_LOG` (`frames.log`), drops broken or short runs, and prints median and range per side
-for two spans:
+Hands-off, same route every run. Record the pad route once: on the Deck run
+`route-record.sh start <build dir>`, play the route, then `route-record.sh stop`, which writes
+`~/diag/route-shifted.pad`. Copy it to `tools/deck/routes/<name>.pad` and write
+`<name>.pad.marks` by hand: `countdown_ms` is the X press at START RACE, `photo_ms` the press that
+opens photo mode, both read from the shifted route. A press the bench should not replay
+(accelerating at "go") is removed from the route, as for `vinetak-photo`. The repo copy lives in
+`tools/deck/routes/`; `bench-run.sh` reads `~/diag/routes/vinetak-photo.pad` on the Deck by default.
+`tools/deck/bench-run.sh <N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted
+AppImage dirs), replays the route from gamepad connect, holds photo mode 30 s and takes a
+screenshot. Run one warm-up pair first so the shader cache is filled.
+`python3 -I tools/deck/bench-summary.py <dir>` reads each run's `GOW3_FRAME_LOG` (`frames.log`),
+drops broken or short runs, and prints median and range per side for two spans:
 
 - countdown: `countdown_ms` +0.5-3 s, about 4150 draws per frame;
 - photo mode: `photo_ms` +3-23 s, about 3217 draws per frame (a static grid scene, the steadier span).
@@ -79,7 +84,7 @@ Metrics: FPS, draws per frame, stage A and stage B CPU time per draw (µs).
 
 A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, build of f0826ef):
 
-| span | metric | A median (range) | B median (range) | all 8 runs, spread |
+| span | metric | A median (range) | B median (range) | spread (max − min over all 8 runs) |
 |---|---|---|---|---|
 | photo | stage A µs/draw | 4.76 (4.71-4.77) | 4.76 (4.74-4.78) | 0.07 (1.5 %) |
 | photo | stage B µs/draw | 4.34 (4.33-4.36) | 4.36 (4.32-4.36) | 0.04 (0.9 %) |
@@ -90,7 +95,7 @@ A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, build of f082
 
 The spread is the smallest difference a 4 + 4 bench can show: a change smaller than it is noise.
 Medians of the two sides differed by at most 1.3 % (A/A). Photo mode is the quieter span for
-µs/draw; FPS there sits at the 60 FPS cap, so it cannot show a gain. Countdown is the FPS span.
+µs/draw; FPS there is 59.5-60, near the 60 FPS cap, so it probably cannot show a gain; the per-draw costs and the countdown FPS are the metrics.
 
 `perf` works on the Deck as the deck user (user-space samples):
 `perf record -e cpu-clock:u -F 999 -g -p $(pgrep -x gow3-probe) -- sleep 20`.

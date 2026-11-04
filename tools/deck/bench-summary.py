@@ -10,7 +10,7 @@ from pathlib import Path
 COUNTDOWN = (500, 3000)       # ms after countdown_ms
 PHOTO = (3000, 23000)         # ms after photo_ms
 COUNTDOWN_MIN_DRAWS = 3500    # the grid is 4100-4250 draws a frame
-PHOTO_MIN_DRAWS = 3000        # photo mode at the race start is 3434
+PHOTO_MIN_DRAWS = 3000        # photo mode on the grid is about 3217 with the menu open
 PHOTO_CONSTANT_SHARE = 0.9
 PHOTO_TOLERANCE = 0.01        # a steady frame is within 1 % of the span's median draws
 MIN_SPAN_FRAMES = 30
