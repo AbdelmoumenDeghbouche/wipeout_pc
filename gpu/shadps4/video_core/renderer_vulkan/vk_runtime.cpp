@@ -684,6 +684,18 @@ void Runtime::ResolveImage(VideoCore::Image* src, VideoCore::Image* dst,
 
 void Runtime::ClearImage(VideoCore::Image* dst, const VideoCore::SubresourceRange& range,
                          const vk::ClearValue& clear_value) {
+    // gow3: a freed image (null handle) is never cleared. One reached here through a stale
+    // CMask entry (fixed in MetaTarget) and NVIDIA's driver crashed on it after a track reload;
+    // should another way lead here, it is skipped and said.
+    if (!dst->GetImage()) {
+        static std::atomic<u32> said{0};
+        if (said.fetch_add(1) < 20) {
+            std::printf("Texture cache: clear of a freed image at %#llx skipped\n",
+                        static_cast<unsigned long long>(dst->info.guest_address));
+            std::fflush(stdout);
+        }
+        return;
+    }
     scheduler.EndRendering();
 
     const bool needs_flush =
@@ -859,6 +871,21 @@ void Runtime::AccessBuffer(const VideoCore::Buffer* handle, u64 offset, u64 size
 
 void Runtime::FlushBarriers() {
     BeforeImageAccess();
+    // gow3: no barrier on no image (a freed one): NVIDIA's driver read a null object in
+    // pipelineBarrier2 on the recording thread after a track reload (the stale CMask entry
+    // fixed in MetaTarget). Should one come another way, it is dropped and said.
+    const auto kept_end = std::remove_if(image_barriers.begin(), image_barriers.end(),
+                                         [](const vk::ImageMemoryBarrier2& b) { return !b.image; });
+    if (const auto null_images = static_cast<u64>(image_barriers.end() - kept_end)) {
+        image_barriers.erase(kept_end, image_barriers.end());
+        static std::atomic<u64> dropped{0};
+        const u64 total = dropped.fetch_add(null_images) + null_images;
+        if (total - null_images < 20) {
+            std::printf("Barriers: %zu image barriers on a freed image dropped (%llu so far)\n",
+                        static_cast<size_t>(null_images), static_cast<unsigned long long>(total));
+            std::fflush(stdout);
+        }
+    }
     vk::DependencyInfo dep_info{};
 
     if (memory_barrier.srcStageMask) {

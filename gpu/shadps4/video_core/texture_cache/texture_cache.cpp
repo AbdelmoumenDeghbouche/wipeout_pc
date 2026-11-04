@@ -705,6 +705,67 @@ void TextureCache::NoteBackingWrite(VAddr address, u64 size) {
     has_backing_writes.store(true, std::memory_order_release);
 }
 
+void TextureCache::NoteGuestFree(VAddr address, u64 size) {
+    if (size == 0) {
+        return;
+    }
+    std::scoped_lock lock{guest_frees_mutex};
+    guest_frees.push_back({address, size, Image::LastUid()});
+    has_guest_frees.store(true, std::memory_order_release);
+}
+
+void TextureCache::ApplyGuestFrees() {
+    if (!has_guest_frees.load(std::memory_order_acquire)) {
+        return;
+    }
+    std::vector<GuestFree> frees;
+    {
+        std::scoped_lock lock{guest_frees_mutex};
+        frees.swap(guest_frees);
+        has_guest_frees.store(false, std::memory_order_release);
+    }
+    ImageIds doomed;
+    for (const GuestFree& free : frees) {
+        const VAddr end = free.address + free.size;
+        ForEachImageInRegion(free.address, free.size, [&](ImageId image_id, Image& image) {
+            // Only images wholly inside the block: one reaching past it is another block's (or
+            // an alias over several). Newer ones were made from what the game put there since.
+            if (image.info.guest_address < free.address ||
+                image.info.guest_address + image.info.guest_size > end ||
+                image.image_uid > free.last_uid) {
+                return;
+            }
+            doomed.push_back(image_id);
+        });
+    }
+    for (const ImageId image_id : doomed) {
+        Image& image = slot_images[image_id];
+        // Listed twice (a block freed, given out again and freed within one tick): freed already.
+        if (False(image.flags & ImageFlagBits::Registered)) {
+            continue;
+        }
+        // The memory is the game's to reuse: a pending write-back of the old picture would land
+        // over the block's next contents. Drop it instead of resolving it (FreeImage would).
+        CancelReadbacks(image.info.guest_address, image.info.guest_size);
+        for (const auto& backing : image.backing_images) {
+            guest_free_bytes += backing.image.size_bytes;
+        }
+        ++guest_free_images;
+        FreeImage(image_id);
+    }
+    if (Gow3Stats::enabled && !doomed.empty()) {
+        static auto last = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last >= std::chrono::seconds(5)) {
+            last = now;
+            std::printf("Texture cache: %llu images (%llu MiB) over freed game heap released\n",
+                        (unsigned long long)guest_free_images,
+                        (unsigned long long)(guest_free_bytes >> 20));
+            guest_free_images = guest_free_bytes = 0;
+        }
+    }
+}
+
 void TextureCache::ApplyBackingWrites() {
     if (!has_backing_writes.load(std::memory_order_acquire)) {
         return;
@@ -1502,6 +1563,7 @@ ImageView& TextureCache::FindTexture(ImageId image_id, const ImageDesc& desc, Vi
 
 ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& desc) {
     Image& image = slot_images[image_id];
+    const bool never_drawn = False(image.flags & ImageFlagBits::GpuModified); // gow3: below
     image.flags |= ImageFlagBits::GpuModified;
     if (readback_linear_images && (!image.info.props.is_tiled || image.info.size.width <= 8)) {
         std::unique_lock lk{download_images_mutex};
@@ -1514,15 +1576,35 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
 
     // Register meta data for this color buffer
     if (desc.info.meta_info.cmask_addr) {
-        auto [meta, _] = surface_metas.emplace(desc.info.meta_info.cmask_addr,
-                                               MetaDataInfo{.type = MetaType::CMask});
+        // gow3: a target moving to another CMask drops the entry it owned: DeleteImage removes
+        // only the address the image has last, and the old entry outlived the image.
+        const VAddr old_cmask = image.info.meta_info.cmask_addr;
+        if (old_cmask && old_cmask != desc.info.meta_info.cmask_addr) {
+            if (const auto old = surface_metas.find(old_cmask);
+                old != surface_metas.end() && old->second.image == image_id) {
+                surface_metas.erase(old);
+            }
+        }
+        auto [meta, inserted] = surface_metas.emplace(desc.info.meta_info.cmask_addr,
+                                                      MetaDataInfo{.type = MetaType::CMask});
+        // gow3: a target never drawn into that takes over another target's CMask starts
+        // cleared (this bind clears it to the game's clear color). The game fast-clears a new
+        // target through the CMask before binding it; that clear went to the entry's owner then,
+        // the old target, and the new one showed what the last track left in its memory: black
+        // patches over one eye's 3D view after some loads. Never drawn, it holds nothing to keep.
+        if (!inserted && meta->second.image != image_id && never_drawn) {
+            meta.value().clear_mask = -1;
+        }
         meta.value().image = image_id;
+        meta.value().image_uid = image.image_uid;
         image.info.meta_info.cmask_addr = desc.info.meta_info.cmask_addr;
     }
 
     if (desc.info.meta_info.fmask_addr) {
-        surface_metas.emplace(desc.info.meta_info.fmask_addr,
-                              MetaDataInfo{.type = MetaType::FMask});
+        auto [meta, _] = surface_metas.emplace(desc.info.meta_info.fmask_addr,
+                                               MetaDataInfo{.type = MetaType::FMask});
+        meta.value().image = image_id; // gow3: its owner (DeleteImage)
+        meta.value().image_uid = image.image_uid;
         image.info.meta_info.fmask_addr = desc.info.meta_info.fmask_addr;
     }
 
@@ -1538,9 +1620,12 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
 
     // Register meta data for this depth buffer
     if (desc.info.meta_info.htile_addr) {
-        surface_metas.emplace(desc.info.meta_info.htile_addr,
-                              MetaDataInfo{.type = MetaType::HTile,
-                                           .clear_mask = image.info.meta_info.htile_clear_mask});
+        auto [meta, _] = surface_metas.emplace(
+            desc.info.meta_info.htile_addr,
+            MetaDataInfo{.type = MetaType::HTile,
+                         .clear_mask = image.info.meta_info.htile_clear_mask});
+        meta.value().image = image_id; // gow3: its owner (DeleteImage)
+        meta.value().image_uid = image.image_uid;
         image.info.meta_info.htile_addr = desc.info.meta_info.htile_addr;
     }
 
@@ -2174,15 +2259,30 @@ void TextureCache::DeleteImage(ImageId image_id) {
     }
 
     // Remove any registered meta areas.
+    // gow3: only those this image still owns. The game hands a metadata address on to its next
+    // target (a track load's new eye targets); the old target's delete then erased the new
+    // one's entry, its fast clears no longer matched, and it kept what the last track left in
+    // its memory: black patches over one eye's 3D view.
     const auto& meta_info = image.info.meta_info;
+    const auto erase_owned = [&](VAddr address) {
+        const auto it = surface_metas.find(address);
+        if (it == surface_metas.end()) {
+            return;
+        }
+        if (it->second.image && !(it->second.image == image_id &&
+                                  it->second.image_uid == image.image_uid)) {
+            return; // another target owns it now
+        }
+        surface_metas.erase(it);
+    };
     if (meta_info.cmask_addr) {
-        surface_metas.erase(meta_info.cmask_addr);
+        erase_owned(meta_info.cmask_addr);
     }
     if (meta_info.fmask_addr) {
-        surface_metas.erase(meta_info.fmask_addr);
+        erase_owned(meta_info.fmask_addr);
     }
     if (meta_info.htile_addr) {
-        surface_metas.erase(meta_info.htile_addr);
+        erase_owned(meta_info.htile_addr);
     }
 
     {

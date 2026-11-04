@@ -639,6 +639,7 @@ private:
         MetaType type;
         s32 clear_mask = -1;
         ImageId image{};              ///< gow3: CMask: its color target
+        u64 image_uid{};              ///< gow3: and that target's uid (MetaTarget checks it)
         vk::ClearValue clear_value{}; ///< gow3: CMask: the target's clear color
     };
     tsl::robin_map<VAddr, MetaDataInfo> surface_metas;

@@ -2082,8 +2082,8 @@ bool Rasterizer::IsComputeMetaClear(const Pipeline* pipeline) {
                 // gow3: the target reads as cleared from now on, also when the game only samples
                 // it and draws nothing into it before. Clearing it at the next bind only left
                 // WipEout's ship select ship in the menus after it (#58).
-                if (const auto [image_id, clear_value] = texture_cache.MetaTarget(address);
-                    image_id) {
+                const auto [image_id, clear_value] = texture_cache.MetaTarget(address);
+                if (image_id) {
                     auto& image = texture_cache.GetImage(image_id);
                     runtime.ClearImage(&image, {.extent = image.info.resources}, clear_value);
                 }
