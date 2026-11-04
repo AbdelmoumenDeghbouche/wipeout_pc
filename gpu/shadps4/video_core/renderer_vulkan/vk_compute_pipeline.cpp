@@ -7,6 +7,7 @@
 #include "video_core/renderer_vulkan/vk_compute_pipeline.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/vk_warmup_inbox.h"
 
 namespace Vulkan {
 
@@ -108,6 +109,14 @@ ComputePipeline::ComputePipeline(const Instance& instance, Scheduler& scheduler,
     };
     auto [pipeline_result, pipe] =
         instance.GetDevice().createComputePipelineUnique(pipeline_cache, compute_pipeline_ci);
+    // gow3: as for graphics pipelines (#72), a cached pipeline the driver refuses at the start
+    // (out of memory after a long warm-up, #149) stays out of it (Handle() is null).
+    if (pipeline_result != vk::Result::eSuccess && preloading) {
+        LOG_WARNING(Render_Vulkan, "Cached compute pipeline {} not built ({}), left out of the warm-up",
+                    debug_str, vk::to_string(pipeline_result));
+        PreloadMemoryStop().Report(static_cast<int>(pipeline_result));
+        return;
+    }
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create compute pipeline: {}",
                vk::to_string(pipeline_result));
     pipeline = std::move(pipe);

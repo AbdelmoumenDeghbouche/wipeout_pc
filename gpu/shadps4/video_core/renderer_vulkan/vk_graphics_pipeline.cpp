@@ -19,6 +19,7 @@
 #include "common/elf_info.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
+#include "video_core/renderer_vulkan/vk_warmup_inbox.h"
 
 namespace Vulkan {
 
@@ -445,6 +446,7 @@ GraphicsPipeline::GraphicsPipeline(
     if (pipeline_result != vk::Result::eSuccess && preloading) {
         LOG_WARNING(Render_Vulkan, "Cached graphics pipeline {} not built ({}), left out of the warm-up",
                     debug_str, vk::to_string(pipeline_result));
+        PreloadMemoryStop().Report(static_cast<int>(pipeline_result)); // #149
         return;
     }
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
@@ -462,6 +464,15 @@ GraphicsPipeline::GraphicsPipeline(
         auto [square_result, square] =
             CreateCachedGraphicsPipeline(device, pipeline_cache, square_info, key,
                                          instance.GetPipelineBinaryGlobalKey(), binary_directory);
+        // gow3: a refused squaring pass leaves the whole cached pipeline out (#72, #149).
+        if (square_result != vk::Result::eSuccess && preloading) {
+            LOG_WARNING(Render_Vulkan,
+                        "Cached squaring pass of {} not built ({}), left out of the warm-up",
+                        debug_str, vk::to_string(square_result));
+            PreloadMemoryStop().Report(static_cast<int>(square_result));
+            pipeline.reset();
+            return;
+        }
         ASSERT_MSG(square_result == vk::Result::eSuccess,
                    "Failed to create the squaring pipeline: {}", vk::to_string(square_result));
         square_pipeline = std::move(square);

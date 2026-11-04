@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <atomic>
 #include <cstddef>
 #include <deque>
 #include <mutex>
@@ -15,6 +16,37 @@ namespace Vulkan {
 inline bool UseOnDemandPipelines(bool binary_cache, bool supported, bool capture_only,
                                  bool background_warmup) {
     return background_warmup && binary_cache && supported && !capture_only;
+}
+
+/// #149: set when the driver refuses a cached pipeline for lack of memory while preloading.
+/// The bulk warm-up then stops reading and building: each further build would only fight the
+/// game for what is left, and the rest compile when the game needs them. Results are VkResult
+/// values (this header does not include Vulkan).
+class WarmupMemoryStop {
+public:
+    static constexpr int OutOfHostMemory = -1;   ///< VK_ERROR_OUT_OF_HOST_MEMORY
+    static constexpr int OutOfDeviceMemory = -2; ///< VK_ERROR_OUT_OF_DEVICE_MEMORY
+
+    void Report(int result) {
+        if (result == OutOfHostMemory || result == OutOfDeviceMemory) {
+            stopped.store(true, std::memory_order_relaxed);
+        }
+    }
+    bool Stopped() const {
+        return stopped.load(std::memory_order_relaxed);
+    }
+    void Reset() {
+        stopped.store(false, std::memory_order_relaxed);
+    }
+
+private:
+    std::atomic<bool> stopped{false};
+};
+
+/// The one shared by the pipeline constructors (preloading) and the warm-ups.
+inline WarmupMemoryStop& PreloadMemoryStop() {
+    static WarmupMemoryStop stop;
+    return stop;
 }
 
 /// Warm-up threads: one on four cores or fewer, otherwise all but two, at most six.

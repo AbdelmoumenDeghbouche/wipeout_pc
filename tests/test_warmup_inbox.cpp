@@ -65,5 +65,18 @@ int main() {
     assert(*pipelines[7] == 1 && warm && *warm == 2);
     assert(PublishFirst(pipelines, 8, std::make_unique<int>(3)) && *pipelines[8] == 3);
 
+    // #149: the first out-of-memory refusal stops the bulk warm-up; other refusals do not.
+    WarmupMemoryStop stop;
+    assert(!stop.Stopped());
+    stop.Report(-3); // VK_ERROR_INITIALIZATION_FAILED: a damaged entry (#72), keep going
+    stop.Report(0);  // VK_SUCCESS
+    assert(!stop.Stopped());
+    stop.Report(-1); // VK_ERROR_OUT_OF_HOST_MEMORY
+    assert(stop.Stopped());
+    stop.Reset();
+    assert(!stop.Stopped());
+    stop.Report(-2); // VK_ERROR_OUT_OF_DEVICE_MEMORY
+    assert(stop.Stopped());
+
     std::puts("PASS: warm-up inbox");
 }

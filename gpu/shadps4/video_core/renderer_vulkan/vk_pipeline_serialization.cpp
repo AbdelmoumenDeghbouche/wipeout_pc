@@ -15,6 +15,7 @@
 #include <map>
 #ifdef _WIN32
 #include <windows.h>
+#include <psapi.h>
 #endif
 #include "common/serdes.h"
 #include "common/scope_exit.h"
@@ -32,6 +33,9 @@
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_warmup_inbox.h"
+
+static_assert(int(vk::Result::eErrorOutOfHostMemory) == Vulkan::WarmupMemoryStop::OutOfHostMemory &&
+              int(vk::Result::eErrorOutOfDeviceMemory) == Vulkan::WarmupMemoryStop::OutOfDeviceMemory);
 
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
@@ -718,14 +722,21 @@ bool PipelineCache::LoadComputePipeline(Serialization::Archive& ar) {
 
     const auto [it, is_new] = compute_pipelines.try_emplace(compute_key);
     ASSERT(is_new);
+    bool refused = false;
 
     if (warmup_pool) {
         // The slot stays null until WarmUp moves the built pipeline in (the map may rehash).
         warmup_pool->Push([this, key = compute_key, info = sel.infos[0], module = sel.modules[0],
                            sdata]() mutable {
+            if (PreloadMemoryStop().Stopped()) {
+                return false; // #149: out of memory, the rest compile when needed
+            }
             auto pipeline = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap,
                                                               profile, *pipeline_cache, key, *info,
                                                               module, sdata, true);
+            if (!pipeline->Handle()) {
+                return false; // the driver refused it (#149); its reserved slot is dropped
+            }
             std::scoped_lock lock{warmup_results_mutex};
             warmup_compute.emplace_back(key, std::move(pipeline));
             return true;
@@ -734,12 +745,16 @@ bool PipelineCache::LoadComputePipeline(Serialization::Archive& ar) {
         it.value() = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
                                                        *pipeline_cache, compute_key,
                                                        *sel.infos[0], sel.modules[0], sdata, true);
+        if (!it.value()->Handle()) {
+            compute_pipelines.erase(compute_key); // the driver refused it (#149)
+            refused = true;
+        }
     }
 
     sel.infos.fill(nullptr);
     sel.modules.fill(nullptr);
 
-    return true;
+    return !refused;
 }
 
 void GraphicsPipelineKey::Serialize(Serialization::Archive& ar) const {
@@ -811,6 +826,9 @@ bool PipelineCache::LoadGraphicsPipeline(Serialization::Archive& ar) {
         warmup_pool->Push([this, key = sel.graphics_key, infos = sel.infos,
                            runtime_infos = sel.runtime_infos, fetch = sel.fetch_shader,
                            modules = sel.modules, sdata]() mutable {
+            if (PreloadMemoryStop().Stopped()) {
+                return false; // #149: out of memory, the rest compile when needed
+            }
             auto pipeline = std::make_unique<GraphicsPipeline>(
                 instance, scheduler, desc_heap, profile, key, *pipeline_cache, infos,
                 runtime_infos, fetch, modules, sdata, true);
@@ -937,6 +955,7 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
     if (!CheckCacheProfile()) {
         return;
     }
+    PreloadMemoryStop().Reset();
 
     u32 num_pipelines{};
     u32 num_total_pipelines{};
@@ -984,7 +1003,8 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
             if (result) {
                 ++num_pipelines;
             }
-        });
+        },
+        [] { return PreloadMemoryStop().Stopped(); }); // #149
 
     if (pool) {
         pool->Wait(report);
@@ -1011,6 +1031,27 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
                 num_total_pipelines,
                 std::chrono::duration<double>(std::chrono::steady_clock::now() - started).count(),
                 warmup_threads);
+#ifdef _WIN32
+    // #149: memory after the bulk warm-up. The process figure is its private commit (the guest
+    // pool, a shared section committed before the warm-up, is not in it); the system figures
+    // include everything.
+    PROCESS_MEMORY_COUNTERS process_memory{};
+    MEMORYSTATUSEX system_memory{};
+    process_memory.cb = sizeof(process_memory);
+    system_memory.dwLength = sizeof(system_memory);
+    if (K32GetProcessMemoryInfo(GetCurrentProcess(), &process_memory, sizeof(process_memory)) &&
+        GlobalMemoryStatusEx(&system_memory)) {
+        std::printf("Pipeline warm-up: private commit of this process %llu MiB; system commit "
+                    "free %llu of %llu MiB\n",
+                    static_cast<unsigned long long>(process_memory.PagefileUsage >> 20),
+                    static_cast<unsigned long long>(system_memory.ullAvailPageFile >> 20),
+                    static_cast<unsigned long long>(system_memory.ullTotalPageFile >> 20));
+    }
+#endif
+    if (PreloadMemoryStop().Stopped()) {
+        std::printf("Pipeline warm-up: stopped early, the driver ran out of memory; the other "
+                    "cached pipelines compile when the game needs them\n");
+    }
     LOG_INFO(Render, "Preloaded {} pipelines", num_pipelines);
     ReportPipelineBinaryCache();
     if (num_total_pipelines > num_pipelines) {
@@ -1310,6 +1351,9 @@ void PipelineCache::PumpWarmUp() {
                 built.compute = std::make_unique<ComputePipeline>(
                     instance, scheduler, desc_heap, profile, *pipeline_cache, compute_key,
                     *infos[0], modules[0], compute_data, true);
+                if (!built.compute->Handle()) {
+                    built.compute.reset(); // the driver refused it (#149): not published
+                }
             } else {
                 built.graphics = std::make_unique<GraphicsPipeline>(
                     instance, scheduler, desc_heap, profile, graphics_key, *pipeline_cache, infos,
