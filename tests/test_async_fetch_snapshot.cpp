@@ -6,7 +6,7 @@
 #include "shader_recompiler/frontend/fetch_shader.h"
 #include "common/logging/log.h"
 
-extern "C" { uint32_t runtime_disabled_optimizations = 0; }
+extern "C" { uint64_t runtime_disabled_optimizations = 0; } // gow3_toggles.h: 64 bits
 void assert_fail_impl() { std::abort(); }
 [[noreturn]] void unreachable_impl() { std::abort(); }
 namespace Common::Log {
