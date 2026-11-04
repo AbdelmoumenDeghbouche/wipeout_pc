@@ -54,6 +54,7 @@ DATA_DIR = Path(os.environ.get('GOW3_DATA_DIR', PORT_DIR))
 CONFIG_DIR = (Path(os.environ.get('APPDATA', Path.home())) if WINDOWS else
               Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')) / 'wipeout-launcher'
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
+WINDOW_POSITION = CONFIG_DIR / 'window.json'  # #151: the launcher's last position
 MOD_PRESETS = DATA_DIR / 'mods_presets.json'
 APP_NAME = 'WipEout Omega Collection'
 MAX_LOG_LINES = 6000
@@ -775,6 +776,15 @@ def fsr4_folder():
     return DATA_DIR / 'fsr4_shaders'
 
 
+def on_screen(x, y):
+    """Whether a window's top-left corner at x, y lies on a monitor (Windows; elsewhere: yes)."""
+    if not WINDOWS:
+        return True
+    import ctypes.wintypes
+    point = ctypes.wintypes.POINT(x + 40, y + 20)  # a little inside: the title bar
+    return bool(ctypes.windll.user32.MonitorFromPoint(point, 0))  # MONITOR_DEFAULTTONULL
+
+
 def load_json(path, default):
     try:
         return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -1448,6 +1458,11 @@ class Launcher:
             window_width = min(window_width, int(self.root.winfo_screenwidth() * 0.9))
             window_height = min(window_height, int(self.root.winfo_screenheight() * 0.9))
             self.root.geometry(f'{window_width}x{window_height}')
+        # #151: where the window was when it was last closed, while that spot is still on a screen.
+        position = load_json(WINDOW_POSITION, {})
+        x, y = (position.get('x'), position.get('y')) if isinstance(position, dict) else (None, None)
+        if isinstance(x, int) and isinstance(y, int) and on_screen(x, y):
+            self.root.geometry(f'{window_width}x{window_height}{x:+d}{y:+d}')
         self.root.minsize(min(self.px(980), window_width), min(self.px(660), window_height))
 
     def set_icon(self):
@@ -3649,6 +3664,9 @@ class Launcher:
     def close(self):
         if not self.collect():
             return
+        with contextlib.suppress(OSError, self.tk.TclError):
+            if self.root.state() == 'normal':
+                WINDOW_POSITION.write_text(json.dumps({'x': self.root.winfo_x(), 'y': self.root.winfo_y()}))
         self.root.destroy()
 
 

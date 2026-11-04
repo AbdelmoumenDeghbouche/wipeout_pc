@@ -72,6 +72,14 @@ class ControlMapTest(unittest.TestCase):
         self.assertIn('cheat_double_jumps', launcher.INI_FLAGS)
         self.assertIn('cheat_very_hard', launcher.INI_FLAGS)
 
+    def test_window_position_only_on_a_screen(self):
+        # #151: the last position is used again only while it lies on a monitor.
+        if launcher.WINDOWS:
+            self.assertTrue(launcher.on_screen(100, 100))
+            self.assertFalse(launcher.on_screen(-30000, -30000))
+        else:
+            self.assertTrue(launcher.on_screen(-30000, -30000))
+
     def test_controller_buttons_and_stick(self):
         # #145: the first connected pad's buttons; the left stick past a quarter reads as the D-pad.
         def pad(raw):
