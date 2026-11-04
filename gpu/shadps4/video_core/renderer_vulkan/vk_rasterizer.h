@@ -256,10 +256,12 @@ private:
     bool BindResources(const Pipeline* pipeline);
     void BindSamplers(const Shader::Info& stage, const PreparedStage* prepared,
                       Shader::Backend::Bindings& binding, u32& write_index);
-    /// gow3: a stage's resolved textures remembered by its prepared T# hashes
-    /// (TextureSetMemo): a hit only redoes the per-draw effects (binding flags, transitions).
+    /// gow3: a stage's resolved textures remembered by its T# hashes, a worker's or the GPU
+    /// thread's (TextureSetMemo): a hit only redoes the per-draw effects (binding flags,
+    /// transitions).
     struct TextureSetEntry {
         VideoCore::ImageId id{}; ///< after the depth redirect; null descriptor when invalid
+        VideoCore::ImageId found_id{}; ///< before the depth redirect (GetAssociatedDepth)
         vk::ImageView view;
         const void* backing = nullptr;
         VideoCore::SubresourceRange range;
@@ -278,9 +280,13 @@ private:
     std::array<TextureSet, 32768> texture_sets{};
     u64 texture_set_hits = 0, texture_set_misses = 0;
     std::array<u64, 4> texture_set_why{}; ///< misses: other key, generation, image check, new
-    /// Returns true when the stage's images were bound from the memo.
-    bool BindTexturesFromSet(const Shader::Info& stage, const PreparedStage* prepared,
-                             u32 first_image_idx, bool& barrier, TextureSet*& slot);
+    /// gow3: whether a stage's textures may come from the texture-set memo at all.
+    bool TextureSetCandidate(const Shader::Info& stage) const;
+    /// Returns true when the stage's images were bound from the memo. `hashes` are the stage's
+    /// ImageDescHash values: a draw-preparation worker's, or the GPU thread's own at 0 workers;
+    /// null skips the memo.
+    bool BindTexturesFromSet(const Shader::Info& stage, const u64* hashes, u32 first_image_idx,
+                             bool& barrier, TextureSet*& slot);
     /// The prepared sharps of `stage` in the current prepared draw, if they fit it.
     const PreparedStage* FindPreparedStage(const Shader::Info& stage) const;
     /// Whether the helper may bind textures for this pipeline at all (fixed descriptor layout,
