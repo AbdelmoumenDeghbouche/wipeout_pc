@@ -12,7 +12,7 @@ rm -rf "$appdir"
 share=$appdir/usr/share/gow3
 mkdir -p "$share/bin/gpu" "$appdir/usr/lib"
 
-install -m755 out/gow3-probe out/gow3-gpu-capabilities "$share/bin/"
+install -m755 out/gow3-probe out/gow3-gpu-capabilities out/gow3-server "$share/bin/"
 install -m755 out/gpu/libgow3gpu.so "$share/bin/gpu/"
 cp run.py "$share/"
 cp -r scripts patches "$share/"

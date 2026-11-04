@@ -46,6 +46,7 @@ FROZEN = getattr(sys, 'frozen', False)
 PORT_DIR = Path(sys.executable).resolve().parent if FROZEN else Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PORT_DIR / 'scripts'))
 import graphics_options  # noqa: E402  (scripts/)
+import online_host  # noqa: E402  (scripts/)
 import save_backup  # noqa: E402  (scripts/)
 import steam_shortcut  # noqa: E402  (scripts/)
 from patches import game_profile, game_sfo  # noqa: E402  (scripts/)
@@ -426,7 +427,7 @@ DISPLAY_MODES = [('windowed', ('Windowed',)), ('borderless', ('Borderless',)), (
 ANISOTROPY = [('0', ('Game default',)), ('2', ('2x',)), ('4', ('4x',)), ('8', ('8x',)), ('16', ('16x',))]
 FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',)), ('120', ('120',)), ('144', ('144',)), ('165', ('165',)), ('240', ('240',)), ('0', ('Unlimited',))]
 # The sidebar's pages, top to bottom, and the methods that refresh a page's lists when it is shown.
-PAGES = ('home', 'graphics', 'performance', 'game', 'cheats', 'music', 'controls', 'mods', 'advanced')
+PAGES = ('home', 'graphics', 'performance', 'game', 'online', 'cheats', 'music', 'controls', 'mods', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
                 'mods': ('refresh_lists',)}
 # #145: XInput buttons (the left stick reads as the D-pad) and what they do in the launcher.
@@ -462,7 +463,7 @@ GAMEPAD_NUMBERS = [('1', ('First connected',)), ('2', ('Second connected',)), ('
                    ('4', ('Fourth connected',))]
 APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.get('GOW3_GAME_DIR', str(PORT_DIR.parent / 'CUSA07671') if WINDOWS else ''), 'update_dir': '', 'experimental_upscaler': False, 'ps4_pro': False, 'cheat_events': False, 'cheat_rank': False, 'cheat_ships': False, 'cheat_van_uber': False, 'cheat_vr_ships': False,
                 'video_backend': 'auto', 'gamemode': False, 'mangohud': False, 'desktop_integration': True, 'user_dir': '', 'savedata_dir': '',
-                'music_dir': '', 'player_name': '', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
+                'music_dir': '', 'player_name': '', 'online_enabled': False, 'online_role': 'host', 'online_code': '', 'online_port': '7788', 'mods_dir': '', 'mods_enabled': True, 'patches_dir': '', 'language': '1',
                 'hdr': False, 'draw_pipe': '', 'readbacks': '', 'no_msaa': '', 'stream_memory': 'cached', 'texture_limit': '',
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
@@ -1282,6 +1283,24 @@ def game_environment(s):
     env.pop('GOW3_USER_NAME', None)
     if s.get('player_name', '').strip():
         env['GOW3_USER_NAME'] = s['player_name'].strip()[:16]
+    # The Online page's switch: off, the game is signed out of its network. On, it hosts the match
+    # server itself (runtime_matchserver.c) or joins one, at the address PLAY found.
+    for key in ('GOW3_NET_SERVER', 'GOW3_NET_HOST', 'GOW3_NET_PORT'):
+        env.pop(key, None)
+    if s.get('online_enabled'):
+        env['GOW3_USER_NAME'] = online_host.online_name(s.get('player_name', ''))
+        if s.get('online_role') == 'join':
+            address = s.get('online_address')
+            if not address:
+                try:
+                    address = online_host.join_candidates(s.get('online_code', ''))[-1]
+                except ValueError:
+                    address = ''
+            if address:
+                env['GOW3_NET_SERVER'] = address
+        else:
+            env['GOW3_NET_HOST'] = '1'
+            env['GOW3_NET_PORT'] = str(s.get('online_host_port') or s.get('online_port') or online_host.DEFAULT_PORT)
     env['GOW3_ELIMINATOR_LIMIT'] = str(s.get('eliminator_limit', APP_DEFAULTS['eliminator_limit']))
     env['GOW3_DISCORD'] = '1' if s.get('discord_rpc') else '0'
     if s['hdr']:
@@ -1798,7 +1817,7 @@ class Launcher:
         self.side = side
         self.nav, self.current_page = {}, None
         titles = {'home': _('Home'), 'graphics': _('Graphics', 'Графика'), 'performance': _('Performance'),
-                  'game': _('Game', 'Игра'), 'cheats': _('Cheats'), 'music': _('Music'), 'controls': _('Controls', 'Управление'), 'mods': _('Mods', 'Моды'), 'advanced': _('Advanced', 'Дополнительно')}
+                  'game': _('Game', 'Игра'), 'online': _('Online', 'Онлайн'), 'cheats': _('Cheats'), 'music': _('Music'), 'controls': _('Controls', 'Управление'), 'mods': _('Mods', 'Моды'), 'advanced': _('Advanced', 'Дополнительно')}
         for name in PAGES:
             item = tk.Label(side, text='    ' + titles[name], bg=BG, fg=TEXT, anchor='w',
                             font=self.heading_font(11, UI_FONT),
@@ -1839,6 +1858,7 @@ class Launcher:
         self.build_graphics()
         self.build_performance()
         self.build_game()
+        self.build_online()
         self.build_cheats()
         self.build_music_page()
         self.build_controls()
@@ -2179,6 +2199,7 @@ class Launcher:
                               validatecommand=(self.root.register(lambda text: len(text) <= 16), '%P'))
         self.row(f, _('Player name'), name,
                  _('Your name in the game (profile, records). Up to 16 characters. Empty: Player.'))
+        self.note(f, _('Online, this is your name too (see the Online page).'), top=2)
         self.build_patches(f)
         # scripts/menu_patches.py (#89): each digit over 3 takes an indentation space (the menu has 4).
         self.section(f, _('In-game menu patches', 'Патчи меню игры'))
@@ -2190,6 +2211,178 @@ class Launcher:
 
     def user_dir(self):
         return Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user')
+
+    def build_online(self):
+        """The Online switch; on, PLAY hosts or joins (scripts/online_host.py, docs/online-multiplayer.md)."""
+        tk, ttk = self.tk, self.ttk
+        f = self.scrolled_page('online', _('Online', 'Онлайн'), _('Races with other players over the internet.'))
+        enabled = self.var('online_enabled', 'app')
+        self.check(f, 'online_enabled', 'app', _('Play online', 'Играть онлайн'),
+                   _("Off: the game plays offline. On: PLAY connects it, and its ONLINE menu works."))
+        panel = ttk.Frame(f)
+        panel.grid(row=self.next_row(f), column=0, columnspan=2, sticky='we')
+        role = self.var('online_role', 'app')
+        self.row(panel, _('I want to', 'Я хочу'), self.choice(panel, 'online_role', 'app', [
+            ('host', ('Host a game', 'Создать игру')), ('join', ('Join a friend', 'Присоединиться к другу'))]))
+        name = ttk.Entry(panel, textvariable=self.var('player_name', 'app'), width=20, validate='key',
+                         validatecommand=(self.root.register(lambda text: len(text) <= 16), '%P'))
+        self.row(panel, _('Player name'), name)
+        seen_as = ttk.Label(panel, style='Muted.TLabel')
+        seen_as.grid(row=self.next_row(panel), column=0, columnspan=2, sticky='w', pady=self.px((1, 2)))
+
+        def show_name(*_args):
+            seen_as.configure(text=_('Other players see you as {}. This is the Player name of the Game page too.')
+                              .format(online_host.online_name(self.var('player_name', 'app').get())))
+        self.var('player_name', 'app').trace_add('write', show_name)
+        show_name()
+        join = ttk.Frame(panel)
+        join.grid(row=self.next_row(panel), column=0, columnspan=2, sticky='we')
+        code = ttk.Entry(join, textvariable=self.var('online_code', 'app'), width=24)
+        self.row(join, _('Join code', 'Код игры'), code,
+                 _("Your friend sees this code when they host. A server's address works here too."))
+        self.note(join, _("Press PLAY. Then in the game: ONLINE, Join Game."), top=12)
+        host = ttk.Frame(panel)
+        host.grid(row=self.next_row(panel), column=0, columnspan=2, sticky='we')
+        self.note(host, _("Press PLAY. Your router's port opens automatically and your join code appears here, "
+                          "copied and ready to send. Then in the game: ONLINE, Create Game."), top=12)
+        self.host_panel = ttk.Frame(host)
+        self.host_panel.grid(row=self.next_row(host), column=0, columnspan=2, sticky='w', pady=self.px((12, 0)))
+        self.host_code = tk.Label(self.host_panel, text='', bg=PANEL, fg=ACCENT_HI, font=self.heading_font(22, bold=True))
+        self.host_code.grid(row=0, column=0, sticky='w')
+        ttk.Button(self.host_panel, text=_('Copy', 'Копировать'), command=self.copy_host_code).grid(
+            row=0, column=1, padx=self.px((14, 0)))
+        self.host_state = ttk.Label(self.host_panel, style='Muted.TLabel', wraplength=self.px(680), justify='left')
+        self.host_state.grid(row=1, column=0, columnspan=2, sticky='w', pady=self.px((6, 0)))
+        port = ttk.Entry(host, textvariable=self.var('online_port', 'app'), width=8, validate='key',
+                         validatecommand=(self.root.register(lambda text: text.isdigit() and len(text) <= 5 or text == ''), '%P'))
+        self.row(host, _('Port'), port, _('7788 unless you have a reason to change it. The next free one is taken '
+                                          'when it is in use.'))
+        self.note(host, _("The code holds your internet address: send it to people you want to play with. Hosting "
+                          "asks a public STUN server what that address is. If Windows asks about the firewall, "
+                          "allow access."), top=12)
+        self.host_panel.grid_remove()  # after the rows below it: a hidden row would be given away
+
+        def show_parts(*_args):
+            if enabled.get():
+                panel.grid()
+            else:
+                panel.grid_remove()
+            if role.get() == 'join':
+                join.grid()
+                host.grid_remove()
+            else:
+                host.grid()
+                join.grid_remove()
+        show_parts()
+
+        def changed(*_args):
+            show_parts()
+            self.refresh_status()
+        enabled.trace_add('write', changed)
+        role.trace_add('write', changed)
+
+    def online_summary(self):
+        """The status bar's word on what PLAY will do."""
+        enabled, role = self.vars.get('online_enabled'), self.vars.get('online_role')
+        if not enabled or not enabled.get():
+            return ''
+        return ' · ' + (_('Online: joining a friend') if role and role.get() == 'join' else _('Online: hosting'))
+
+    def prepare_online(self):
+        """On the way to launch_game: the network part of PLAY, off the Tk thread."""
+        settings = self.app
+        if settings.get('online_role') == 'join':
+            try:
+                candidates = online_host.join_candidates(settings.get('online_code', ''))
+            except ValueError:
+                self.messagebox.showerror(APP_NAME, _("Enter the join code your friend sees when they host. "
+                                                      "Check it for typos."))
+                self.show('online')
+                return
+            work = lambda: online_host.reachable_address(candidates)
+            done = lambda address: self.joined(candidates, address)
+            text = _('Looking for the host…')
+        else:
+            try:
+                port = int(settings.get('online_port') or online_host.DEFAULT_PORT)
+            except ValueError:
+                port = online_host.DEFAULT_PORT
+            work = online_host.HostSession(port).start
+            done = self.hosted
+            text = _('Opening the port on your router…')
+        self.online_busy = True
+        self.play_button.configure(state='disabled')
+        self.status.configure(text=text, fg=TEXT)
+
+        def run():
+            try:
+                result = work()
+            except OSError as error:
+                self.ui_calls.put(lambda failure=error: self.online_failed(failure))
+                return
+            self.ui_calls.put(lambda: done(result))
+        threading.Thread(target=run, name='Online setup', daemon=True).start()
+
+    def online_failed(self, error):
+        self.online_busy = False
+        self.refresh_status()
+        self.messagebox.showerror(APP_NAME, _('Could not set up online play: {}').format(error))
+
+    def joined(self, candidates, address):
+        self.online_busy = False
+        if not address:
+            if not self.messagebox.askyesno(APP_NAME, _(
+                    "The host does not answer yet. Their game has to be running, with this code.\n\n"
+                    "Start the game anyway? You can join from its ONLINE menu once they are ready.")):
+                self.refresh_status()
+                return
+            address = candidates[-1]
+        self.launch_game({**self.app, 'online_address': address})
+
+    def hosted(self, session):
+        self.online_busy = False
+        self.launch_game({**self.app, 'online_host_port': session.port}, session)
+
+    def show_hosting(self, session):
+        self.host_session = session
+        self.copy_host_code()
+        self.status.configure(text=_('Hosting. Your join code is {} (copied).').format(session.code), fg=TEXT)
+        self.append(_('Hosting on port {}. Join code: {}').format(session.port, session.code) + '\n')
+        if session.router_error:
+            self.append(_('Router: {}').format(session.router_error) + '\n')
+        if not hasattr(self, 'host_panel'):
+            return
+        self.host_code.configure(text=session.code)
+        self.host_state.configure(text={
+            online_host.OPEN: _('Your router opened port {port} automatically. Friends can join with this code.'),
+            online_host.MANUAL: _("Your router did not open the port automatically. Turn on UPnP in its settings, or "
+                                  "forward port {port} (TCP and UDP) to this PC, {lan}. Until then only players on "
+                                  "your network can join."),
+            online_host.SHARED: _("Players outside your home cannot reach you: your internet provider or a second "
+                                  "router shares one public address, so no port can be opened here. Players on your "
+                                  "network can join. Ask your provider for a public address, let a friend host, or "
+                                  "use a virtual LAN such as Tailscale."),
+            online_host.LAN_ONLY: _('No internet address was found. Only players on your network can join.'),
+        }[session.status].format(port=session.port, lan=session.lan_ip))
+        self.host_panel.grid()
+        self.show('online')
+
+    def copy_host_code(self):
+        session = getattr(self, 'host_session', None)
+        if session and session.code:
+            self.root.clipboard_clear()
+            self.root.clipboard_append(session.code)
+            self.root.update_idletasks()
+
+    def stop_hosting(self):
+        """The game ended: the router's port closes, and so does the code."""
+        session = getattr(self, 'host_session', None)
+        self.host_session = None
+        if session:
+            threading.Thread(target=session.close, name='UPnP close', daemon=False).start()
+        if hasattr(self, 'host_panel'):
+            self.host_panel.grid_remove()
+
 
     def build_music_page(self):
         """Your own music: a guide, the folder, the switches (gow3.ini, also in the in-game Music tab)
@@ -2751,7 +2944,7 @@ class Launcher:
         info = game_info(self.meta_dir())
         if not self.process:
             self.play_button.configure(text=_('PLAY', 'ИГРАТЬ'), state='normal' if info else 'disabled')
-            self.status.configure(text=self.summary() if info else _('Choose the game folder first.',
+            self.status.configure(text=self.summary() + self.online_summary() if info else _('Choose the game folder first.',
                                                                      'Сначала выберите папку игры.'), fg=MUTED)
 
     def summary(self):
@@ -3163,7 +3356,7 @@ class Launcher:
         threading.Thread(target=work, daemon=True).start()
 
     def play(self):
-        if self.process or getattr(self, 'copying_system_files', False):
+        if self.process or getattr(self, 'copying_system_files', False) or getattr(self, 'online_busy', False):
             return
         if not self.collect():
             return
@@ -3194,26 +3387,37 @@ class Launcher:
                                       .format(update_dir, '\n'.join(describe_missing(missing))))
             self.show('game')
             return
+        if self.app.get('online_enabled'):
+            self.prepare_online()  # goes on in launch_game
+        else:
+            self.launch_game(self.app)
+
+    def launch_game(self, settings, session=None):
         self.set_log('')
         self.exit_hint = None
         self.hidden_for_game = False
         # The same last_run.log as --play, so a report from the PLAY button has the file too.
         run_log = open_play_log(self.app)
         try:
-            self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(self.app),
+            self.process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                             stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
                                             stderr=subprocess.STDOUT, creationflags=NO_WINDOW, **NEW_GROUP)
         except OSError as error:
             run_log.close()
             self.append(_('Could not start: {}', 'Не удалось запустить: {}').format(error) + '\n')
             self.process = None
+            if session:
+                session.close()
+            self.refresh_status()
             return
         self.job = GameJob(self.process)
         threading.Thread(target=self.read_output, args=(self.process, run_log), daemon=True).start()
         self.play_button.configure(text=_('RUNNING'), state='disabled')
         self.status.configure(text=_('Preparing the game; it opens in its own window…',
                                      'Подготовка игры; она откроется в своём окне…'), fg=TEXT)
-        if self.app.get('close_on_play'):
+        if session:
+            self.show_hosting(session)  # the code stays in view: no hiding for the game
+        elif self.app.get('close_on_play'):
             self.root.after(5000, self.hide_for_game, self.process)
 
     def hide_for_game(self, process):
@@ -3253,6 +3457,7 @@ class Launcher:
                     if getattr(self, 'exit_hint', None):
                         self.append(self.exit_hint + '\n')
                     self.process = None
+                    self.stop_hosting()
                     if self.job:
                         self.job.close()
                     if getattr(self, 'hidden_for_game', False):
@@ -3778,11 +3983,30 @@ def write_deck_defaults():
         save_ini({'output_res': values['output_res']}, lines)
 
 
+def online_ready_settings(settings):
+    """--play with the Online switch on: the same work as the window's PLAY, without questions. The
+    session closes the router's port at exit (online_host.py)."""
+    if not settings.get('online_enabled'):
+        return settings
+    try:
+        if settings.get('online_role') == 'join':
+            candidates = online_host.join_candidates(settings.get('online_code', ''))
+            return {**settings, 'online_address': online_host.reachable_address(candidates) or candidates[-1]}
+        session = online_host.HostSession(int(settings.get('online_port') or online_host.DEFAULT_PORT)).start()
+        print(f'Hosting on port {session.port}. Join code: {session.code} ({session.status})', flush=True)
+        return {**settings, 'online_host_port': session.port}
+    except (OSError, ValueError) as error:
+        print(f'Online play is not set up: {error}', flush=True)
+        return settings
+
+
+
 def play_without_window(settings):
     """--play: the game with the saved settings (shortcuts, Steam). Output goes to the console
     when there is one and to <saves folder>/last_run.log."""
     attach_stdio()
     write_deck_defaults()
+    settings = online_ready_settings(settings)
     with open_run_log(settings) as log:
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),
                                    stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,

@@ -1715,6 +1715,138 @@ EXTRA['pl'].update({
         'Twoja nazwa w grze (profil, rekordy). Do 16 znaków. Puste: Player.',
 })
 
+EXTRA['pt'].update({
+    '7788 unless you have a reason to change it. The next free one is taken when it is in use.':
+        '7788, a menos que você tenha um motivo para mudar. Se estiver em uso, a próxima livre é usada.',
+    'Could not set up online play: {}':
+        'Não foi possível preparar o jogo online: {}',
+    'Enter the join code your friend sees when they host. Check it for typos.':
+        'Digite o código que seu amigo vê ao hospedar. Confira se não há erros.',
+    'Hosting on port {}. Join code: {}':
+        'Hospedando na porta {}. Código: {}',
+    'Hosting. Your join code is {} (copied).':
+        'Hospedando. Seu código é {} (copiado).',
+    'I want to':
+        'Quero',
+    'Join code':
+        'Código da partida',
+    'Looking for the host…':
+        'Procurando o anfitrião…',
+    'No internet address was found. Only players on your network can join.':
+        'Nenhum endereço de internet foi encontrado. Só jogadores da sua rede podem entrar.',
+    'Off: the game plays offline. On: PLAY connects it, and its ONLINE menu works.':
+        'Desligado: o jogo roda offline. Ligado: JOGAR o conecta, e o menu ONLINE funciona.',
+    'On: start at once, using pipeline binaries on demand or loading shaders in the background. Off: wait on the loading screen for saved pipelines without disabling the binary cache. New areas can still need shader compilation.':
+        'Ligado: começa de imediato, usando binários de pipeline sob demanda ou carregando shaders em segundo plano. Desligado: espera na tela de carregamento pelos pipelines salvos, sem desativar o cache de binários. Áreas novas ainda podem precisar compilar shaders.',
+    'Online':
+        'Online',
+    'Online, this is your name too (see the Online page).':
+        'Online, este também é o seu nome (veja a página Online).',
+    'Online: hosting':
+        'Online: hospedando',
+    'Online: joining a friend':
+        'Online: entrando na partida de um amigo',
+    'Opening the port on your router…':
+        'Abrindo a porta no seu roteador…',
+    'Other players see you as {}. This is the Player name of the Game page too.':
+        'Os outros jogadores veem você como {}. Este também é o nome do jogador da página Jogo.',
+    'Play online':
+        'Jogar online',
+    'Players outside your home cannot reach you: your internet provider or a second router shares one public address, so no port can be opened here. Players on your network can join. Ask your provider for a public address, let a friend host, or use a virtual LAN such as Tailscale.':
+        'Jogadores fora da sua casa não conseguem alcançar você: seu provedor ou um segundo roteador compartilha um único endereço público, então nenhuma porta pode ser aberta aqui. Jogadores da sua rede podem entrar. Peça um endereço público ao provedor, deixe um amigo hospedar ou use uma LAN virtual como o Tailscale.',
+    'Port':
+        'Porta',
+    'Press PLAY. Then in the game: ONLINE, Join Game.':
+        'Clique em JOGAR. Depois, no jogo: ONLINE, Join Game.',
+    "Press PLAY. Your router's port opens automatically and your join code appears here, copied and ready to send. Then in the game: ONLINE, Create Game.":
+        'Clique em JOGAR. A porta do roteador abre automaticamente e seu código aparece aqui, copiado e pronto para enviar. Depois, no jogo: ONLINE, Create Game.',
+    'Races with other players over the internet.':
+        'Corridas com outros jogadores pela internet.',
+    'Router: {}':
+        'Roteador: {}',
+    'The code holds your internet address: send it to people you want to play with. Hosting asks a public STUN server what that address is. If Windows asks about the firewall, allow access.':
+        'O código contém seu endereço de internet: envie-o a quem você quer jogar junto. Ao hospedar, um servidor STUN público é consultado para saber esse endereço. Se o Windows perguntar sobre o firewall, permita o acesso.',
+    'The host does not answer yet. Their game has to be running, with this code.\n\nStart the game anyway? You can join from its ONLINE menu once they are ready.':
+        'O anfitrião ainda não responde. O jogo dele precisa estar aberto, com este código.\n\nIniciar o jogo mesmo assim? Você pode entrar pelo menu ONLINE quando ele estiver pronto.',
+    "Your friend sees this code when they host. A server's address works here too.":
+        'Seu amigo vê este código ao hospedar. O endereço de um servidor também funciona aqui.',
+    'Your router did not open the port automatically. Turn on UPnP in its settings, or forward port {port} (TCP and UDP) to this PC, {lan}. Until then only players on your network can join.':
+        'Seu roteador não abriu a porta automaticamente. Ative o UPnP nas configurações dele ou encaminhe a porta {port} (TCP e UDP) para este PC, {lan}. Até lá, só jogadores da sua rede podem entrar.',
+    'Your router opened port {port} automatically. Friends can join with this code.':
+        'Seu roteador abriu a porta {port} automaticamente. Seus amigos podem entrar com este código.',
+})
+
+EXTRA['es'].update({
+    '7788 unless you have a reason to change it. The next free one is taken when it is in use.':
+        '7788, salvo que tengas un motivo para cambiarlo. Si está en uso, se usa el siguiente libre.',
+    'Could not set up online play: {}':
+        'No se pudo preparar el juego en línea: {}',
+    'Enter the join code your friend sees when they host. Check it for typos.':
+        'Escribe el código que ve tu amigo al alojar la partida. Comprueba que no tenga errores.',
+    'Hosting on port {}. Join code: {}':
+        'Alojando en el puerto {}. Código: {}',
+    'Hosting. Your join code is {} (copied).':
+        'Alojando. Tu código es {} (copiado).',
+    'I want to':
+        'Quiero',
+    'Join code':
+        'Código de partida',
+    'Looking for the host…':
+        'Buscando al anfitrión…',
+    'No internet address was found. Only players on your network can join.':
+        'No se encontró ninguna dirección de internet. Solo pueden unirse jugadores de tu red.',
+    'Off: the game plays offline. On: PLAY connects it, and its ONLINE menu works.':
+        'Desactivado: el juego funciona sin conexión. Activado: JUGAR lo conecta y su menú ONLINE funciona.',
+    'On: start at once, using pipeline binaries on demand or loading shaders in the background. Off: wait on the loading screen for saved pipelines without disabling the binary cache. New areas can still need shader compilation.':
+        'Activado: empieza de inmediato, usando binarios de pipeline bajo demanda o cargando shaders en segundo plano. Desactivado: espera en la pantalla de carga a los pipelines guardados, sin desactivar la caché de binarios. Las zonas nuevas aún pueden necesitar compilar shaders.',
+    'Online':
+        'En línea',
+    'Online, this is your name too (see the Online page).':
+        'En línea, este también es tu nombre (mira la página En línea).',
+    'Online: hosting':
+        'En línea: alojando',
+    'Online: joining a friend':
+        'En línea: uniéndote a un amigo',
+    'Opening the port on your router…':
+        'Abriendo el puerto en tu router…',
+    'Other players see you as {}. This is the Player name of the Game page too.':
+        'Los demás jugadores te ven como {}. También es el nombre de jugador de la página Juego.',
+    'Play online':
+        'Jugar en línea',
+    'Players outside your home cannot reach you: your internet provider or a second router shares one public address, so no port can be opened here. Players on your network can join. Ask your provider for a public address, let a friend host, or use a virtual LAN such as Tailscale.':
+        'Los jugadores de fuera de tu casa no pueden llegar a ti: tu proveedor o un segundo router comparte una sola dirección pública, así que aquí no se puede abrir ningún puerto. Los jugadores de tu red sí pueden unirse. Pide a tu proveedor una dirección pública, deja que aloje un amigo o usa una LAN virtual como Tailscale.',
+    'Port':
+        'Puerto',
+    'Press PLAY. Then in the game: ONLINE, Join Game.':
+        'Pulsa JUGAR. Luego, en el juego: ONLINE, Join Game.',
+    "Press PLAY. Your router's port opens automatically and your join code appears here, copied and ready to send. Then in the game: ONLINE, Create Game.":
+        'Pulsa JUGAR. El puerto del router se abre automáticamente y tu código aparece aquí, copiado y listo para enviar. Luego, en el juego: ONLINE, Create Game.',
+    'Races with other players over the internet.':
+        'Carreras con otros jugadores por internet.',
+    'Router: {}':
+        'Router: {}',
+    'The code holds your internet address: send it to people you want to play with. Hosting asks a public STUN server what that address is. If Windows asks about the firewall, allow access.':
+        'El código contiene tu dirección de internet: envíalo a quienes quieras invitar. Al alojar se consulta a un servidor STUN público cuál es esa dirección. Si Windows pregunta por el firewall, permite el acceso.',
+    'The host does not answer yet. Their game has to be running, with this code.\n\nStart the game anyway? You can join from its ONLINE menu once they are ready.':
+        'El anfitrión aún no responde. Su juego tiene que estar abierto, con este código.\n\n¿Iniciar el juego de todos modos? Podrás unirte desde su menú ONLINE cuando esté listo.',
+    "Your friend sees this code when they host. A server's address works here too.":
+        'Tu amigo ve este código al alojar. La dirección de un servidor también sirve aquí.',
+    'Your router did not open the port automatically. Turn on UPnP in its settings, or forward port {port} (TCP and UDP) to this PC, {lan}. Until then only players on your network can join.':
+        'Tu router no abrió el puerto automáticamente. Activa UPnP en sus ajustes o redirige el puerto {port} (TCP y UDP) a este PC, {lan}. Hasta entonces solo pueden unirse jugadores de tu red.',
+    'Your router opened port {port} automatically. Friends can join with this code.':
+        'Tu router abrió el puerto {port} automáticamente. Tus amigos pueden unirse con este código.',
+})
+
+EXTRA['pt'].update({
+    'Host a game': 'Hospedar uma partida',
+    'Join a friend': 'Entrar na partida de um amigo',
+})
+
+EXTRA['es'].update({
+    'Host a game': 'Alojar una partida',
+    'Join a friend': 'Unirme a un amigo',
+})
+
 _tables = {}
 
 

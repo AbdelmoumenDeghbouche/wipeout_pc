@@ -210,6 +210,18 @@ if (WIN32)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
     target_link_options(gow3-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
+    # The match server for online play, run on its own (src/runtime_matchserver.c also serves
+    # inside the game with GOW3_NET_HOST=1).
+    add_executable(gow3-server ../tools/gow3_server.c ../src/runtime_matchserver.c ../src/runtime_wire.c)
+    set_target_properties(gow3-server PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_options(gow3-server PRIVATE -Wall -Wextra -Werror)
+    target_include_directories(gow3-server PRIVATE .. ../src)
+    target_link_libraries(gow3-server PRIVATE ws2_32 -pthread)
+    add_executable(matching-test EXCLUDE_FROM_ALL ../tests/test_matching.c ../src/runtime_matchserver.c ../src/runtime_wire.c)
+    set_target_properties(matching-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_options(matching-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+    target_include_directories(matching-test PRIVATE .. ../src)
+    target_link_libraries(matching-test PRIVATE ws2_32 -pthread)
     # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test savedata-test savedata-mount-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)

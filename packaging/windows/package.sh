@@ -10,7 +10,7 @@
 set -euo pipefail
 cd -- "$(dirname -- "$0")/../.."
 source ./msys2-env.sh
-[[ -f out/gow3-probe.exe && -f out/gow3-gpu-capabilities.exe && -f out/gow3-play.exe ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
+[[ -f out/gow3-probe.exe && -f out/gow3-gpu-capabilities.exe && -f out/gow3-play.exe && -f out/gow3-server.exe ]] || { echo 'Build first: bash build.sh' >&2; exit 1; }
 
 # A Windows Python (not MSYS2's) for PyInstaller.
 python=${WINPYTHON:-}
@@ -46,7 +46,7 @@ cp -r "out/pyi-dist/WipEout/." "$dest/"
 llvm-strip -o "$dest/Play WipEout.exe" out/gow3-play.exe
 cp launcher/gow3.ico launcher/gow3.png launcher/RussoOne-Regular.ttf launcher/OFL-RussoOne.txt "$dest/launcher/"
 # The executables without debug information (out/ keeps the symbols for crash reports).
-for exe in gow3-probe.exe gow3-gpu-capabilities.exe; do
+for exe in gow3-probe.exe gow3-gpu-capabilities.exe gow3-server.exe; do
     llvm-strip --strip-debug -o "$dest/bin/$exe" "out/$exe"
 done
 # Every DLL the executables load from the CLANG64 tree (SDL3, FFmpeg, Vulkan loader, ...).
