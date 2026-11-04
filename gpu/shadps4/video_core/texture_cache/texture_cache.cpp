@@ -1754,16 +1754,18 @@ void TextureCache::UnregisterImage(ImageId image_id) {
 void TextureCache::TrackImageUnlessDeferred(ImageId image_id) {
     auto& image = slot_images[image_id];
     if (image.track_deferred) {
+        // Deferral starts only on images no GPU work writes, so GpuModified here means a GPU
+        // write bind (render target, depth or storage target, which set it before UpdateImage)
+        // or a GPU copy into the image: that ends the deferral at once.
         if (image.cpu_dirty_flip == Vulkan::FrameCapture::Flips() &&
+            False(image.flags & ImageFlagBits::GpuModified) &&
             !Gow3Toggle::Disabled(Gow3Toggle::DeferStreamedImageTracking)) {
             return; // Still the flip of the last write: the guest may still be writing.
         }
         image.track_deferred = false;
-        // Writes made while unprotected took no fault: read the image again, unless the GPU
-        // has written it since (its contents are newer than guest memory).
-        if (False(image.flags & ImageFlagBits::GpuModified)) {
-            image.flags |= ImageFlagBits::CpuDirty;
-        }
+        // Writes made while unprotected took no fault: read the image again, before any GPU
+        // write, as when each of those writes faulted and dirtied it.
+        image.flags |= ImageFlagBits::CpuDirty;
     }
     TrackImage(image_id);
 }
