@@ -30,7 +30,7 @@ PROFILES = {
     # reserve: 4096 model slots of 0x360 bytes and one before them ("Bug Fix - Model slots", #96).
     'CUSA07671': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
-                  'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1',
+                  'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1', 'GOW3_MENU_FPS': '60',
                           'GOW3_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;1920x1200;2560x1600;2880x1800;5120x2160',
                           'GOW3_GAME_MOTION': '1', 'GOW3_UPSCALE_BEFORE_PS': '4f6cc41b',
                           'GOW3_OBJECT_MOTION': '0'},
@@ -39,7 +39,7 @@ PROFILES = {
     # DLAA never ran there and Temporal anti-aliasing only turned the multisampling off (#85).
     'CUSA05670': {'name': 'WipEout Omega Collection',
                   'modules': ('libc.prx', 'libSceFios2.prx', 'libSceNpToolkit2.prx'),
-                  'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1',
+                  'env': {'GOW3_RED_ZONE': '1', 'GOW3_ENGINE_FPS': '240', 'GOW3_HUD_16X9': '1', 'GOW3_MENU_FPS': '60',
                           'GOW3_ALLOWED_RESOLUTIONS': 'native;720p;900p;1440p;4K;2560x1080;3440x1440;3840x1600;5120x1440;1920x1200;2560x1600;2880x1800;5120x2160',
                           'GOW3_GAME_MOTION': '1', 'GOW3_UPSCALE_BEFORE_PS': '4f6cc41b',
                           'GOW3_OBJECT_MOTION': '0'},
