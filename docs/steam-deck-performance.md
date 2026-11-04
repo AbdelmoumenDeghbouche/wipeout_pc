@@ -62,5 +62,35 @@ a screenshot every second has a 70 ms hitch every second. `exp-run.sh` takes one
 `GOW3_GPU_PROFILE` reports almost nothing while the GPU is saturated (it skips frames whose results
 are not ready), so it is no guide on the Deck.
 
+### The CPU bench
+
+Hands-off, same route every run. Record the pad route once with `tools/deck/route-record.sh`
+(`routes/vinetak-photo.pad` and `.marks` hold `countdown_ms` and `photo_ms`). `tools/deck/bench-run.sh
+<N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted AppImage dirs), replays the
+route from gamepad connect, holds photo mode 30 s and takes a screenshot. Run one warm-up pair first
+so the shader cache is filled. `python3 -I tools/deck/bench-summary.py <dir>` reads each run's
+`GOW3_FRAME_LOG` (`frames.log`), drops broken or short runs, and prints median and range per side
+for two spans:
+
+- countdown: `countdown_ms` +0.5-3 s, about 4150 draws per frame;
+- photo mode: `photo_ms` +3-23 s, about 3217 draws per frame (a static grid scene, the steadier span).
+
+Metrics: FPS, draws per frame, stage A and stage B CPU time per draw (µs).
+
+A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, build of f0826ef):
+
+| span | metric | A median (range) | B median (range) | all 8 runs, spread |
+|---|---|---|---|---|
+| photo | stage A µs/draw | 4.76 (4.71-4.77) | 4.76 (4.74-4.78) | 0.07 (1.5 %) |
+| photo | stage B µs/draw | 4.34 (4.33-4.36) | 4.36 (4.32-4.36) | 0.04 (0.9 %) |
+| photo | FPS | 59.73 (59.45-59.79) | 59.77 (59.51-59.97) | 0.52 (0.9 %) |
+| countdown | stage A µs/draw | 4.75 (4.69-4.83) | 4.81 (4.71-4.84) | 0.15 (3.2 %) |
+| countdown | stage B µs/draw | 4.50 (4.42-4.57) | 4.54 (4.53-4.60) | 0.18 (4.0 %) |
+| countdown | FPS | 49.49 (48.71-50.27) | 48.88 (48.76-49.18) | 1.56 (3.2 %) |
+
+The spread is the smallest difference a 4 + 4 bench can show: a change smaller than it is noise.
+Medians of the two sides differed by at most 1.3 % (A/A). Photo mode is the quieter span for
+µs/draw; FPS there sits at the 60 FPS cap, so it cannot show a gain. Countdown is the FPS span.
+
 `perf` works on the Deck as the deck user (user-space samples):
 `perf record -e cpu-clock:u -F 999 -g -p $(pgrep -x gow3-probe) -- sleep 20`.
