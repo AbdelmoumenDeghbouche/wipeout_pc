@@ -36,7 +36,7 @@ class DiskModsTest(unittest.TestCase):
             (port / 'scripts').mkdir()
             (port / 'scripts/mods.py').write_text('SOURCE = "disk"\n')
             bundled = types.ModuleType('mods')
-            with mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'PORT_DIR', port), \
+            with mock.patch.object(launcher, 'UPDATES_ENABLED', True), mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'PORT_DIR', port), \
                     mock.patch.dict(sys.modules, {'mods': bundled}):
                 module = launcher.load_mods()
                 self.assertEqual(module.SOURCE, 'disk')
@@ -57,7 +57,7 @@ class DiskModsTest(unittest.TestCase):
             (port / 'scripts').mkdir()
             (port / 'scripts/mods.py').write_text('raise ValueError("internal details")\n')
             bundled = types.ModuleType('mods')
-            with mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'PORT_DIR', port), \
+            with mock.patch.object(launcher, 'UPDATES_ENABLED', True), mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'PORT_DIR', port), \
                     mock.patch.dict(sys.modules, {'mods': bundled}):
                 with self.assertRaisesRegex(RuntimeError, 'scripts/mods.py') as raised:
                     launcher.load_mods()
@@ -842,7 +842,7 @@ class ReleaseVersionTest(unittest.TestCase):
                 if isinstance(answer, Exception):
                     raise answer
                 return answer
-            with mock.patch.object(launcher, 'latest_release', release), mock.patch.object(launcher.time, 'sleep'):
+            with mock.patch.object(launcher, 'UPDATES_ENABLED', True), mock.patch.object(launcher, 'latest_release', release), mock.patch.object(launcher.time, 'sleep'):
                 launcher.Launcher.check_update(app)
             self.assertEqual(app.ui_calls.qsize(), offered)
             while not app.ui_calls.empty():
@@ -852,7 +852,7 @@ class ReleaseVersionTest(unittest.TestCase):
         # A release offered before its zip was built: UPDATE NOW asks GitHub again and says to
         # wait, instead of opening the release page (#61).
         app = types.SimpleNamespace(process=None, messagebox=mock.Mock(), update_progress=mock.Mock())
-        with mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'open_url') as opened,                 mock.patch.object(launcher, 'latest_release', return_value=('9.9.9', None, 'p', '')):
+        with mock.patch.object(launcher, 'UPDATES_ENABLED', True), mock.patch.object(launcher, 'FROZEN', True), mock.patch.object(launcher, 'open_url') as opened,                 mock.patch.object(launcher, 'latest_release', return_value=('9.9.9', None, 'p', '')):
             launcher.Launcher.install_update(app, '9.9.9', None, 'p')
         opened.assert_not_called()
         app.messagebox.showinfo.assert_called_once()

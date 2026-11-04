@@ -67,6 +67,9 @@ NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
 VERSION = '0.2.54'
+# This fork has online play and no releases of its own: the original project's update would replace
+# it and take online play away. True again once RELEASES_API and RELEASES_PAGE name its own releases.
+UPDATES_ENABLED = False
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'wipeout-update'
@@ -1419,7 +1422,7 @@ class Launcher:
         root.after(500, self.watch_changes)
         if WINDOWS:
             root.after(500, self.poll_gamepad)
-        if WINDOWS and self.app['update_popup']:
+        if UPDATES_ENABLED and WINDOWS and self.app['update_popup']:
             threading.Thread(target=self.check_update, daemon=True).start()
 
     def meta_dir(self):
@@ -1832,7 +1835,7 @@ class Launcher:
         self.play_button.pack(side='right', padx=(self.px(10), self.px(24)), pady=self.px(11))
         self.save_button = ttk.Button(bar, text=_('Save', 'Сохранить'), command=self.save, state='disabled')
         self.save_button.pack(side='right', pady=self.px(11))
-        if WINDOWS:  # next to Save: on the Advanced page players did not find it
+        if UPDATES_ENABLED and WINDOWS:  # next to Save: on the Advanced page players did not find it
             ttk.Button(bar, text=_('Check for updates', 'Проверить обновления'),
                        command=lambda: threading.Thread(target=self.check_update, args=(True,), daemon=True).start()
                        ).pack(side='right', padx=self.px((0, 6)), pady=self.px(11))
@@ -2835,7 +2838,7 @@ class Launcher:
         self.row(f, _('GUI Scale'), self.choice(f, 'ui_scale', 'app', UI_SCALES),
                  _('For launcher only. Applies after Save.'))
         self.check(f, 'close_on_play', 'app', _('Close the launcher when the game starts', 'Закрывать лаунчер при запуске игры'))
-        if WINDOWS:
+        if UPDATES_ENABLED and WINDOWS:
             self.check(f, 'update_popup', 'app', _('Check for updates when the launcher opens',
                                                     'Проверять обновления при открытии лаунчера'))
         holder = ttk.Frame(f)
@@ -3528,6 +3531,8 @@ class Launcher:
     def check_update(self, manual=False):
         """Helper thread: asks GitHub for the newest release and offers it when it is newer. At start it
         tries three times, so a short network drop does not hide a new version."""
+        if not UPDATES_ENABLED:
+            return
         for _attempt in range(1 if manual else 3):
             try:
                 version, url, page, notes = latest_release()
@@ -3716,6 +3721,8 @@ class Launcher:
                 bar.pack_forget()
 
     def install_update(self, version, url, page):
+        if not UPDATES_ENABLED:
+            return
         if self.process:
             self.messagebox.showinfo(APP_NAME, _('Close the game before updating.', 'Закройте игру перед обновлением.'))
             return
@@ -4061,7 +4068,7 @@ def main():
     if not WINDOWS:
         integrate_desktop(settings.get('desktop_integration', True), os.environ.get('APPIMAGE'),
                           PORT_DIR / 'launcher' / 'wipeout.png', DATA_DIR)
-    if WINDOWS and args[:1] == ['--install-update'] and len(args) == 3:
+    if UPDATES_ENABLED and WINDOWS and args[:1] == ['--install-update'] and len(args) == 3:
         sys.exit(install_update(args[1], args[2]))
     if WINDOWS and FROZEN and UPDATE_DIR not in PORT_DIR.parents:
         shutil.rmtree(UPDATE_DIR, ignore_errors=True)  # what a finished update left behind

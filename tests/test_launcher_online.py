@@ -120,5 +120,21 @@ class Play(unittest.TestCase):
         self.assertIn('hosting', owner.online_summary())
 
 
+class Updater(unittest.TestCase):
+    """This fork's builds never ask the original project for updates: one would remove online play."""
+
+    def test_it_is_off(self):
+        self.assertIs(launcher.UPDATES_ENABLED, False)
+
+    def test_no_check_and_no_install(self):
+        owner = launcher.Launcher.__new__(launcher.Launcher)
+        with mock.patch.object(launcher, 'latest_release') as release, mock.patch.object(launcher.subprocess, 'Popen') as popen:
+            owner.check_update()
+            owner.check_update(manual=True)
+            owner.install_update('9.9.9', 'http://example.invalid/x.zip', 'page')
+        release.assert_not_called()
+        popen.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
