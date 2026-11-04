@@ -36,6 +36,7 @@
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_lighting_test.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
+#include "video_core/renderer_vulkan/vk_shader_build_stamp.h"
 #include "video_core/renderer_vulkan/vk_shader_util.h"
 #include "video_core/renderer_vulkan/vk_warmup_inbox.h"
 
@@ -72,10 +73,10 @@ namespace Vulkan {
 
 namespace {
 /// gow3: ShaderProfile/disk_shaders holds this when the store's permutation files may be read
-/// at on-demand startup. The build stamp makes every new build rebuild the store once: the meta
-/// versions are bumped by hand, and a translator fix without a bump must not load stale SPIR-V.
+/// at on-demand startup. The build stamp makes every recompiler rebuild clear the store once: the
+/// meta versions are bumped by hand, and a translator fix without a bump must not load stale SPIR-V.
 std::vector<u8> DiskShaderMarker() {
-    constexpr std::string_view stamp = "gow3 disk shaders, built " __DATE__ " " __TIME__;
+    const auto stamp = ShaderBuildStamp();
     return {stamp.begin(), stamp.end()};
 }
 /// gow3: this session may number permutations by first use: no on-demand reads at next start.

@@ -135,6 +135,13 @@ add_custom_target(host_shaders DEPENDS ${SHADER_HEADERS})
 
 file(GLOB_RECURSE VIDEO_CORE CONFIGURE_DEPENDS shadps4/video_core/*.cpp)
 file(GLOB_RECURSE RECOMPILER CONFIGURE_DEPENDS shadps4/shader_recompiler/*.cpp)
+# gow3: the shader build stamp (ShaderProfile/disk_shaders marker) is recompiled, with a new
+# __DATE__ __TIME__, whenever the recompiler or the shader store format changes, so saved SPIR-V
+# from an older translator is never read back (vk_pipeline_serialization.cpp StartOnDemand).
+file(GLOB_RECURSE RECOMPILER_HEADERS CONFIGURE_DEPENDS shadps4/shader_recompiler/*.h
+    shadps4/shader_recompiler/*.inc)
+set_source_files_properties(shadps4/video_core/renderer_vulkan/vk_shader_build_stamp.cpp PROPERTIES
+    OBJECT_DEPENDS "${RECOMPILER};${RECOMPILER_HEADERS};${CMAKE_CURRENT_SOURCE_DIR}/shadps4/video_core/renderer_vulkan/vk_pipeline_serialization.cpp")
 list(FILTER VIDEO_CORE EXCLUDE REGEX "renderdoc\\.cpp$")
 set(COMMON
     shadps4/common/decoder.cpp shadps4/common/error.cpp
