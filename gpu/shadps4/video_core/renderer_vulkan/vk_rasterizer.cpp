@@ -921,7 +921,7 @@ void Rasterizer::PrintPipeStats() {
     }
     const u64 tsc = __rdtsc();
     const double cycles = double(tsc - last_tsc);
-    const u64 busy = draw_pipe->busy_cycles.load(std::memory_order_relaxed);
+    const u64 busy = Gow3Stats::pipe_busy_cycles.load(std::memory_order_relaxed);
     std::printf("Draw pipe: %.0f draws/s pipelined, %.0f drains/s that waited, stage A waited "
                 "%.1f%%, stage B busy %.1f%%\n",
                 (draw_pipe->packets - last_packets) / seconds,
