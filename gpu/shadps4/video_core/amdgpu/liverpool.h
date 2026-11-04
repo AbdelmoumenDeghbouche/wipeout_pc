@@ -84,12 +84,14 @@ struct Liverpool {
     void NotePendingWrite(const struct PM4CmdWriteData& write_data, u32 num_bytes);
     /// gow3: running checksum of graphics-register packets (see ApplyGraphicsRegisterPacket).
     u64 gfx_reg_checksum{};
+    bool hash_registers = true; ///< gow3: HashRegisters(workers), set by the rasterizer
     /// Top-level graphics submissions, numbered for the draw preparation workers.
     static constexpr u64 NoSeq = ~0ull;
     u64 gfx_submit_seq{};
     static u64 HashRegisterPacket(u64 checksum, const u32* words, u32 count);
-    /// `dirty` (draw-preparation scanner) records the register blocks written.
-    static void ApplyGraphicsRegisterPacket(Regs& regs, const PM4Header* header, u64& checksum,
+    /// `dirty` (draw-preparation scanner) records the register blocks written; a null
+    /// `checksum` skips the hash.
+    static void ApplyGraphicsRegisterPacket(Regs& regs, const PM4Header* header, u64* checksum,
                                             RegDirty* dirty = nullptr);
 
 public:

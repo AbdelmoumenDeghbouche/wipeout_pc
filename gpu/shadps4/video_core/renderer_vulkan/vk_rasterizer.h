@@ -516,6 +516,7 @@ private:
     u64 proxy_samples = 0; ///< texture bindings that read a scene proxy (statistics)
     float sampler_lod_bias = 0.0f; ///< gow3: extra bias of this draw's samplers
     bool scene_debug_frame = false; ///< GOW3_SCENE_DEBUG: this frame's passes are printed
+    VAddr scene_debug_buffer = 0;   ///< the display buffer the flag was last decided at
     bool PendingWriteOverlaps(VAddr address, u64 size);
     /// Stage B: the ring bindings of the stages of the packet being recorded.
     struct RingStage {
@@ -524,6 +525,10 @@ private:
         u32 count;
     };
     std::array<RingStage, Shader::MaxStageTypes> ring_stages{};
+    /// PostDraw's per-stage constant ring bindings (stage A only; was thread_local: 0.7 % of
+    /// the command thread in __tls_get_addr at the pack start).
+    std::array<boost::container::static_vector<RingBinding, Shader::NUM_BUFFERS>,
+               Shader::MaxStageTypes> post_rings;
     u32 num_ring_stages = 0;
     const RingBinding* FindRingBinding(const Shader::Info& stage, u32 index) const {
         for (u32 i = 0; i < num_ring_stages; ++i) {

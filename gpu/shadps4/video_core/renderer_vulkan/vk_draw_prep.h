@@ -97,6 +97,9 @@ public:
     [[nodiscard]] bool Enabled() const noexcept {
         return worker_count != 0;
     }
+    [[nodiscard]] u32 WorkerCount() const noexcept {
+        return worker_count;
+    }
 
     struct Submission;
     /// Game submit thread, outside the queue lock: copies and scans a top-level graphics

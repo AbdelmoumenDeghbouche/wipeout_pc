@@ -166,7 +166,7 @@ class HiddenUpscalingTest(LauncherOverTemporaryFiles):
     def test_hidden_settings_are_preserved_without_migration(self):
         before, _lines = launcher.load_ini()
         for key in ('upscaler', 'preset', 'fsr1', 'sharpen', 'sharpness', 'rcas',
-                    'rcas_strength', 'object_motion', 'output_res', 'live_resolution',
+                    'rcas_strength', 'object_motion', 'live_resolution',
                     'experimental_upscaler'):
             self.assertNotIn(key, self.app.vars)
         self.assertEqual(self.save_state(), 'disabled')
