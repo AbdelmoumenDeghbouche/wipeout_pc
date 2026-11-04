@@ -44,6 +44,9 @@ While playing
 - Saved pipelines load in the background; a small note shows the progress. New areas can
   stutter the first time while their shaders compile.
 - Keyboard keys: Game -> Controls in the launcher.
+- Discord Rich Presence: Advanced -> Show Discord Rich Presence in the launcher. Your Discord
+  profile then shows "Playing WipEout: Omega Collection" with its game page, the time played,
+  the track and mode you race, your online lobby and the song of your own music. Off by default.
 
 Next time
 - "Play WipEout.exe" starts the game straight away with the saved settings. Make a desktop

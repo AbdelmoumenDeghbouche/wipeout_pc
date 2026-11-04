@@ -38,6 +38,7 @@ static size_t *order, pos;    /* play order (file indexes): order[pos] is being 
 static int order_shuffled;
 static long jump=-1;          /* the song the menu asked for */
 static volatile int skipping; /* the decoder drops what it decodes until it takes the jump */
+static char current_song[256]; /* the song announced last, for Discord when the music comes back on */
 static char notice[600];      /* "Now playing" once the ring reaches frame notice_at */
 static size_t notice_at;
 static long notice_file=-1, playing=-1;
@@ -178,12 +179,15 @@ static void announce(const AVFormatContext *format, const AVStream *stream, size
     const AVDictionaryEntry *title=av_dict_get(format->metadata,"title",NULL,0), *artist=av_dict_get(format->metadata,"artist",NULL,0);
     if (!title) title=av_dict_get(stream->metadata,"title",NULL,0);
     if (!artist) artist=av_dict_get(stream->metadata,"artist",NULL,0);
-    char text[sizeof(notice)];
-    if (title && artist) snprintf(text,sizeof(text),"Now playing: %s - %s",artist->value,title->value);
-    else snprintf(text,sizeof(text),"Now playing: %s",title ? title->value : names[file]);
+    char text[sizeof(notice)], song[sizeof(notice)];
+    if (title && artist) snprintf(song,sizeof(song),"%s - %s",artist->value,title->value);
+    else snprintf(song,sizeof(song),"%s",title ? title->value : names[file]);
+    snprintf(text,sizeof(text),"Now playing: %s",song);
     pthread_mutex_lock(&lock); /* shown once the ring plays this file's first frame */
-    if (!skipping) { memcpy(notice,text,sizeof(notice)); notice_at=head; notice_file=(long)file; notice_pending=1; }
+    const int announced=!skipping;
+    if (announced) { memcpy(notice,text,sizeof(notice)); notice_at=head; notice_file=(long)file; notice_pending=1; snprintf(current_song,sizeof(current_song),"%s",song); }
     pthread_mutex_unlock(&lock);
+    if (announced) runtime_presence_song(song); /* Discord shows it too */
 }
 /* Decodes one file into the ring; 0 if it cannot be played. */
 static int play(size_t file) {
@@ -329,7 +333,12 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     int show=0;
     pthread_once(&once,start);
     if (!scanned || !file_count || !playable || channels<2 || frames<=0 || frames>2048) return 0;
-    if (!gow3gpu_music_on()) return 0; /* the game's music; the ring waits where it stopped */
+    static int music_off; /* Discord shows no song while the game's music plays */
+    if (!gow3gpu_music_on()) { /* the game's music; the ring waits where it stopped */
+        if (!music_off) { music_off=1; runtime_presence_song(""); }
+        return 0;
+    }
+    if (music_off) { music_off=0; runtime_presence_song(current_song); }
     /* Follow the game's own music (#66), which pcm still holds: it is silent while loading and at
      * the race intro, fades out between menus and races, and starts again for each race. Our songs
      * play at full level while the game's music is within 10 dB of its usual level, follow its
