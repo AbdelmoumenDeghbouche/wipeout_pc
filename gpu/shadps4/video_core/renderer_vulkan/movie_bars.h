@@ -6,9 +6,9 @@
 #include <cmath>
 #include <cstdint>
 
-// gow3: the game draws its H.264 cutscenes (libSceVideodec) in a centered 16:9 picture, as it
+// wipeout: the game draws its H.264 cutscenes (libSceVideodec) in a centered 16:9 picture, as it
 // fits its 2D layer to the display aspect ratio, and never clears the rest of the display buffer:
-// at 16:9 the picture covers all of it. At the Ultrawide mod's sizes the last 3D frame stayed
+// at 16:9 the picture covers all of it. At ultrawide sizes the last 3D frame stayed
 // around the picture, so while the decoder hands out pictures the presenter draws it black.
 namespace Vulkan::MovieBars {
 

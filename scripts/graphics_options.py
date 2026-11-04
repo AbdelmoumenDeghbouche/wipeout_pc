@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Startup graphics options of gow3.ini (gpu/shim/gow3_graphics.h) for run.py.
+"""Startup graphics options of wipeout.ini (gpu/shim/wipeout_graphics.h) for run.py.
 
 The in-game menu and the launcher write them; run.py turns them into game patches and
 environment variables at every start, so "Apply and restart" uses the new values. After a
@@ -16,7 +16,7 @@ RESOLUTIONS = ('native', '480p', '720p', '900p', '1440p', '1800p', '4K',
                '1440x900', '1360x768',
                '1280x960', '1440x1080', '1920x1440', '2048x1536', '2560x1920',
                '5120x2160')
-# The ultrawide, 16:10 and 4:3 sizes of the Ultrawide mod (#202), built in: beta until more players confirm
+# The ultrawide, 16:10 and 4:3 sizes (#202), built in: beta until more players confirm
 # them, except the ones tested in game.
 TESTED_RESOLUTIONS = ('1280x800', '1440x900', '1360x768', '1280x960')
 BETA_RESOLUTIONS = tuple(r for r in RESOLUTIONS[7:] if r not in TESTED_RESOLUTIONS)
@@ -50,7 +50,7 @@ def write_keys(path, updates):
     try:
         lines = path.read_text(encoding='utf-8').splitlines()
     except OSError:
-        lines = ['# gow3 settings (in-game menu: Insert / R3+L2)']
+        lines = ['# wipeout settings (in-game menu: Insert / R3+L2)']
     done, out = set(), []
     for line in lines:
         key = line.split('=', 1)[0].strip() if '=' in line and not line.lstrip().startswith('#') else None
@@ -206,6 +206,6 @@ def applied_engine_fps(names):
 
 
 def environment(options):
-    return {'GOW3_DEFERRED_READBACK': options['deferred_readback'],
-            'GOW3_STALE_READBACK': options['stale_readback'],
-            'GOW3_ASYNC_SHADERS': options['async_shaders']}
+    return {'WIPEOUT_DEFERRED_READBACK': options['deferred_readback'],
+            'WIPEOUT_STALE_READBACK': options['stale_readback'],
+            'WIPEOUT_ASYNC_SHADERS': options['async_shaders']}

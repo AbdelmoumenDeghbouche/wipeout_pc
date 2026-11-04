@@ -16,7 +16,7 @@ typedef struct {
  * through trampolines that move the stack pointer below it first (src/redzone.cpp). Reads
  * the function starts from functions.bin next to boot_file (scripts/function_starts.py); call it
  * after relocation, while the image is still writable. Only done when a probe shows this Windows
- * build writing exception records into the red zone; GOW3_RED_ZONE=1 always patches, =0 never. */
+ * build writing exception records into the red zone; WIPEOUT_RED_ZONE=1 always patches, =0 never. */
 void bbport_red_zone_protect(const char* boot_file, unsigned char* image, uint64_t image_size,
                              const BbRedZoneSegment* segments, uint64_t segment_count);
 

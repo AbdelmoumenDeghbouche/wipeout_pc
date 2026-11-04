@@ -6,7 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 
-#include "gow3_toggles.h"
+#include "wipeout_toggles.h"
 
 #include "video_core/host_shaders/camera_motion_comp.h"
 #include "video_core/host_shaders/camera_motion_debug_comp.h"
@@ -59,11 +59,11 @@ std::array<float, 12> Multiply(const std::array<float, 12>& a, const std::array<
 CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
                            VideoCore::TextureCache& texture_cache_, Runtime& runtime_)
     : instance{instance_}, scheduler{scheduler_}, texture_cache{texture_cache_}, runtime{runtime_} {
-    const char* env = std::getenv("GOW3_DEBUG_MOTION");
+    const char* env = std::getenv("WIPEOUT_DEBUG_MOTION");
     debug_overlay = env && env[0] == '1';
-    const char* upscaler = std::getenv("GOW3_UPSCALER");
+    const char* upscaler = std::getenv("WIPEOUT_UPSCALER");
     // The upscaler can be switched on from the menu at any time: the camera is always tracked
-    // unless GOW3_UPSCALER=none.
+    // unless WIPEOUT_UPSCALER=none.
     for_upscaler = !(upscaler && std::strcmp(upscaler, "none") == 0);
     const auto device = instance.GetDevice();
     if (for_upscaler) {
@@ -114,8 +114,8 @@ CameraMotion::CameraMotion(const Instance& instance_, Scheduler& scheduler_,
                     .layout = *motion_pipeline_layout,
                 }));
         device.destroyShaderModule(game_module);
-        // GOW3_GAME_MOTION_SIGN="x,y": the sign of each axis of the game's vectors (tests).
-        if (const char* sign = std::getenv("GOW3_GAME_MOTION_SIGN")) {
+        // WIPEOUT_GAME_MOTION_SIGN="x,y": the sign of each axis of the game's vectors (tests).
+        if (const char* sign = std::getenv("WIPEOUT_GAME_MOTION_SIGN")) {
             float x = 0.0f, y = 0.0f;
             if (std::sscanf(sign, "%f,%f", &x, &y) == 2) {
                 game_motion_scale = {x, y};
@@ -358,10 +358,10 @@ void CameraMotion::Overlay(VideoCore::ImageId frame) {
         .size = {float(color.info.size.width), float(color.info.size.height)},
         .jitter = jitter,
         .previous_jitter = previous_jitter,
-        .mode = Gow3Toggle::Disabled(1u << 20)   ? 1u
-                : Gow3Toggle::Disabled(1u << 21) ? 2u
-                : Gow3Toggle::Disabled(1u << 22) ? 3u
-                : Gow3Toggle::Disabled(1u << 23) ? 4u
+        .mode = WipeoutToggle::Disabled(1u << 20)   ? 1u
+                : WipeoutToggle::Disabled(1u << 21) ? 2u
+                : WipeoutToggle::Disabled(1u << 22) ? 3u
+                : WipeoutToggle::Disabled(1u << 23) ? 4u
                                                : 0u,
     };
     static u32 log_counter = 0;

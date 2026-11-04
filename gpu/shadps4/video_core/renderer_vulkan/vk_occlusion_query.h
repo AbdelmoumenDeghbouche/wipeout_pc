@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: GNM occlusion queries (PIXEL_PIPE_STAT_DUMP, #109). DrawCommandBuffer::writeOcclusionQuery
+// wipeout: GNM occlusion queries (PIXEL_PIPE_STAT_DUMP, #109). DrawCommandBuffer::writeOcclusionQuery
 // dumps the Z-pass counters into a 16-byte aligned OcclusionQueryResults: at its base for the
 // begin counts, at base + 8 for the end counts, one {begin, end} pair of u64 per render backend,
 // bit 63 of each meaning "written". This header classifies a dump by its address and formats

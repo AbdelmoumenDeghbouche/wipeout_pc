@@ -20,9 +20,9 @@ public:
         u32 hdr = 0;
         u32 srgb_input = 0;
         u32 padding = 0; // std430: the vec4 below starts at offset 16
-        // gow3: the part of the input shown; the rest is drawn black (cutscene bars).
+        // wipeout: the part of the input shown; the rest is drawn black (cutscene bars).
         MovieBars::Rect picture = MovieBars::Whole;
-        // gow3: HDR output only: brightness scale and the peak (nits) highlights roll off to.
+        // wipeout: HDR output only: brightness scale and the peak (nits) highlights roll off to.
         float hdr_scale = 1.0f;
         float hdr_peak = 10000.0f;
     };

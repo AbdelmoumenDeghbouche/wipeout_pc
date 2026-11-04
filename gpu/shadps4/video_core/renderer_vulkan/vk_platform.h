@@ -51,7 +51,7 @@ void SetObjectName(vk::Device device, const HandleType& handle, const char* form
     SetObjectName(device, handle, debug_name);
 }
 
-// gow3: the caller's file and line are in the message (an AMD out-of-memory report named only
+// wipeout: the caller's file and line are in the message (an AMD out-of-memory report named only
 // this header, #16, #72).
 template <StringLiteral msg = "">
 static void Check(vk::Result r, std::source_location at = std::source_location::current()) {

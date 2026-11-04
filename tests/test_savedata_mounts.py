@@ -22,7 +22,7 @@ class SaveMountTests(unittest.TestCase):
     def test_sixteen_save_mounts_with_default_mounts(self):
         self.run_case('default')
 
-    def test_sixteen_save_mounts_with_assets_and_pause_menu(self):
+    def test_sixteen_save_mounts_with_assets(self):
         self.run_case('custom')
 
     def test_full_file_table_does_not_publish_a_new_save_and_can_retry(self):

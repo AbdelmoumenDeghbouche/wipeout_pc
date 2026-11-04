@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: camera motion vectors for temporal upscaling (docs/upscaler.md). The scene constants
-// give the camera of each frame; the previous one is kept here. GOW3_DEBUG_MOTION=1 blends the
+// wipeout: camera motion vectors for temporal upscaling (docs/upscaler.md). The scene constants
+// give the camera of each frame; the previous one is kept here. WIPEOUT_DEBUG_MOTION=1 blends the
 // motion vectors as colors into the frame before it is copied to the display.
 
 #pragma once
@@ -83,7 +83,7 @@ public:
 
     /// The G-buffer pass (5+ color targets): its depth is the scene depth.
     void OnGBufferPass(VideoCore::ImageId depth);
-    /// wipeout: the main scene pass writes motion vectors into `motion` (GOW3_GAME_MOTION=1).
+    /// wipeout: the main scene pass writes motion vectors into `motion` (WIPEOUT_GAME_MOTION=1).
     void OnGameMotion(VideoCore::ImageId motion) noexcept {
         game_motion_id = motion;
     }
@@ -112,7 +112,7 @@ private:
     vk::UniquePipelineLayout motion_pipeline_layout;
     vk::UniquePipeline motion_pipeline;
     vk::UniquePipeline game_motion_pipeline;
-    std::array<float, 2> game_motion_scale{-1.0f, -1.0f}; ///< times the size; GOW3_GAME_MOTION_SIGN
+    std::array<float, 2> game_motion_scale{-1.0f, -1.0f}; ///< times the size; WIPEOUT_GAME_MOTION_SIGN
 
     ObjectMotion* object_motion = nullptr;
     Camera current, previous;

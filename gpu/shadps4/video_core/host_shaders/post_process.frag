@@ -12,9 +12,9 @@ layout (push_constant) uniform settings {
     float gamma;
     bool hdr;
     bool srgb_input;
-    vec4 picture; // gow3: x0, y0, x1, y1 of the part shown; the rest is black (cutscene bars)
-    float hdr_scale; // gow3: HDR brightness (1 = the game's)
-    float hdr_peak;  // gow3: nits the highlights roll off to (10000 = no limit)
+    vec4 picture; // wipeout: x0, y0, x1, y1 of the part shown; the rest is black (cutscene bars)
+    float hdr_scale; // wipeout: HDR brightness (1 = the game's)
+    float hdr_peak;  // wipeout: nits the highlights roll off to (10000 = no limit)
 } pp;
 
 // SMPTE ST 2084 (PQ), the HDR output's encoding: code value <-> nits.
@@ -56,7 +56,7 @@ void main() {
     if (pp.hdr) {
         color = color_linear;
         if (pp.hdr_scale != 1.0 || pp.hdr_peak < 10000.0) {
-            // gow3: in-game HDR calibration. Scale, then roll the brightest channel off from half
+            // wipeout: in-game HDR calibration. Scale, then roll the brightest channel off from half
             // the peak towards the peak (hue kept), so highlights keep detail on a dimmer display.
             vec3 n = pq_to_nits(color.rgb) * pp.hdr_scale;
             float m = max(max(n.r, n.g), n.b), knee = 0.5 * pp.hdr_peak, room = pp.hdr_peak - knee;

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "gow3_toggles.h"
+#include "wipeout_toggles.h"
 #include <algorithm>
 #include <bit>
 #include <cstdlib>
@@ -21,10 +21,10 @@ using VideoCore::MemoryType;
 
 namespace {
 
-// gow3: staging memory is populated (allocated and cleared) by the kernel on first CPU access,
+// wipeout: staging memory is populated (allocated and cleared) by the kernel on first CPU access,
 // ~2 ms per 16 MiB block. Streaming bursts a few seconds apart re-created the blocks trimmed
 // in between and copies into them ran at 0.3 GB/s (stutter). Blocks now live 30 s idle, the
-// upload ring keeps GOW3_STAGING_KEEP_MB (512) and is populated at startup.
+// upload ring keeps WIPEOUT_STAGING_KEEP_MB (512) and is populated at startup.
 constexpr u64 RING_IDLE_FRAMES = 3000;
 constexpr u64 LARGE_IDLE_FRAMES = 3000;
 // A track load uploads its big textures through one device and one host buffer each (about
@@ -44,7 +44,7 @@ u64 RoundAllocationSize(u64 size) {
 
 StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& scheduler_)
     : instance{instance_}, scheduler{scheduler_} {
-    const char* env = std::getenv("GOW3_STAGING_KEEP_MB");
+    const char* env = std::getenv("WIPEOUT_STAGING_KEEP_MB");
     keep_blocks = (env ? std::strtoull(env, nullptr, 10) : 512) * 1_MB / BLOCK_SIZE;
     Ring& ring = rings[u32(MemoryType::HostUncached)];
     for (u64 i = 0; i < PREWARM_BLOCKS; ++i) {
@@ -175,7 +175,7 @@ void StagingBufferPool::TickFrame() {
 }
 
 void StagingBufferPool::TrimRing(Ring& ring) {
-    // gow3: only the upload ring keeps blocks (keep_blocks). The device ring kept them too:
+    // wipeout: only the upload ring keeps blocks (keep_blocks). The device ring kept them too:
     // 640 MiB of video memory after a 2048 track load, for good. With memory low the upload
     // ring keeps its prewarmed blocks and idle blocks of any ring go after 2 s at 60 FPS.
     const bool upload = &ring == &rings[u32(MemoryType::HostUncached)];
@@ -210,7 +210,7 @@ void StagingBufferPool::TrimLarge(std::vector<LargeBuffer>& cache) {
 
 void StagingBufferPool::PublishStats() const {
     using namespace Core::Devtools::Widget;
-    if (Gow3Stats::enabled) {
+    if (WipeoutStats::enabled) {
         u64 bytes = 0;
         for (size_t i = 0; i < NUM_TYPES; ++i) {
             u64 ring_bytes = 0, large_bytes = 0;
@@ -220,11 +220,11 @@ void StagingBufferPool::PublishStats() const {
             for (const LargeBuffer& entry : large_caches[i]) {
                 large_bytes += entry.buffer->SizeBytes();
             }
-            Gow3Stats::staging_mib[i][0] = static_cast<s64>(ring_bytes >> 20);
-            Gow3Stats::staging_mib[i][1] = static_cast<s64>(large_bytes >> 20);
+            WipeoutStats::staging_mib[i][0] = static_cast<s64>(ring_bytes >> 20);
+            WipeoutStats::staging_mib[i][1] = static_cast<s64>(large_bytes >> 20);
             bytes += ring_bytes + large_bytes;
         }
-        Gow3Stats::staging_bytes = static_cast<s64>(bytes);
+        WipeoutStats::staging_bytes = static_cast<s64>(bytes);
     }
     if (!GpuMemoryViewer::IsEnabled()) {
         return;

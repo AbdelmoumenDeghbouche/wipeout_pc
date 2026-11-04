@@ -209,7 +209,7 @@ s32 ImageInfo::MipOf(const ImageInfo& info) const {
         return -1;
     }
 
-    // gow3: the levels of a macro-tiled chain smaller than a macro tile are micro-tiled
+    // wipeout: the levels of a macro-tiled chain smaller than a macro tile are micro-tiled
     // (UpdateSize, ImageSizeMacroTiled), and a level bound on its own is described that way.
     // WipEout's start gantry screens: a 1024x512 2D-thin chain whose levels 4-8 (64x32 and down)
     // the game draws as 1D-thin render targets. Refused here, they became separate images and the

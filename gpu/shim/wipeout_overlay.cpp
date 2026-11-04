@@ -1,0 +1,1304 @@
+// SPDX-License-Identifier: GPL-2.0-or-later
+#include "wipeout_overlay.h"
+
+#include <algorithm>
+#include <atomic>
+#include <cfloat>
+#include <chrono>
+#include <cmath>
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+#include <mutex>
+#include <vector>
+
+#include <SDL3/SDL.h>
+#include "wipeout_settings.h"
+#include "wipeout_graphics.h"
+#include "wipeout_perf_stats.h"
+
+extern "C" void runtime_restart(void); // src/probe.c: starts run.py again, ends this process
+extern "C" { // src/runtime_music.c: the custom soundtrack's songs
+int runtime_music_songs(void); // -1 while the music folder is read
+const char* runtime_music_song(int song);
+const char* runtime_music_folder(void);
+int runtime_music_playing(void);
+void runtime_music_play(int song);
+void runtime_music_step(int direction);
+}
+#include "common/elf_info.h"
+#include "imgui.h"
+#include "imgui_internal.h" // RegisterUserTexture (save pictures)
+#include "imgui_impl_vulkan.h"
+#include "video_core/renderer_vulkan/vk_instance.h"
+#include "video_core/renderer_vulkan/vk_scheduler.h"
+#include "video_core/renderer_vulkan/vk_frame_capture.h"
+#include "video_core/renderdoc.h"
+
+// DejaVu Sans (Cyrillic), embedded (third_party/fonts, Bitstream Vera license).
+#ifdef _WIN32
+asm(".section .rdata,\"dr\"\n"
+    ".balign 16\n"
+    ".global wipeout_font_ttf\n"
+    "wipeout_font_ttf:\n"
+    ".incbin \"" WIPEOUT_FONT_PATH "\"\n"
+    ".global wipeout_font_ttf_end\n"
+    "wipeout_font_ttf_end:\n"
+    ".text\n");
+#else
+asm(".section .rodata\n"
+    ".balign 16\n"
+    ".hidden wipeout_font_ttf\n"
+    ".global wipeout_font_ttf\n"
+    "wipeout_font_ttf:\n"
+    ".incbin \"" WIPEOUT_FONT_PATH "\"\n"
+    ".hidden wipeout_font_ttf_end\n"
+    ".global wipeout_font_ttf_end\n"
+    "wipeout_font_ttf_end:\n"
+    ".previous\n");
+#endif
+extern "C" const unsigned char wipeout_font_ttf[];
+extern "C" const unsigned char wipeout_font_ttf_end[];
+
+namespace WipeoutOverlay {
+
+namespace {
+
+std::mutex imgui_mutex; // the ImGui context: window thread (input) and present thread
+bool initialized = false;
+std::atomic<bool> menu_open{false};
+bool r3_down = false, l2_down = false;
+std::atomic<bool> loading{false};
+std::atomic<u32> loading_done{0}, loading_total{0};
+std::atomic<u32> background_done{0}, background_total{0};
+// A short message in a corner (saved screenshot), shown until notice_until.
+std::mutex notice_mutex;
+std::string notice_text;
+std::atomic<s64> notice_until{0}; // steady_clock milliseconds
+bool dirty = false; // settings changed while open: saved on close
+int requested_tab = -1; // switch on the next frame (L1/R1, Q/E, menu opened)
+// The game's text dialog (SetTextEntry), guarded by imgui_mutex.
+bool text_entry_active = false;
+std::string text_entry_prompt, text_entry_text;
+// The game's save list (sceSaveDataDialog): a choice made with the arrows/D-pad.
+std::atomic<bool> choice_active{false};
+std::string choice_title;
+std::vector<std::string> choice_items;
+int choice_index = 0;
+std::atomic<int> choice_result{-1}; // -1 open, -2 cancelled, else the chosen index
+// Save pictures: decoded by BeginChoice, made textures on the present thread (null = none).
+// Closed lists' textures wait in choice_retired until the backend has destroyed them.
+std::vector<WipeoutPng::Image> choice_pictures;
+std::vector<ImTextureData*> choice_textures, choice_retired;
+std::atomic<bool> choice_retiring{false};
+float base_scale = 1.0f;
+
+// Present rate for the FPS counter.
+std::chrono::steady_clock::time_point last_present{};
+float frame_ms_avg = 0.0f;
+
+void SetOpen(bool value) {
+    if (menu_open.exchange(value) == value) {
+        return;
+    }
+    // The SDL window shows the compositor cursor while this menu has input. It stays outside
+    // the swapchain, so it remains sharp at every render scale and needs no overlay draw.
+    ImGui::GetIO().MouseDrawCursor = false;
+    if (value) {
+        requested_tab = WipeoutSettings::Get().menu_tab;
+    }
+    if (!value && dirty) {
+        dirty = false;
+        WipeoutSettings::Save();
+    }
+}
+
+ImGuiKey KeyFromSdl(SDL_Keycode key) {
+    switch (key) {
+    case SDLK_TAB: return ImGuiKey_Tab;
+    case SDLK_LEFT: return ImGuiKey_LeftArrow;
+    case SDLK_RIGHT: return ImGuiKey_RightArrow;
+    case SDLK_UP: return ImGuiKey_UpArrow;
+    case SDLK_DOWN: return ImGuiKey_DownArrow;
+    case SDLK_PAGEUP: return ImGuiKey_PageUp;
+    case SDLK_PAGEDOWN: return ImGuiKey_PageDown;
+    case SDLK_HOME: return ImGuiKey_Home;
+    case SDLK_END: return ImGuiKey_End;
+    case SDLK_DELETE: return ImGuiKey_Delete;
+    case SDLK_BACKSPACE: return ImGuiKey_Backspace;
+    case SDLK_SPACE: return ImGuiKey_Space;
+    case SDLK_RETURN: return ImGuiKey_Enter;
+    case SDLK_KP_ENTER: return ImGuiKey_KeypadEnter;
+    case SDLK_ESCAPE: return ImGuiKey_Escape;
+    case SDLK_Q: return ImGuiKey_Q;
+    case SDLK_E: return ImGuiKey_E;
+    case SDLK_LCTRL: return ImGuiKey_LeftCtrl;
+    case SDLK_RCTRL: return ImGuiKey_RightCtrl;
+    case SDLK_LSHIFT: return ImGuiKey_LeftShift;
+    case SDLK_RSHIFT: return ImGuiKey_RightShift;
+    case SDLK_LALT: return ImGuiKey_LeftAlt;
+    case SDLK_RALT: return ImGuiKey_RightAlt;
+    default: return ImGuiKey_None;
+    }
+}
+
+ImGuiKey KeyFromGamepad(u8 button) {
+    switch (button) {
+    case SDL_GAMEPAD_BUTTON_SOUTH: return ImGuiKey_GamepadFaceDown;
+    case SDL_GAMEPAD_BUTTON_EAST: return ImGuiKey_GamepadFaceRight;
+    case SDL_GAMEPAD_BUTTON_WEST: return ImGuiKey_GamepadFaceLeft;
+    case SDL_GAMEPAD_BUTTON_NORTH: return ImGuiKey_GamepadFaceUp;
+    case SDL_GAMEPAD_BUTTON_DPAD_UP: return ImGuiKey_GamepadDpadUp;
+    case SDL_GAMEPAD_BUTTON_DPAD_DOWN: return ImGuiKey_GamepadDpadDown;
+    case SDL_GAMEPAD_BUTTON_DPAD_LEFT: return ImGuiKey_GamepadDpadLeft;
+    case SDL_GAMEPAD_BUTTON_DPAD_RIGHT: return ImGuiKey_GamepadDpadRight;
+    case SDL_GAMEPAD_BUTTON_LEFT_SHOULDER: return ImGuiKey_GamepadL1;
+    case SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER: return ImGuiKey_GamepadR1;
+    case SDL_GAMEPAD_BUTTON_START: return ImGuiKey_GamepadStart;
+    case SDL_GAMEPAD_BUTTON_BACK: return ImGuiKey_GamepadBack;
+    default: return ImGuiKey_None;
+    }
+}
+
+float PixelDensity(SDL_WindowID id) {
+    SDL_Window* window = SDL_GetWindowFromID(id);
+    const float density = window ? SDL_GetWindowPixelDensity(window) : 1.0f;
+    return density > 0.0f ? density : 1.0f;
+}
+
+// Marks the settings dirty when a widget changed them.
+template <typename T>
+void Store(std::atomic<T>& target, T value, bool changed) {
+    if (changed) {
+        target = value;
+        dirty = true;
+    }
+}
+
+void Checkbox(const char* label, std::atomic<bool>& value) {
+    bool v = value;
+    const bool changed = ImGui::Checkbox(label, &v);
+    Store(value, v, changed);
+}
+
+// A combo over `count` labels storing an index or a value from `values`.
+void Choice(const char* label, std::atomic<int>& target, const char* const* labels, const int* values,
+            int count) {
+    int current = 0;
+    for (int i = 0; i < count; ++i) {
+        if ((values ? values[i] : i) == target.load()) current = i;
+    }
+    if (ImGui::Combo(label, &current, labels, count)) {
+        Store(target, values ? values[current] : current, true);
+    }
+}
+
+// Controller button names in the help text follow WIPEOUT_GLYPHS (xbox or nintendo); unset is
+// PlayStation. Read once: the environment is fixed for a run.
+static const char* PadText(const char* playstation, const char* xbox, const char* nintendo) {
+    static const char* style = std::getenv("WIPEOUT_GLYPHS");
+    if (!style) return playstation;
+    return !std::strcmp(style, "xbox") ? xbox : !std::strcmp(style, "nintendo") ? nintendo : playstation;
+}
+
+// The note for the item under the mouse or the gamepad/keyboard focus, shown in the footer.
+const char* footer_help = nullptr;
+
+void Help(const char* text) {
+    if (text && (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled) || ImGui::IsItemFocused())) {
+        footer_help = text;
+    }
+}
+
+// Two-column rows: the name on the left, the control on the right.
+bool BeginRows(const char* id) {
+    if (!ImGui::BeginTable(id, 2, ImGuiTableFlags_SizingStretchProp)) {
+        return false;
+    }
+    ImGui::TableSetupColumn("name", ImGuiTableColumnFlags_WidthStretch, 0.52f);
+    ImGui::TableSetupColumn("value", ImGuiTableColumnFlags_WidthStretch, 0.48f);
+    return true;
+}
+
+void Row(const char* label) {
+    ImGui::TableNextRow();
+    ImGui::TableNextColumn();
+    ImGui::AlignTextToFramePadding();
+    ImGui::TextUnformatted(label);
+    ImGui::TableNextColumn();
+    ImGui::SetNextItemWidth(-FLT_MIN);
+    ImGui::PushID(label);
+}
+
+void CheckRow(const char* label, std::atomic<bool>& value, const char* help = nullptr) {
+    Row(label);
+    Checkbox("##value", value);
+    Help(help);
+    ImGui::PopID();
+}
+
+void ChoiceRow(const char* label, std::atomic<int>& target, const char* const* labels, const int* values,
+               int count, const char* help = nullptr) {
+    Row(label);
+    Choice("##value", target, labels, values, count);
+    Help(help);
+    ImGui::PopID();
+}
+
+void InfoRow(const char* label, const char* text) {
+    Row(label);
+    ImGui::TextDisabled("%s", text);
+    ImGui::PopID();
+}
+
+void SliderRow(const char* label, std::atomic<int>& value, int lo, int hi, const char* format, const char* help) {
+    Row(label);
+    int v = value;
+    if (ImGui::SliderInt("##value", &v, lo, hi, format, ImGuiSliderFlags_AlwaysClamp)) {
+        Store(value, std::clamp(v, lo, hi), true);
+    }
+    Help(help);
+    ImGui::PopID();
+}
+
+const char* UpscalerLabel(int upscaler) {
+    switch (upscaler) {
+    case WipeoutSettings::UpscalerFsr3: return "FSR 3.1";
+    case WipeoutSettings::UpscalerFsr4: return "FSR 4";
+    case WipeoutSettings::UpscalerFsr411: return "FSR 4.1.1";
+    case WipeoutSettings::UpscalerTaa: return "TAA";
+    // At native size (DLSS quality 0, and before the first DLSS frame) it is DLAA: anti-aliasing,
+    // no upscaling.
+    case WipeoutSettings::UpscalerDlss: return WipeoutSettings::Get().dlss_quality > 0 ? "DLSS" : "DLAA";
+    default: return "";
+    }
+}
+
+const Vulkan::Instance* overlay_instance = nullptr; // for the overlay's measurements
+
+// The performance overlay's text with the current settings (also the menu's preview).
+std::string OverlayText() {
+    namespace P = WipeoutPerfStats;
+    const auto& s = WipeoutSettings::Get();
+    const unsigned items = s.overlay_items;
+    if ((items & (P::Gpu | P::Cpu | P::Ram | P::Vram)) && overlay_instance) {
+        P::Start(*overlay_instance);
+    }
+    P::Sample sample = P::Latest();
+    sample.fps = frame_ms_avg > 0.0f ? 1000.0f / frame_ms_avg : 0.0f;
+    sample.frame_ms = frame_ms_avg;
+    sample.upscaler = UpscalerLabel(s.upscaler);
+    return P::Format(sample, items, s.overlay_layout == 0);
+}
+
+constexpr const char* Unsupported = "Unavailable: game version or code signature mismatch.";
+
+void GameTab() {
+    auto& s = WipeoutSettings::Get();
+    ImGui::SeparatorText("Controller");
+    if (BeginRows("##controller")) {
+        SliderRow("Stick deadzone", s.stick_deadzone, 0, 50, "%d%%",
+                  "Ignores small stick movements, for a stick that drifts. 0% keeps the game's own.");
+        SliderRow("Vibration", s.vibration, 0, 100, "%d%%",
+                  "Strength of the controller's vibration. 0% turns it off.");
+        CheckRow("Keep mouse in window", s.mouse_lock,
+                 "While you play, the mouse stays in the game window; this menu and other windows get it back.");
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Pictures");
+    if (BeginRows("##pictures")) {
+        CheckRow("Hide HUD (F8)", s.hide_hud,
+                 "The game's HUD and menus are not drawn, for clean pictures (photo mode, F12). F8 "
+                 "switches it while you play; it is off again at the next start.");
+        ImGui::EndTable();
+    }
+}
+
+// The session started with a temporal upscaler (launcher: Graphics > Temporal anti-aliasing);
+// without one (WIPEOUT_UPSCALER=none, as TemporalUpscaler decides it) switching would only change a label.
+bool SessionHasUpscaler() {
+    static const bool has = [] {
+        const char* upscaler = std::getenv("WIPEOUT_UPSCALER");
+        return !(upscaler && std::strcmp(upscaler, "none") == 0);
+    }();
+    return has;
+}
+
+void ImageTab() {
+    namespace G = WipeoutGraphics;
+    auto& s = WipeoutSettings::Get();
+    ImGui::SeparatorText("Display");
+    if (BeginRows("##display")) {
+        ChoiceRow("Display mode", s.display_mode, G::DisplayModeNames.data(), nullptr, G::DisplayModeCount,
+                  "Windowed, borderless window or exclusive fullscreen.");
+        CheckRow("VSync", s.vsync, "Waits for the monitor: no tearing, a little more input delay.");
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Anti-aliasing");
+    if (!SessionHasUpscaler()) {
+        ImGui::TextDisabled("FSR 3.1 and DLAA: turn on Temporal anti-aliasing in the launcher (Graphics).");
+    } else if (BeginRows("##aa")) {
+        // Live, as F10. The game's multisampling is off in these sessions, so Off has no anti-aliasing.
+        static const char* const aa_labels[] = {"Off", "FSR 3.1", "DLAA (NVIDIA RTX)"};
+        static const int aa_values[] = {WipeoutSettings::UpscalerOff, WipeoutSettings::UpscalerFsr3,
+                                        WipeoutSettings::UpscalerDlss};
+        const bool dlss = s.dlss_supported;
+        const char* problem = s.dlss_problem.load();
+        ChoiceRow("Method", s.upscaler, aa_labels, aa_values, dlss ? 3 : 2,
+                  dlss      ? "Smooths edges at the game's resolution. DLAA needs an NVIDIA RTX GPU."
+                  : problem ? problem
+                            : "DLAA: NVIDIA RTX GPU and the launcher's Download NVIDIA DLSS button.");
+        // #51: the scene at a lower resolution, scaled up by the method (live); the HUD stays sharp.
+        static const char* const scale_labels[] = {"Off", "Quality (1/1.5)", "Balanced (1/1.7)",
+                                                   "Performance (1/2)"};
+        ChoiceRow("Upscaling", s.preset, scale_labels, nullptr, 4,
+                  "Draws the race at a lower resolution and scales it up: more FPS, a softer picture. "
+                  "The HUD stays sharp.");
+        ImGui::EndTable();
+    }
+    const int iw = s.image_width, ih = s.image_height, ww = s.window_width, wh = s.window_height;
+    const bool downscaling = iw > ww || ih > wh;
+    const bool rcas_blocked = s.rcas && !s.rcas_applied;
+    ImGui::SeparatorText("Sharpening");
+    if (BeginRows("##scaling")) {
+        ImGui::BeginDisabled(rcas_blocked);
+        CheckRow("Sharpening (RCAS)", s.rcas,
+                 rcas_blocked && downscaling ? "No effect: the game's image is larger than the window."
+                 : rcas_blocked              ? "No effect: the game's image is smaller than the window."
+                                             : "Sharpens the final image.");
+        ImGui::EndDisabled();
+        ImGui::BeginDisabled(!s.rcas || rcas_blocked);
+        SliderRow("Sharpening strength", s.rcas_strength, 0, 100, "%d%%", "How strong the sharpening is.");
+        ImGui::EndDisabled();
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("HDR");
+    if (BeginRows("##hdr")) {
+        ImGui::BeginDisabled(!s.hdr_active);
+        const char* off = s.hdr_active ? nullptr : "HDR is off: turn on HDR in the launcher and in Windows.";
+        SliderRow("HDR brightness", s.hdr_brightness, 10, 200, "%d%%",
+                  off ? off : "Brightness of the whole picture. 100%: the game's own.");
+        SliderRow("HDR peak brightness", s.hdr_peak, 100, 10000, "%d nits",
+                  off ? off : "Set it to your display's peak brightness: the brightest parts then keep "
+                              "their detail. 10000: no limit (the game's own).");
+        ImGui::EndDisabled();
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Textures (applied on restart)");
+    if (BeginRows("##textures")) {
+        static const char* const anisotropy_labels[] = {"Game default", "2x", "4x", "8x", "16x"};
+        ChoiceRow("Anisotropic filtering", s.anisotropy, anisotropy_labels, G::Anisotropies.data(),
+                  int(G::Anisotropies.size()),
+                  "Sharper floors and walls seen at an angle. Little cost on most GPUs.");
+        ImGui::EndTable();
+    }
+    ImGui::TextDisabled("F12 saves a screenshot to the user\\screenshots folder.");
+    ImGui::SeparatorText("Information");
+    if (BeginRows("##image_info")) {
+        char text[96];
+        std::snprintf(text, sizeof(text), "%d x %d", iw, ih);
+        InfoRow("Game image", text);
+        std::snprintf(text, sizeof(text), "%d x %d", ww, wh);
+        InfoRow("Window", text);
+        InfoRow("Sharpening", s.rcas_applied ? "applied" : "not applied");
+        ImGui::EndTable();
+    }
+}
+
+void PerformanceTab() {
+    namespace G = WipeoutGraphics;
+    auto& s = WipeoutSettings::Get();
+    ImGui::SeparatorText("Live");
+    if (BeginRows("##live")) {
+        static const char* const fps_labels[] = {"30", "40", "60", "100", "120", "144", "165", "240", "Unlimited"};
+        ChoiceRow("Frame rate limit", s.fps_limit, fps_labels, G::FpsLimits.data(), int(G::FpsLimits.size()),
+                  "Caps the frame rate. The engine frame rate (below) is the highest it can go.");
+        const int effective = G::EffectiveFps(s.fps_limit, s.applied_engine_fps);
+        if (s.fps_limit == 0 || effective < s.fps_limit) {
+            char text[48];
+            std::snprintf(text, sizeof(text), "%d FPS (engine frame rate)", effective);
+            InfoRow("Effective limit", text);
+        }
+        if (s.applied_engine_fps < s.startup_engine_fps) {
+            InfoRow("Engine frame rate", "60 FPS: the frame rate patch is not available for this game build");
+        }
+        static const char* const queued_labels[] = {"1 (lowest latency)", "2", "Unlimited"};
+        ChoiceRow("Frames queued", s.frames_queued, queued_labels, G::FramesQueued.data(),
+                  int(G::FramesQueued.size()), "More frames queued: steadier FPS, slower response to input.");
+        CheckRow("Compile new shaders in the background", s.async_shaders,
+                 "Fewer stutters in new areas; an object or effect may appear a moment later.");
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Applied on restart");
+    if (BeginRows("##restart")) {
+        // The built-in sizes, then those of the enabled mods' patch files (ultrawide, for one).
+        const std::vector<std::string> resolution_names = G::ResolutionNames();
+        std::vector<const char*> resolution_labels;
+        for (const auto& name : resolution_names) {
+            resolution_labels.push_back(G::ResolutionLabel(name));
+        }
+        ChoiceRow("Render resolution", s.render_resolution, resolution_labels.data(), nullptr,
+                  int(resolution_labels.size()), "The resolution the game draws at. Higher is sharper and slower.");
+        static const char* const engine_labels[] = {"60 (original)", "100", "120", "240"};
+        ChoiceRow("Engine frame rate", s.engine_fps, engine_labels, G::EngineFps.data(), int(G::EngineFps.size()),
+                  "The highest frame rate the game itself runs at.");
+        CheckRow("Game reads GPU data without waiting", s.stale_readback,
+                 "Big FPS gain. Switch it off if lighting or objects look wrong.");
+        CheckRow("Deferred GPU readbacks", s.deferred_readback,
+                 "Fewer waits for the GPU. Switch it off if textures or shadows look wrong.");
+        ImGui::EndTable();
+    }
+}
+
+void OverlayTab() {
+    namespace P = WipeoutPerfStats;
+    auto& s = WipeoutSettings::Get();
+    if (BeginRows("##overlay_on")) {
+        CheckRow("Show overlay", s.show_fps, "The performance overlay in a corner of the screen.");
+        ImGui::EndTable();
+    }
+    ImGui::BeginDisabled(!s.show_fps);
+    ImGui::SeparatorText("What to show");
+    if (ImGui::BeginTable("##overlay_items", 2, ImGuiTableFlags_SizingStretchProp)) {
+        ImGui::TableNextColumn();
+        static const char* const names[] = {"FPS", "Frametime", "Upscaler", "GPU (name and use)", "CPU (game)",
+                                            "RAM (game / total)", "VRAM (used / available)"};
+        for (unsigned item = 0; item < 7; ++item) {
+            const unsigned bit = 1u << item;
+            bool on = (s.overlay_items & bit) != 0;
+            if (ImGui::Checkbox(names[item], &on)) {
+                s.overlay_items = on ? (s.overlay_items | bit) : (s.overlay_items & ~bit);
+                dirty = true;
+            }
+        }
+        ImGui::TableNextColumn();
+        ImGui::TextDisabled("Preview");
+        ImGui::BeginChild("##preview", ImVec2(0, 0), ImGuiChildFlags_Borders | ImGuiChildFlags_AutoResizeY);
+        ImGui::SetWindowFontScale(s.overlay_scale / 100.0f);
+        const std::string text = OverlayText();
+        ImGui::TextUnformatted(text.empty() ? "(nothing selected)" : text.c_str());
+        ImGui::SetWindowFontScale(1.0f);
+        ImGui::EndChild();
+        ImGui::EndTable();
+    }
+    ImGui::SeparatorText("Appearance");
+    if (BeginRows("##appearance")) {
+        SliderRow("Font size", s.overlay_scale, 50, 300, "%d%%", "Size of the overlay text.");
+        static const char* const corners[] = {"Top left", "Top right", "Bottom left", "Bottom right"};
+        ChoiceRow("Corner", s.overlay_corner, corners, nullptr, 4, "Where the overlay sits.");
+        SliderRow("Background opacity", s.overlay_opacity, 0, 100, "%d%%", "0% is no background.");
+        static const char* const layouts[] = {"One line", "One item per line"};
+        ChoiceRow("Layout", s.overlay_layout, layouts, nullptr, 2, "Items side by side or stacked.");
+        ImGui::EndTable();
+    }
+    ImGui::EndDisabled();
+    ImGui::SeparatorText("About");
+    if (BeginRows("##about")) {
+        const auto& elf = Common::ElfInfo::Instance();
+        char text[160];
+        std::snprintf(text, sizeof(text), "%.*s v%.*s", int(elf.GameSerial().size()), elf.GameSerial().data(),
+                      int(elf.AppVer().size()), elf.AppVer().data());
+        InfoRow("Game", text);
+        const u32 total = background_total;
+        if (total) {
+            std::snprintf(text, sizeof(text), "loading %u%%", u32(u64(background_done) * 100 / total));
+        } else {
+            std::snprintf(text, sizeof(text), "ready");
+        }
+        InfoRow("Shader cache", text);
+        ImGui::EndTable();
+    }
+}
+
+// The custom soundtrack: on/off, shuffle, skip, and the songs of the music folder (click one to play it).
+void MusicTab() {
+    auto& s = WipeoutSettings::Get();
+    if (BeginRows("##music")) {
+        CheckRow("Play my music", s.music, "Your songs instead of the game's music. Off: the game's music.");
+        CheckRow("Shuffle", s.music_shuffle, "Random order. Off: the songs play in the order of the list.");
+        CheckRow("Keep the song between races", s.music_continue,
+                 "Each race goes on with the song that was playing. Off: a new song starts with each race.");
+        SliderRow("Music volume", s.music_volume, 0, 200, "%d%%",
+                  "100%: about as loud as the game's own music. Each song is leveled, so quiet and loud songs "
+                  "sound alike.");
+        SliderRow("Game music volume", s.game_music_volume, 0, 300, "%d%%",
+                  "The game's own music, on top of its Audio Options. Above 100% it is louder than the game "
+                  "allows; very loud parts may clip.");
+        ImGui::EndTable();
+    }
+    const int songs = runtime_music_songs();
+    ImGui::PushTextWrapPos(0.0f);
+    if (songs < 0) {
+        ImGui::TextDisabled("Reading the music folder...");
+    } else if (songs == 0) {
+        ImGui::TextDisabled("No songs yet. Put MP3, OGG, FLAC, WAV or M4A files in this folder, then restart "
+                            "the game (launcher: Music page):");
+        ImGui::TextUnformatted(runtime_music_folder());
+    }
+    ImGui::PopTextWrapPos();
+    if (songs <= 0) {
+        return;
+    }
+    const auto turn_on = [&] {
+        if (!s.music) {
+            s.music = true;
+            dirty = true;
+        }
+    };
+    const int playing = runtime_music_playing();
+    ImGui::Text("Now playing: %s", s.music && playing >= 0 ? runtime_music_song(playing) : "-");
+    if (ImGui::Button("Previous")) {
+        turn_on();
+        runtime_music_step(-1);
+    }
+    Help("The song before this one.");
+    ImGui::SameLine();
+    if (ImGui::Button("Next")) {
+        turn_on();
+        runtime_music_step(1);
+    }
+    Help("Skip to the next song.");
+    char title[48];
+    std::snprintf(title, sizeof(title), "Songs (%d)", songs);
+    ImGui::SeparatorText(title);
+    // In the tab's own scrolling area, not a child: the keyboard and gamepad move from the
+    // buttons into the list and back.
+    for (int song = 0; song < songs; ++song) {
+        ImGui::PushID(song);
+        if (ImGui::Selectable(runtime_music_song(song), s.music && song == playing)) {
+            turn_on();
+            runtime_music_play(song);
+        }
+        Help("Play this song.");
+        ImGui::PopID();
+    }
+}
+
+// Startup options changed since this launch (applied by "Apply and restart").
+int RestartChanges() {
+    const auto& s = WipeoutSettings::Get();
+    return (s.render_resolution != s.startup_render_resolution) + (s.engine_fps != s.startup_engine_fps) +
+           (s.deferred_readback != s.startup_deferred_readback) + (s.stale_readback != s.startup_stale_readback) +
+           (s.anisotropy != s.startup_anisotropy);
+}
+
+void Menu() {
+    auto& s = WipeoutSettings::Get();
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+                                   viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
+                            ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(std::min(760.0f * base_scale, viewport->WorkSize.x * 0.95f),
+                                    std::min(680.0f * base_scale, viewport->WorkSize.y * 0.9f)),
+                             ImGuiCond_Appearing);
+    bool keep_open = true;
+    // wipeout: the game's own title (param.sfo), not a fixed one.
+    static const std::string heading = [] {
+        const std::string_view title = Common::ElfInfo::Instance().Title();
+        return std::string(title.empty() ? "WipEout Omega Collection" : title) + PadText("  (Insert / R3+L2)", "  (Insert / RS+LT)", "  (Insert / RS+ZL)");
+    }();
+    if (!ImGui::Begin(heading.c_str(), &keep_open, ImGuiWindowFlags_NoCollapse)) {
+        ImGui::End();
+        return;
+    }
+    footer_help = nullptr;
+    constexpr int TabCount = 5;
+    const ImGuiIO& io = ImGui::GetIO();
+    if (!io.WantTextInput) {
+        const int step = ImGui::IsKeyPressed(ImGuiKey_GamepadR1, false) || ImGui::IsKeyPressed(ImGuiKey_E, false) ? 1
+                         : ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) || ImGui::IsKeyPressed(ImGuiKey_Q, false)
+                             ? -1
+                             : 0;
+        if (step) {
+            requested_tab = (s.menu_tab + step + TabCount) % TabCount;
+        }
+    }
+    const float footer = ImGui::GetFrameHeightWithSpacing() * 2.0f + ImGui::GetTextLineHeightWithSpacing() * 2.0f;
+    if (ImGui::BeginTabBar("##tabs")) {
+        static const char* const tabs[TabCount] = {"Game", "Image", "Performance", "Overlay", "Music"};
+        for (int tab = 0; tab < TabCount; ++tab) {
+            const ImGuiTabItemFlags flags = requested_tab == tab ? ImGuiTabItemFlags_SetSelected : 0;
+            if (!ImGui::BeginTabItem(tabs[tab], nullptr, flags)) {
+                continue;
+            }
+            if (s.menu_tab != tab && requested_tab < 0) {
+                s.menu_tab = tab;
+                dirty = true;
+            }
+            if (ImGui::BeginChild("##body", ImVec2(0, -footer))) {
+                switch (tab) {
+                case 0: GameTab(); break;
+                case 1: ImageTab(); break;
+                case 2: PerformanceTab(); break;
+                case 3: OverlayTab(); break;
+                default: MusicTab(); break;
+                }
+            }
+            ImGui::EndChild();
+            ImGui::EndTabItem();
+        }
+        if (requested_tab >= 0) {
+            s.menu_tab = requested_tab;
+            dirty = true;
+            requested_tab = -1;
+        }
+        ImGui::EndTabBar();
+    }
+
+    ImGui::Separator();
+    ImGui::PushTextWrapPos(0.0f);
+    ImGui::TextDisabled("%s", footer_help ? footer_help : PadText("L1 / R1 or Q / E: switch tabs. Changes are saved.", "LB / RB or Q / E: switch tabs. Changes are saved.", "L / R or Q / E: switch tabs. Changes are saved."));
+    ImGui::PopTextWrapPos();
+    if (const int changes = RestartChanges()) {
+        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "%d change%s need%s a restart (unsaved progress is lost).",
+                           changes, changes == 1 ? "" : "s", changes == 1 ? "s" : "");
+        ImGui::SameLine();
+        ImGui::BeginDisabled(!std::getenv("WIPEOUT_RESTART_COMMAND"));
+        if (ImGui::Button("Apply and restart")) {
+            // The new launch confirms the options once the game shows; run.py restores the
+            // previous ones if it never does (restart_unconfirmed).
+            s.restart_unconfirmed = true;
+            WipeoutSettings::Save();
+            runtime_restart();
+        }
+        ImGui::EndDisabled();
+    } else {
+        ImGui::NewLine();
+    }
+    // Quit asks once more; it closes the game like the window's close button (#94).
+    static bool confirm_quit = false, focus_quit = false;
+    if (!confirm_quit) {
+        confirm_quit = focus_quit = ImGui::Button("Quit game");
+    } else {
+        ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "Quit? Unsaved progress is lost.");
+        ImGui::SameLine();
+        if (focus_quit) { // the pressed button is gone: keyboard and pad go on from here
+            ImGui::SetKeyboardFocusHere();
+            focus_quit = false;
+        }
+        if (ImGui::Button("Quit")) {
+            WipeoutSettings::Save();
+            SDL_Event quit{};
+            quit.type = SDL_EVENT_QUIT;
+            SDL_PushEvent(&quit);
+        }
+        ImGui::SameLine();
+        confirm_quit = !ImGui::Button("Cancel");
+    }
+    ImGui::SameLine();
+    const float close_width = ImGui::CalcTextSize("Close").x + ImGui::GetStyle().FramePadding.x * 2;
+    ImGui::SetCursorPosX(ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - close_width);
+    if (ImGui::Button("Close")) {
+        keep_open = false;
+    }
+    ImGui::End();
+    if (!keep_open) {
+        SetOpen(false);
+    }
+}
+
+// The game's text dialog: what is typed, and how to finish (keyboard or controller).
+void TextEntryBox() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+                                   viewport->WorkPos.y + viewport->WorkSize.y * 0.42f),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(viewport->WorkSize.x * 0.32f, 0.0f),
+                                        ImVec2(viewport->WorkSize.x * 0.8f, FLT_MAX));
+    ImGui::SetNextWindowBgAlpha(0.92f);
+    ImGui::Begin("##text_entry", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "%s", text_entry_prompt.c_str());
+    ImGui::Separator();
+    ImGui::SetWindowFontScale(1.4f);
+    ImGui::Text("%s_", text_entry_text.c_str());
+    ImGui::SetWindowFontScale(1.0f);
+    ImGui::Separator();
+    ImGui::TextDisabled("Keyboard: type, Backspace to erase, Enter = OK, Esc = cancel");
+    ImGui::TextDisabled("%s", PadText("Controller: Cross (A) = OK, Circle (B) = cancel", "Controller: A = OK, B = cancel", "Controller: B = OK, A = cancel"));
+    ImGui::End();
+}
+
+void ChoiceBox() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+                                   viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSizeConstraints(ImVec2(viewport->WorkSize.x * 0.36f, 0.0f),
+                                        ImVec2(viewport->WorkSize.x * 0.8f, viewport->WorkSize.y * 0.8f));
+    ImGui::SetNextWindowBgAlpha(0.94f);
+    ImGui::Begin("##choice", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextColored(ImVec4(0.85f, 0.72f, 0.45f, 1.0f), "%s", choice_title.c_str());
+    ImGui::Separator();
+    // Save pictures are 228x128; rows without one keep the text aligned when others have one.
+    const bool pictures = std::any_of(choice_textures.begin(), choice_textures.end(),
+                                      [](ImTextureData* tex) { return tex != nullptr; });
+    const ImVec2 picture_size(228.0f * base_scale, 128.0f * base_scale);
+    for (int i = 0; i < int(choice_items.size()); ++i) {
+        const bool selected = i == choice_index;
+        ImGui::BeginGroup();
+        ImTextureData* tex = i < int(choice_textures.size()) ? choice_textures[i] : nullptr;
+        if (tex) {
+            ImGui::Image(tex->GetTexRef(), picture_size);
+        } else if (pictures) {
+            ImGui::Dummy(picture_size);
+        }
+        if (pictures) {
+            ImGui::SameLine();
+        }
+        if (selected) {
+            ImGui::TextColored(ImVec4(1.0f, 0.9f, 0.55f, 1.0f), "> %s", choice_items[i].c_str());
+        } else {
+            ImGui::Text("  %s", choice_items[i].c_str());
+        }
+        ImGui::EndGroup();
+        if (selected) {
+            if (pictures) {
+                const ImVec2 min = ImGui::GetItemRectMin(), max = ImGui::GetItemRectMax();
+                const float pad = 3.0f * base_scale;
+                ImGui::GetWindowDrawList()->AddRect(ImVec2(min.x - pad, min.y - pad),
+                                                    ImVec2(max.x + pad, max.y + pad),
+                                                    IM_COL32(255, 230, 140, 255), 0.0f, 0,
+                                                    2.0f * base_scale);
+            }
+            ImGui::SetScrollHereY();
+        }
+    }
+    ImGui::Separator();
+    ImGui::TextDisabled("%s", PadText("Up/Down or D-pad: choose   Enter or Cross (A): OK   Esc or Circle (B): cancel", "Up/Down or D-pad: choose   Enter or A: OK   Esc or B: cancel", "Up/Down or D-pad: choose   Enter or B: OK   Esc or A: cancel"));
+    ImGui::End();
+}
+
+void LoadingScreen() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x * 0.5f,
+                                   viewport->WorkPos.y + viewport->WorkSize.y * 0.5f),
+                            ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+    ImGui::SetNextWindowSize(ImVec2(viewport->WorkSize.x * 0.4f, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowBgAlpha(0.0f);
+    ImGui::Begin("##loading", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoInputs |
+                     ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoFocusOnAppearing);
+    const u32 done = loading_done, total = loading_total;
+    ImGui::SetWindowFontScale(1.6f);
+    ImGui::TextUnformatted(total ? "Loading shader cache..." : "Preparing graphics...");
+    ImGui::SetWindowFontScale(1.0f);
+    if (total) {
+        char count[64];
+        std::snprintf(count, sizeof(count), "%u / %u (%u%%)", done, total,
+                      u32(u64(done) * 100 / total));
+        ImGui::ProgressBar(float(done) / float(total), ImVec2(-1.0f, 0.0f), count);
+    }
+    ImGui::TextDisabled("The first start after an update takes longer.");
+    ImGui::End();
+}
+
+void FpsCounter() {
+    const auto& s = WipeoutSettings::Get();
+    const std::string text = OverlayText();
+    if (text.empty()) {
+        return;
+    }
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 12.0f * base_scale;
+    const int corner = s.overlay_corner;
+    const bool right = corner == 1 || corner == 3, bottom = corner >= 2;
+    ImGui::SetNextWindowPos(ImVec2(right ? viewport->WorkPos.x + viewport->WorkSize.x - pad : viewport->WorkPos.x + pad,
+                                   bottom ? viewport->WorkPos.y + viewport->WorkSize.y - pad : viewport->WorkPos.y + pad),
+                            ImGuiCond_Always, ImVec2(right ? 1.0f : 0.0f, bottom ? 1.0f : 0.0f));
+    ImGui::SetNextWindowBgAlpha(s.overlay_opacity / 100.0f);
+    ImGui::Begin("##fps", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::SetWindowFontScale(s.overlay_scale / 100.0f);
+    ImGui::TextUnformatted(text.c_str());
+    ImGui::End();
+}
+
+void BackgroundLoading() {
+    const u32 done = background_done, total = std::max(background_total.load(), 1u);
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 12.0f * base_scale;
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + pad,
+                                   viewport->WorkPos.y + viewport->WorkSize.y - pad),
+                            ImGuiCond_Always, ImVec2(0.0f, 1.0f));
+    ImGui::SetNextWindowBgAlpha(0.35f);
+    ImGui::Begin("##background_loading", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextDisabled("Loading shader cache %u%%", u32(u64(done) * 100 / total));
+    ImGui::End();
+}
+
+s64 NowMs() {
+    return std::chrono::duration_cast<std::chrono::milliseconds>(
+               std::chrono::steady_clock::now().time_since_epoch())
+        .count();
+}
+
+bool NoticeActive() {
+    return notice_until.load(std::memory_order_relaxed) > NowMs();
+}
+
+void Notice() {
+    std::string text;
+    {
+        std::scoped_lock lock{notice_mutex};
+        text = notice_text;
+    }
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 12.0f * base_scale;
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - pad,
+                                   viewport->WorkPos.y + viewport->WorkSize.y - pad),
+                            ImGuiCond_Always, ImVec2(1.0f, 1.0f));
+    ImGui::SetNextWindowBgAlpha(0.6f);
+    ImGui::Begin("##notice", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextUnformatted(text.c_str());
+    ImGui::End();
+}
+
+} // namespace
+
+void ShowNotice(const std::string& text, int milliseconds) {
+    {
+        std::scoped_lock lock{notice_mutex};
+        notice_text = text;
+    }
+    notice_until.store(NowMs() + milliseconds, std::memory_order_relaxed);
+}
+
+void Init(const Vulkan::Instance& instance, vk::Format format, u32 image_count) {
+    std::scoped_lock lock{imgui_mutex};
+    if (initialized) {
+        return;
+    }
+    IMGUI_CHECKVERSION();
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.IniFilename = nullptr; // window positions are not kept
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad;
+    io.BackendFlags |= ImGuiBackendFlags_HasGamepad;
+    io.BackendPlatformName = "wipeout";
+
+    ImGui::StyleColorsDark();
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 6.0f;
+    style.FrameRounding = 4.0f;
+    style.GrabRounding = 4.0f;
+    style.Colors[ImGuiCol_WindowBg].w = 0.92f;
+
+    ImFontConfig font_config;
+    font_config.FontDataOwnedByAtlas = false;
+    io.Fonts->AddFontFromMemoryTTF(const_cast<unsigned char*>(wipeout_font_ttf),
+                                   int(wipeout_font_ttf_end - wipeout_font_ttf), 18.0f, &font_config);
+
+    const vk::Instance vk_instance = instance.GetInstance();
+    ImGui_ImplVulkan_LoadFunctions(
+        instance.ApiVersion(),
+        [](const char* name, void* user) {
+            return VULKAN_HPP_DEFAULT_DISPATCHER.vkGetInstanceProcAddr(
+                *static_cast<const vk::Instance*>(user), name);
+        },
+        const_cast<vk::Instance*>(&vk_instance));
+
+    const VkFormat color_format = static_cast<VkFormat>(format);
+    ImGui_ImplVulkan_InitInfo info{};
+    info.ApiVersion = instance.ApiVersion();
+    info.Instance = vk_instance;
+    info.PhysicalDevice = instance.GetPhysicalDevice();
+    info.Device = instance.GetDevice();
+    info.QueueFamily = instance.GetGraphicsQueueFamilyIndex();
+    info.Queue = instance.GetGraphicsQueue();
+    // Font atlas plus the save list pictures (up to 33, and a closed list's until freed).
+    info.DescriptorPoolSize = 128;
+    info.MinImageCount = std::max(image_count, 2u);
+    info.ImageCount = std::max(image_count, 2u);
+    info.UseDynamicRendering = true;
+    info.PipelineInfoMain.PipelineRenderingCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO_KHR,
+        .colorAttachmentCount = 1,
+        .pColorAttachmentFormats = &color_format,
+    };
+    if (!ImGui_ImplVulkan_Init(&info)) {
+        std::printf("Overlay: ImGui Vulkan backend init failed\n");
+        ImGui::DestroyContext();
+        return;
+    }
+    overlay_instance = &instance;
+    initialized = true;
+    std::printf("Overlay: menu ready (Insert or R3+L2)\n");
+}
+
+void UpdateTextInput(SDL_Window* window) {
+    bool want = false;
+    {
+        std::scoped_lock lock{imgui_mutex};
+        want = initialized && menu_open && ImGui::GetIO().WantTextInput;
+    }
+    if (want != SDL_TextInputActive(window)) {
+        if (want) {
+            SDL_StartTextInput(window);
+        } else {
+            SDL_StopTextInput(window);
+        }
+    }
+}
+
+// imgui_mutex held. The backend frees a texture some frames after its last use.
+void RetireChoiceTextures() {
+    for (ImTextureData* tex : choice_textures) {
+        if (tex) {
+            tex->WantDestroyNextFrame = true;
+            choice_retired.push_back(tex);
+        }
+    }
+    choice_textures.clear();
+    choice_pictures.clear();
+    choice_retiring = !choice_retired.empty();
+}
+
+// imgui_mutex held, before NewFrame: new pictures become textures, destroyed ones are freed.
+void UpdateChoiceTextures() {
+    if (!choice_pictures.empty()) {
+        choice_textures.assign(choice_pictures.size(), nullptr);
+        for (size_t i = 0; i < choice_pictures.size(); ++i) {
+            const WipeoutPng::Image& picture = choice_pictures[i];
+            if (picture.rgba.empty()) {
+                continue;
+            }
+            ImTextureData* tex = IM_NEW(ImTextureData)();
+            tex->Create(ImTextureFormat_RGBA32, picture.width, picture.height);
+            std::memcpy(tex->GetPixels(), picture.rgba.data(), picture.rgba.size());
+            ImGui::RegisterUserTexture(tex);
+            choice_textures[i] = tex;
+        }
+        choice_pictures.clear();
+    }
+    std::erase_if(choice_retired, [](ImTextureData* tex) {
+        if (tex->Status != ImTextureStatus_Destroyed) {
+            return false;
+        }
+        ImGui::UnregisterUserTexture(tex);
+        IM_DELETE(tex);
+        return true;
+    });
+    choice_retiring = !choice_retired.empty();
+}
+
+// The save list takes the keys and buttons that move and confirm; the rest stays with the game
+// (held neutral by CapturesInput).
+bool HandleChoiceEvent(const SDL_Event& event) {
+    int move = 0, finish = 0; // finish: 1 accept, 2 cancel
+    if (event.type == SDL_EVENT_KEY_DOWN) {
+        const SDL_Keycode key = event.key.key;
+        move = key == SDLK_UP || key == SDLK_W ? -1 : key == SDLK_DOWN || key == SDLK_S ? 1 : 0;
+        finish = key == SDLK_RETURN || key == SDLK_KP_ENTER || key == SDLK_SPACE ? 1
+                 : key == SDLK_ESCAPE || key == SDLK_BACKSPACE                   ? 2
+                                                                                 : 0;
+    } else if (event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN) {
+        const u8 button = event.gbutton.button;
+        move = button == SDL_GAMEPAD_BUTTON_DPAD_UP ? -1 : button == SDL_GAMEPAD_BUTTON_DPAD_DOWN ? 1 : 0;
+        finish = button == SDL_GAMEPAD_BUTTON_SOUTH ? 1 : button == SDL_GAMEPAD_BUTTON_EAST ? 2 : 0;
+    } else {
+        return event.type == SDL_EVENT_KEY_UP || event.type == SDL_EVENT_GAMEPAD_BUTTON_UP;
+    }
+    const int count = int(choice_items.size());
+    if (move && count) {
+        choice_index = (choice_index + move + count) % count;
+    }
+    if (finish) {
+        choice_result = finish == 1 && count ? choice_index : -2;
+        choice_active = false;
+        RetireChoiceTextures();
+    }
+    return true;
+}
+
+bool HandleEvent(const SDL_Event& event) {
+    std::scoped_lock lock{imgui_mutex};
+    if (!initialized) {
+        return false;
+    }
+    if (choice_active && !menu_open) {
+        return HandleChoiceEvent(event);
+    }
+    ImGuiIO& io = ImGui::GetIO();
+    const bool is_open = menu_open;
+    switch (event.type) {
+    case SDL_EVENT_KEY_DOWN:
+    case SDL_EVENT_KEY_UP: {
+        const bool down = event.type == SDL_EVENT_KEY_DOWN;
+        static const bool capture_key = [] {
+            const char* env = std::getenv("WIPEOUT_FRAME_CAPTURE_KEY");
+            return env && *env == '1';
+        }();
+        if (event.key.key == SDLK_F12) {
+            if (down && !event.key.repeat) {
+                VideoCore::RequestScreenshot(VideoCore::ScreenshotRequest::GameOnly);
+            }
+            return true;
+        }
+        if (event.key.key == SDLK_F8) { // Hide HUD (#68)
+            if (down && !event.key.repeat) {
+                auto& hide = WipeoutSettings::Get().hide_hud;
+                hide.store(!hide.load());
+                ShowNotice(hide.load() ? "HUD hidden (F8 shows it)" : "HUD shown", 2000);
+            }
+            return true;
+        }
+        if (down && !event.key.repeat && capture_key && event.key.key == SDLK_F11) {
+            Vulkan::FrameCapture::Request();
+            return true;
+        }
+        // Debug A/B (launcher Advanced > Diagnostics, WIPEOUT_UPSCALER_KEY=1): F10 cycles the temporal
+        // upscaler live, off -> FSR 3.1 -> DLSS (when its DLLs loaded and NGX reports DLSS) -> off.
+        // Only with a session started with an upscaler (WIPEOUT_UPSCALER not none); the overlay's
+        // Upscaler line shows the current one.
+        // Off when the session has no upscaler at all (WIPEOUT_UPSCALER=none, as TemporalUpscaler
+        // decides it): switching would only change the overlay's label.
+        static const bool upscaler_key = [] {
+            const char* env = std::getenv("WIPEOUT_UPSCALER_KEY");
+            return env && *env == '1' && SessionHasUpscaler();
+        }();
+        if (down && !event.key.repeat && upscaler_key && event.key.key == SDLK_F10) {
+            auto& s = WipeoutSettings::Get();
+            const int now = s.upscaler.load();
+            const int next = now == WipeoutSettings::UpscalerOff ? WipeoutSettings::UpscalerFsr3
+                             : now == WipeoutSettings::UpscalerFsr3 && s.dlss_supported
+                                 ? WipeoutSettings::UpscalerDlss
+                                 : WipeoutSettings::UpscalerOff;
+            s.upscaler.store(next);
+            std::printf("Upscaler: %s (F10)\n", next == WipeoutSettings::UpscalerOff ? "off"
+                                                                                  : UpscalerLabel(next));
+            return true;
+        }
+        if (down && !event.key.repeat &&
+            (event.key.key == SDLK_INSERT || (is_open && event.key.key == SDLK_ESCAPE))) {
+            SetOpen(event.key.key == SDLK_INSERT ? !is_open : false);
+            return true;
+        }
+        if (!is_open) {
+            return false;
+        }
+        io.AddKeyEvent(ImGuiMod_Ctrl, (event.key.mod & SDL_KMOD_CTRL) != 0);
+        io.AddKeyEvent(ImGuiMod_Shift, (event.key.mod & SDL_KMOD_SHIFT) != 0);
+        io.AddKeyEvent(ImGuiMod_Alt, (event.key.mod & SDL_KMOD_ALT) != 0);
+        if (const ImGuiKey key = KeyFromSdl(event.key.key); key != ImGuiKey_None) {
+            io.AddKeyEvent(key, down);
+        }
+        return true;
+    }
+    case SDL_EVENT_GAMEPAD_BUTTON_DOWN:
+    case SDL_EVENT_GAMEPAD_BUTTON_UP: {
+        const bool down = event.type == SDL_EVENT_GAMEPAD_BUTTON_DOWN;
+        const u8 button = event.gbutton.button;
+        // R3+L2 opens the menu: L3+R3 stays free for the game.
+        if (button == SDL_GAMEPAD_BUTTON_RIGHT_STICK) {
+            r3_down = down;
+            if (down && l2_down) {
+                SetOpen(!is_open);
+                return true;
+            }
+        }
+        if (!is_open) {
+            return false;
+        }
+        if (const ImGuiKey key = KeyFromGamepad(button); key != ImGuiKey_None) {
+            io.AddKeyEvent(key, down);
+        }
+        return true;
+    }
+    case SDL_EVENT_GAMEPAD_AXIS_MOTION: {
+        if (event.gaxis.axis == SDL_GAMEPAD_AXIS_LEFT_TRIGGER) {
+            const bool down = event.gaxis.value > 16000;
+            if (down && !l2_down && r3_down) {
+                l2_down = true;
+                SetOpen(!is_open);
+                return true;
+            }
+            l2_down = down;
+        }
+        return false;
+    }
+    case SDL_EVENT_TEXT_INPUT: {
+        // Typed characters (Ctrl+click on a slider, a text field): key events alone erase but
+        // do not type. SDL sends them while text input is on (UpdateTextInput).
+        if (!is_open) {
+            return false;
+        }
+        io.AddInputCharactersUTF8(event.text.text);
+        return true;
+    }
+    case SDL_EVENT_MOUSE_MOTION: {
+        if (!is_open) {
+            return false;
+        }
+        const float density = PixelDensity(event.motion.windowID);
+        io.AddMousePosEvent(event.motion.x * density, event.motion.y * density);
+        return true;
+    }
+    case SDL_EVENT_MOUSE_BUTTON_DOWN:
+    case SDL_EVENT_MOUSE_BUTTON_UP: {
+        if (!is_open) {
+            return false;
+        }
+        const int button = event.button.button == SDL_BUTTON_LEFT    ? 0
+                           : event.button.button == SDL_BUTTON_RIGHT  ? 1
+                           : event.button.button == SDL_BUTTON_MIDDLE ? 2
+                                                                      : -1;
+        if (button >= 0) {
+            io.AddMouseButtonEvent(button, event.type == SDL_EVENT_MOUSE_BUTTON_DOWN);
+        }
+        return true;
+    }
+    case SDL_EVENT_MOUSE_WHEEL:
+        if (!is_open) {
+            return false;
+        }
+        io.AddMouseWheelEvent(event.wheel.x, event.wheel.y);
+        return true;
+    default:
+        return false;
+    }
+}
+
+// After "Apply and restart", the new options are kept once the game has shown about ten
+// seconds of frames after loading (run.py restores the previous ones otherwise).
+void ConfirmRestart() {
+    static u32 frames = 0;
+    auto& s = WipeoutSettings::Get();
+    if (!s.restart_unconfirmed || loading || ++frames < 600) {
+        return;
+    }
+    s.restart_unconfirmed = false;
+    WipeoutSettings::Save();
+    std::puts("Settings: graphics options confirmed after restart");
+}
+
+void SetBackgroundLoading(u32 done, u32 total) {
+    background_done = done;
+    background_total = total;
+}
+
+void SetLoading(bool active, u32 done, u32 total) {
+    loading_done = done;
+    loading_total = total;
+    loading = active;
+}
+
+bool Visible() {
+    const auto& s = WipeoutSettings::Get();
+    return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
+                           choice_retiring || s.show_fps || NoticeActive());
+}
+
+bool CapturesInput() {
+    return menu_open || text_entry_active || choice_active;
+}
+
+void BeginChoice(const std::string& title, const std::vector<std::string>& items,
+                 std::vector<WipeoutPng::Image> pictures, int focus) {
+    std::scoped_lock lock{imgui_mutex};
+    RetireChoiceTextures();
+    choice_pictures = std::move(pictures);
+    choice_pictures.resize(items.size());
+    choice_title = title;
+    choice_items = items;
+    choice_index = focus >= 0 && focus < int(items.size()) ? focus : 0;
+    choice_result = -1;
+    choice_active = true;
+}
+
+int PollChoice() {
+    return choice_result;
+}
+
+void SetTextEntry(bool active, const std::string& prompt, const std::string& text) {
+    std::scoped_lock lock{imgui_mutex};
+    text_entry_active = active;
+    text_entry_prompt = prompt;
+    text_entry_text = text;
+}
+
+void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
+    // Present interval for the FPS readout (measured also while nothing is drawn).
+    const auto now = std::chrono::steady_clock::now();
+    const float ms = std::chrono::duration<float, std::milli>(now - last_present).count();
+    last_present = now;
+    if (ms > 0.0f && ms < 1000.0f) {
+        frame_ms_avg = frame_ms_avg == 0.0f ? ms : frame_ms_avg * 0.95f + ms * 0.05f;
+    }
+    ConfirmRestart();
+    if (!Visible()) {
+        return;
+    }
+    std::scoped_lock lock{imgui_mutex};
+    ImGuiIO& io = ImGui::GetIO();
+    io.DisplaySize = ImVec2(float(extent.width), float(extent.height));
+    io.DeltaTime = ms > 0.0f && ms < 1000.0f ? ms / 1000.0f : 1.0f / 60.0f;
+    // UI scale follows the display height (1080p = 1).
+    const float scale = std::max(float(extent.height) / 1080.0f, 0.75f);
+    if (std::abs(scale - base_scale) > 0.01f) {
+        ImGuiStyle& style = ImGui::GetStyle();
+        style.ScaleAllSizes(scale / base_scale);
+        style.FontScaleMain = scale;
+        base_scale = scale;
+    }
+
+    UpdateChoiceTextures();
+    ImGui_ImplVulkan_NewFrame();
+    ImGui::NewFrame();
+    if (loading) {
+        LoadingScreen();
+    }
+    if (menu_open) {
+        Menu();
+    }
+    if (WipeoutSettings::Get().show_fps && !menu_open) {
+        FpsCounter();
+    }
+    if (NoticeActive()) {
+        Notice();
+    }
+    if (background_total && !loading && !menu_open) {
+        BackgroundLoading();
+    }
+    if (text_entry_active) {
+        TextEntryBox();
+    }
+    if (choice_active && !menu_open) {
+        ChoiceBox();
+    }
+    ImGui::Render();
+
+    const vk::RenderingAttachmentInfo attachment{
+        .imageView = view,
+        .imageLayout = vk::ImageLayout::eColorAttachmentOptimal,
+        .loadOp = vk::AttachmentLoadOp::eLoad,
+        .storeOp = vk::AttachmentStoreOp::eStore,
+    };
+    cmdbuf.beginRendering(vk::RenderingInfo{
+        .renderArea = {{0, 0}, extent},
+        .layerCount = 1,
+        .colorAttachmentCount = 1,
+        .pColorAttachments = &attachment,
+    });
+    {
+        // Font atlas uploads submit to the graphics queue themselves.
+        std::scoped_lock submit_lock{Vulkan::Scheduler::submit_mutex};
+        ImGui_ImplVulkan_RenderDrawData(ImGui::GetDrawData(), cmdbuf);
+    }
+    cmdbuf.endRendering();
+}
+
+} // namespace WipeoutOverlay

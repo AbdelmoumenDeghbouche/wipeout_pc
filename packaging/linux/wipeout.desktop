@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=WipEout Omega Collection
+Comment=PC port of WipEout Omega Collection (bring your own game dump)
+Exec=AppRun
+Icon=wipeout
+Categories=Game;
+Terminal=false
+StartupWMClass=wipeout

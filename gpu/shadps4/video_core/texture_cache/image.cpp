@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "gow3_toggles.h"
+#include "wipeout_toggles.h"
 #include <ranges>
 #include "common/assert.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
@@ -94,8 +94,8 @@ void UniqueImage::Destroy() {
         vmaDestroyImage(allocator, image, allocation);
         image = vk::Image{};
         allocation = {};
-        Gow3Stats::image_bytes -= static_cast<s64>(size_bytes);
-        --Gow3Stats::image_count;
+        WipeoutStats::image_bytes -= static_cast<s64>(size_bytes);
+        --WipeoutStats::image_count;
     }
 }
 
@@ -111,7 +111,7 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
         .pUserData = nullptr,
     };
 
-    // gow3: big images (8 MiB and up: the large textures and screen-size targets) get memory of
+    // wipeout: big images (8 MiB and up: the large textures and screen-size targets) get memory of
     // their own, freed with them. In VMA's shared 256 MiB blocks a race's big textures left holes
     // that menu images kept alive: after a 2048 race 2.4 GB of blocks held 1.1 GB of images, and
     // 4 GB cards ran out of video memory at the next load (#16, #72).
@@ -137,15 +137,15 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
                vk::to_string(vk::Result{result}));
     image = vk::Image{unsafe_image};
     size_bytes = alloc_info.size;
-    Gow3Stats::image_bytes += static_cast<s64>(size_bytes);
-    ++Gow3Stats::image_count;
+    WipeoutStats::image_bytes += static_cast<s64>(size_bytes);
+    ++WipeoutStats::image_count;
 }
 
 Image::Image(const Vulkan::Instance& instance, Vulkan::Runtime& runtime_,
              Common::SlotVector<ImageView>& slot_image_views_, const ImageInfo& info_)
     : guest_begin{info_.guest_address}, guest_end{info_.guest_address + info_.guest_size},
       info{info_}, runtime{&runtime_}, slot_image_views{&slot_image_views_} {
-    Gow3Stats::Timer timer{Gow3Stats::t_image_create};
+    WipeoutStats::Timer timer{WipeoutStats::t_image_create};
     if (info.pixel_format == vk::Format::eUndefined) {
         return;
     }
@@ -184,7 +184,7 @@ Image::Image(const Vulkan::Instance& instance, Vulkan::Runtime& runtime_,
     };
     auto image_format_properties =
         instance.GetPhysicalDevice().getImageFormatProperties2(format_info);
-    // gow3: storage usage is speculative (see ImageUsageFlags). Drivers that refuse it for a
+    // wipeout: storage usage is speculative (see ImageUsageFlags). Drivers that refuse it for a
     // format (AMD's Windows driver for BC6H) get the image without it: creating the unsupported
     // combination anyway loses the device a few frames later.
     if (image_format_properties.result == vk::Result::eErrorFormatNotSupported &&

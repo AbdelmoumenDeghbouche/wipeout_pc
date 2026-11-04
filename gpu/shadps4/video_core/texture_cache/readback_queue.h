@@ -22,7 +22,7 @@ public:
     bool CanFit(std::uint64_t size) const {
         return entries.size() < max_entries && size <= MaxBytes && bytes <= MaxBytes - size;
     }
-    /// gow3: how many copies may be pending. WipEout reads its auto-exposure chain back
+    /// wipeout: how many copies may be pending. WipEout reads its auto-exposure chain back
     /// (about 42 tiny copies a frame); 64 filled up every other frame with the GPU a frame or
     /// two behind, and each time the whole GPU was waited for.
     void SetMaxEntries(std::size_t count) { max_entries = count; }
@@ -53,7 +53,7 @@ public:
             }
         }
     }
-    /// gow3: a CPU access to [address, address + size) that shares pages with small copies but
+    /// wipeout: a CPU access to [address, address + size) that shares pages with small copies but
     /// not their bytes stops waiting for them: each such copy is unwatched (`release` drops its
     /// page protection) and still published when the GPU is done. Returns the copies released.
     template <typename Release>

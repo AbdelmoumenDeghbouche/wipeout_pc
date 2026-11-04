@@ -1,4 +1,4 @@
-"""The launcher icon (launcher/gow3.png, gow3.ico): a white anti-gravity racer seen from behind on a blue
+"""The launcher icon (launcher/wipeout.png, wipeout.ico): a white anti-gravity racer seen from behind on a blue
 rounded square. Original art: no game logo."""
 import sys
 from PIL import Image, ImageDraw, ImageFilter

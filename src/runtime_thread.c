@@ -47,7 +47,7 @@ typedef struct GuestThread {
     char name[32];
     int detached, finished, joined, host_owned;
 #ifdef _WIN32
-    gow3_jmp_buf exit_jump; /* no SEH unwinding through guest frames */
+    wipeout_jmp_buf exit_jump; /* no SEH unwinding through guest frames */
 #else
     jmp_buf exit_jump;
 #endif
@@ -133,12 +133,12 @@ void runtime_thread_attach_host(const char *name) {
 }
 /* Guest threads, the main one included, start with the PS4's FPU state: MXCSR 0x9fc0 (flush to
  * zero, denormals are zero) and the x87 control word 0x037f. The host default is 0x1f80.
- * GOW3_GUEST_MXCSR=<hex> picks another value; GOW3_GUEST_MXCSR=1f80 restores the host default. */
+ * WIPEOUT_GUEST_MXCSR=<hex> picks another value; WIPEOUT_GUEST_MXCSR=1f80 restores the host default. */
 static void set_guest_fpu(void) {
     static unsigned value=0x9fc0;
     static int once;
     if (!once) {
-        const char *env=getenv("GOW3_GUEST_MXCSR");
+        const char *env=getenv("WIPEOUT_GUEST_MXCSR");
         if (env) value=(unsigned)strtoul(env,NULL,16);
         once=1;
     }
@@ -268,8 +268,8 @@ static void set_host_name(const char *name) {
     pthread_setname_np(pthread_self(),host);
 }
 #ifdef _WIN32
-#define exit_setjmp(t) gow3_setjmp((t)->exit_jump)
-#define exit_longjmp(t) gow3_longjmp((t)->exit_jump,1)
+#define exit_setjmp(t) wipeout_setjmp((t)->exit_jump)
+#define exit_longjmp(t) wipeout_longjmp((t)->exit_jump,1)
 #else
 #define exit_setjmp(t) setjmp((t)->exit_jump)
 #define exit_longjmp(t) longjmp((t)->exit_jump,1)

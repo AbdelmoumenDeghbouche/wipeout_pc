@@ -40,7 +40,7 @@ struct TilingInfo {
 
 namespace {
 
-// gow3: tiling.comp's address math on the CPU, for one texel of sample 0. Kept in step with
+// wipeout: tiling.comp's address math on the CPU, for one texel of sample 0. Kept in step with
 // the shader (same names and cases) so both put a texel at the same tiled address.
 struct TexelTiling {
     u32 bits_per_pixel;
@@ -418,7 +418,7 @@ void TileManager::RecordTilingDispatch(vk::Pipeline pipeline, const vk::Descript
                                        const vk::DescriptorBufferInfo& params, u32 dim_x) {
     scheduler.Record([pipeline, layout = *pl_layout, tiled, linear, params,
                       dim_x](vk::CommandBuffer cmdbuf) {
-        if (Vulkan::Scheduler::FullBarriers()) { // gow3: GOW3_FULL_BARRIERS=1
+        if (Vulkan::Scheduler::FullBarriers()) { // wipeout: WIPEOUT_FULL_BARRIERS=1
             Vulkan::Scheduler::RecordFullBarrier(cmdbuf);
         }
         cmdbuf.bindPipeline(vk::PipelineBindPoint::eCompute, pipeline);
@@ -475,7 +475,7 @@ std::pair<const Buffer*, u64> TileManager::DetileImage(const VideoCore::Buffer* 
         .range = sizeof(params),
     };
 
-    // gow3: detiled uploads share one device buffer, grown to the largest one (up to
+    // wipeout: detiled uploads share one device buffer, grown to the largest one (up to
     // DetileScratchMax; a replaced buffer is freed once the GPU is past its last use). From the
     // staging pool, each upload of a track load kept its own device buffer until the GPU
     // finished the submission: about 1 GB of video memory on top of the new textures in a 2048
@@ -523,7 +523,7 @@ std::pair<const Buffer*, u64> TileManager::DetileImage(const VideoCore::Buffer* 
         .range = info.guest_size,
     };
     const auto dim_x = static_cast<u32>((info.guest_size / (info.num_bits / 8)) / 64);
-    // gow3: recorded with copies of the descriptor infos (threaded recording).
+    // wipeout: recorded with copies of the descriptor infos (threaded recording).
     RecordTilingDispatch(GetTilingPipeline(info, false), tiled_buffer_info, linear_buffer_info,
                          params_buffer_info, dim_x);
 
@@ -534,7 +534,7 @@ std::pair<const Buffer*, u64> TileManager::DetileImage(const VideoCore::Buffer* 
     return {staging.buffer, staging.offset};
 }
 
-// gow3: WipEout reads tiny tiled render targets back every frame (its auto-exposure chain:
+// wipeout: WipEout reads tiny tiled render targets back every frame (its auto-exposure chain:
 // 1x1 to 8x8, about 35 per frame). Through the tiling shader each one added a staging copy,
 // a barrier and a dispatch in the middle of the frame, and races ran ~18% slower than before
 // the shader was used for them. Up to this many texels, each texel is copied to its tiled
@@ -663,7 +663,7 @@ void TileManager::TileImage(Image& in_image, std::span<vk::BufferImageCopy> buff
         .range = info.guest_size,
     };
     const auto dim_x = static_cast<u32>((info.guest_size / (info.num_bits / 8)) / 64);
-    // gow3: recorded with copies of the descriptor infos (threaded recording).
+    // wipeout: recorded with copies of the descriptor infos (threaded recording).
     RecordTilingDispatch(GetTilingPipeline(info, true), tiled_buffer_info, linear_buffer_info,
                          params_buffer_info, dim_x);
 

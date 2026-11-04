@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: temporal upscaling of the HDR scene color (docs/upscaler.md). Off for God of War III
-// until its scene color, depth and camera constants are found (run.py). GOW3_UPSCALER=fsr3
+// wipeout: temporal upscaling of the HDR scene color (docs/upscaler.md). Off by default
+// until its scene color, depth and camera constants are found (run.py). WIPEOUT_UPSCALER=fsr3
 // runs FSR 3.1 (FireBurn/FSR-Vulkan, native Vulkan) on the scene color right before the
 // post-processing combine pass, with the scene depth and camera motion vectors, and writes the
 // result back so the game's own post, tonemap and UI continue unchanged (Native AA preset).
@@ -8,7 +8,7 @@
 // Guest targets stay at 1920x1080. Host scene targets use output/preset dimensions,
 // resized at frame boundaries. At 1080p HDR reconstruction precedes post; other outputs
 // reconstruct tonemapped scene proxies before output-size UI/display composition.
-// GOW3_RENDER_RES retains the older startup-patched guest-resolution path.
+// WIPEOUT_RENDER_RES retains the older startup-patched guest-resolution path.
 
 #pragma once
 
@@ -63,17 +63,17 @@ public:
 
     /// Before a compute dispatch: the post-processing combine shader triggers the upscale.
     void OnDispatch(u64 cs_hash);
-    /// wipeout: before a draw: a pixel shader (GOW3_UPSCALE_BEFORE_PS, the first pass reading the
+    /// wipeout: before a draw: a pixel shader (WIPEOUT_UPSCALE_BEFORE_PS, the first pass reading the
     /// finished scene) triggers the upscale instead of a compute shader.
     void OnPixelShader(u64 ps_hash);
 
     /// Start of a frame in the command stream (display pass).
     bool OnFrameStart();
     bool RasterScaling() const;
-    /// gow3: LOD bias for scene materials, log2(render / output) while a reduced scene is
+    /// wipeout: LOD bias for scene materials, log2(render / output) while a reduced scene is
     /// upscaled (0 at native size, for TAA and without an upscaler).
     [[nodiscard]] float SceneMipBias() const;
-    /// gow3: the state RedirectColor/RedirectDepth/RasterScaling depend on, for memoizing a
+    /// wipeout: the state RedirectColor/RedirectDepth/RasterScaling depend on, for memoizing a
     /// draw's render state (Rasterizer::BeginRendering).
     [[nodiscard]] u64 RedirectState() const noexcept {
         return u64(ui_phase) | u64(display_redirect) << 1 | u64(done_this_frame) << 2 |
@@ -127,7 +127,7 @@ public:
     bool DisplayOverride(VAddr address, Display& display);
 
 private:
-    /// gow3: views of guest images the upscaler reads, kept across frames: FSR 4 registers
+    /// wipeout: views of guest images the upscaler reads, kept across frames: FSR 4 registers
     /// images by view in a registry of eight (a new view per frame filled it at Native AA).
     vk::ImageView CachedView(const VideoCore::Image& image, vk::Format format,
                              vk::ImageAspectFlags aspect);
@@ -167,9 +167,9 @@ private:
     void CreatePipelines();
     /// Records the reactive mask pass; false when there is no snapshot this frame.
     bool RecordReactive(vk::ImageView color_view);
-    /// FSR 4 is selected, possible in this session (not GOW3_RENDER_RES) and has not failed.
+    /// FSR 4 is selected, possible in this session (not WIPEOUT_RENDER_RES) and has not failed.
     [[nodiscard]] bool UseFsr4() const;
-    /// gow3: DLSS selected and the bridge is ready (NVIDIA RTX, gow3_dlss.dll).
+    /// wipeout: DLSS selected and the bridge is ready (NVIDIA RTX, wipeout_dlss.dll).
     [[nodiscard]] bool UseDlss() const;
     /// Records DLSS into `cmdbuf` (output in General). `hdr`: linear scene color input.
     bool RecordDlss(vk::CommandBuffer cmdbuf, const Dlss::Resource& color,
@@ -198,10 +198,10 @@ private:
     bool enabled = false;
     bool failed = false;
     u64 trigger_hash = 0x9a9cf8a9;
-    u64 ps_trigger_hash = 0; ///< wipeout: GOW3_UPSCALE_BEFORE_PS, 0 = off
+    u64 ps_trigger_hash = 0; ///< wipeout: WIPEOUT_UPSCALE_BEFORE_PS, 0 = off
     VideoCore::ImageId scene_color{};
     bool done_this_frame = false;
-    u32 preset_file_frames = 0; ///< GOW3_PRESET_FILE polling
+    u32 preset_file_frames = 0; ///< WIPEOUT_PRESET_FILE polling
     int applied_output = -1;
     bool snapshot_taken = false;
     bool opaque_valid = false;

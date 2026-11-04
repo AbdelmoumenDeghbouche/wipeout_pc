@@ -30,7 +30,7 @@ El destino predeterminado es `%LOCALAPPDATA%\wipeout-debug`. Se puede elegir otr
 
 Solo se copian archivos versionados, incluidos los cambios sin commit y los submódulos inicializados. Los archivos nuevos deben añadirse con `git add` antes de compilar. Los PKG, credenciales locales, guardados y salidas no versionados no se sincronizan. Los archivos fuente eliminados se retiran de la copia; se conservan las salidas de compilación y `user-debug`.
 
-`build` usa `GOW3_BUILD_TYPE=Debug` y desactiva LTO. Compila el juego y ejecuta las pruebas Windows de metadatos, montajes, JSON y servicios, además de comprobar que GDB deja vivo un proceso de prueba al desconectarse. El build normal conserva `RelWithDebInfo` como valor predeterminado. La biblioteca gráfica mantiene sus definiciones explícitas existentes, incluido `NDEBUG`.
+`build` usa `WIPEOUT_BUILD_TYPE=Debug` y desactiva LTO. Compila el juego y ejecuta las pruebas Windows de metadatos, montajes, JSON y servicios, además de comprobar que GDB deja vivo un proceso de prueba al desconectarse. El build normal conserva `RelWithDebInfo` como valor predeterminado. La biblioteca gráfica mantiene sus definiciones explícitas existentes, incluido `NDEBUG`.
 
 Los ejecutables con símbolos están en la copia Windows, bajo `out/`. No uses el ejecutable de `dist/` para depurar: el empaquetado elimina sus símbolos.
 

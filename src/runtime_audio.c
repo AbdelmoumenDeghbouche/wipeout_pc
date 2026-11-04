@@ -4,11 +4,11 @@
  * bursts (whenever the device pulls a quantum) lets it overtake the mixer and
  * play stale halves - a click every 10.7 ms. The lowest SDL queue level of
  * each window is steered to two buffers (silence prefill on underrun, ±3%
- * cadence corrections), which also absorbs device clock drift. Without an audio device (headless runs, GOW3_AUDIO=none)
+ * cadence corrections), which also absorbs device clock drift. Without an audio device (headless runs, WIPEOUT_AUDIO=none)
  * ports only follow the clock. */
 #define _GNU_SOURCE
 #include "runtime.h"
-#include "gpu/gow3gpu.h"
+#include "gpu/wipeoutgpu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,9 +39,9 @@ typedef struct {
     int64_t adjust_ns; int window_min, window_count; /* queue level control */
     uint64_t last_output_us;
     pthread_mutex_t lock;
-    FILE *dump;                     /* GOW3_AUDIO_DUMP: raw converted PCM per port */
+    FILE *dump;                     /* WIPEOUT_AUDIO_DUMP: raw converted PCM per port */
     int stats;
-    uint64_t stat_start_ns, stat_last_ns, stat_max_gap_ns; /* GOW3_AUDIO_STATS */
+    uint64_t stat_start_ns, stat_last_ns, stat_max_gap_ns; /* WIPEOUT_AUDIO_STATS */
     unsigned stat_starved, stat_buffers; int stat_min_queued;
 } Port;
 typedef struct { uint16_t output; uint8_t channel, reserved; int16_t volume; uint16_t reroute; uint64_t flag, reserved64[2]; } PortState;
@@ -64,7 +64,7 @@ static void sleep_until(uint64_t deadline) {
 }
 static int sdl_audio(void) {
     if (sdl_ready<0) {
-        const char *mode=getenv("GOW3_AUDIO");
+        const char *mode=getenv("WIPEOUT_AUDIO");
         sdl_ready = (!mode || strcmp(mode,"none")) && SDL_InitSubSystem(SDL_INIT_AUDIO);
         printf("Runtime: audio backend %s\n", sdl_ready ? SDL_GetCurrentAudioDriver() : "timer (silent)");
     }
@@ -146,8 +146,8 @@ static ABI int32_t audio_open(int32_t user, int32_t type, int32_t index, uint32_
         if (p->stream) SDL_ResumeAudioStreamDevice(p->stream);
         else fprintf(stderr,"Runtime: SDL audio stream failed (%s); port %d uses the timer sink\n",SDL_GetError(),id);
     }
-    p->stats=getenv("GOW3_AUDIO_STATS")!=NULL;
-    const char *dump=getenv("GOW3_AUDIO_DUMP");
+    p->stats=getenv("WIPEOUT_AUDIO_STATS")!=NULL;
+    const char *dump=getenv("WIPEOUT_AUDIO_DUMP");
     if (dump) {
         char path[4096];
         snprintf(path,sizeof(path),"%s.port%d.%dch.%s",dump,id,p->downmix ? 2 : p->channels,p->is_float ? "f32" : "s16");
@@ -189,7 +189,7 @@ static int32_t output_port(int32_t handle, const void *data, int pace) {
         static float music[2048*8]; /* one BGM port, under its lock */
         memcpy(music,data,bytes);
         if (runtime_music_bgm(music,p->frames,p->channels)) data=music;
-        else boost=(float)gow3gpu_game_music_volume()/100.0f; /* the game's own music (#97) */
+        else boost=(float)wipeoutgpu_game_music_volume()/100.0f; /* the game's own music (#97) */
     }
     if (data) {
         /* Apply per-channel volume and map PS4 8ch (L R C LFE SL SR BL BR) to SDL 7.1 order. */

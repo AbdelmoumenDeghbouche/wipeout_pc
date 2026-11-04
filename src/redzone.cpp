@@ -1229,7 +1229,7 @@ RedZonePatchResult PatchRedZoneMemoryInstructions(PatchModule* module, u64 segme
     return result;
 }
 
-/// GOW3_RED_ZONE_AUDIT=1: functions that reach below the stack pointer through RBP after
+/// WIPEOUT_RED_ZONE_AUDIT=1: functions that reach below the stack pointer through RBP after
 /// `mov rbp, rsp` (red-zone use the RSP-based analysis above does not model). Linear pass in
 /// address order; counts only, nothing is patched.
 void AuditFramePointerRedZones(uintptr_t segment_addr, u64 segment_size, std::span<const uintptr_t> starts,
@@ -1337,17 +1337,17 @@ int ProbeRedZoneClobbering() {
 
 extern "C" void bbport_red_zone_protect(const char* boot_file, unsigned char* image, uint64_t image_size,
                                         const BbRedZoneSegment* segments, uint64_t segment_count) {
-    // GOW3_RED_ZONE: 0 off, 1 always, unset: when this Windows build overwrites red zones.
-    const char* setting = std::getenv("GOW3_RED_ZONE");
+    // WIPEOUT_RED_ZONE: 0 off, 1 always, unset: when this Windows build overwrites red zones.
+    const char* setting = std::getenv("WIPEOUT_RED_ZONE");
     if (setting && setting[0] == '0') {
-        std::puts("Red zones: protection off (GOW3_RED_ZONE=0)");
+        std::puts("Red zones: protection off (WIPEOUT_RED_ZONE=0)");
         return;
     }
     if (!(setting && setting[0] == '1')) {
         const int clobbered = ProbeRedZoneClobbering();
         if (!clobbered) {
             std::puts("Red zones: this Windows keeps exception records out of the red zone; no "
-                      "patching needed (GOW3_RED_ZONE=1 patches anyway)");
+                      "patching needed (WIPEOUT_RED_ZONE=1 patches anyway)");
             return;
         }
         std::printf("Red zones: this Windows writes exception records %d bytes below the stack "
@@ -1387,7 +1387,7 @@ extern "C" void bbport_red_zone_protect(const char* boot_file, unsigned char* im
         std::fprintf(stderr, "Red zones: no trampoline memory near the image: NOT protected\n");
         return;
     }
-    const char* audit = std::getenv("GOW3_RED_ZONE_AUDIT");
+    const char* audit = std::getenv("WIPEOUT_RED_ZONE_AUDIT");
     if (audit && audit[0] == '1') {
         u64 functions = 0, accesses = 0;
         for (u64 s = 0; s < segment_count; ++s)

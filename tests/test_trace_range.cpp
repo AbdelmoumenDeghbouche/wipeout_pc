@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// GOW3_TC_TRACE address range (texture_cache/trace_range.h): parsing the variable and testing
+// WIPEOUT_TC_TRACE address range (texture_cache/trace_range.h): parsing the variable and testing
 // whether a guest range intersects it. No game or Vulkan device.
 #include <cassert>
 #include <cstdio>

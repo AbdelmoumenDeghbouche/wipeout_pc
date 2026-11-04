@@ -1,7 +1,8 @@
 /* Narrow, explicit PS4 libc contracts. No automatic success stubs. */
 #define _CRT_RAND_S
 #include "runtime.h"
-#include "gpu/gow3gpu.h"
+#include "runtime_online.h"
+#include "gpu/wipeoutgpu.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -85,6 +86,8 @@ void runtime_report(void) {
     runtime_file_report();
     runtime_extra_report();
     runtime_json_report();
+    runtime_net_report();
+    runtime_matching_report();
     printf("Runtime: memory operations=%zu\n", (size_t)memory_calls);
     if (report_hook) report_hook();
 }
@@ -239,6 +242,16 @@ uintptr_t runtime_resolve(const char *name, int is_data) {
     if (memory) return memory;
     uintptr_t kernel = runtime_kernel_resolve(name);
     if (kernel) return kernel;
+    /* Online play first: sockets, the PSN account and matching replace the offline answers of
+     * runtime_services.c / runtime_extra.c for the same names. */
+    uintptr_t net = runtime_net_resolve(name);
+    if (net) return net;
+    uintptr_t np = runtime_np_resolve(name);
+    if (np) return np;
+    uintptr_t matching = runtime_matching_resolve(name);
+    if (matching) return matching;
+    uintptr_t webapi = runtime_webapi_resolve(name);
+    if (webapi) return webapi;
     uintptr_t services = runtime_services_resolve(name);
     if (services) return services;
     uintptr_t ajm = runtime_ajm_resolve(name);
@@ -259,7 +272,7 @@ uintptr_t runtime_resolve(const char *name, int is_data) {
     if (extra) return extra;
     uintptr_t json = runtime_json_resolve(name);
     if (json) return json;
-    return gow3gpu_resolve(name);
+    return wipeoutgpu_resolve(name);
 }
 static const struct { const char *nid, *symbol; } import_names[]={
 #include "import_names.inc"

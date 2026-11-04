@@ -57,7 +57,7 @@ struct GraphicsPipelineKey {
         AmdGpu::ClipSpace clip_space : 1;
         AmdGpu::ProvokingVtxLast provoking_vtx_last : 1;
         u32 depth_clip_enable : 1;
-        u32 ps_iter_samples : 3; ///< gow3: DB_EQAA, log2 of the samples a pixel shader runs per pixel
+        u32 ps_iter_samples : 3; ///< wipeout: DB_EQAA, log2 of the samples a pixel shader runs per pixel
     };
 
     GraphicsPipelineKey() {
@@ -97,7 +97,7 @@ public:
                      bool preloading);
     ~GraphicsPipeline();
 
-    // gow3: switch from compiler-owned snapshots to live stage data on publication.
+    // wipeout: switch from compiler-owned snapshots to live stage data on publication.
     void PublishStages(std::span<const Shader::Info*, MaxShaderStages> infos) {
         std::ranges::copy(infos, stages.begin());
     }
@@ -110,7 +110,7 @@ public:
         return key;
     }
 
-    /// gow3: second draw squaring a self-scaled MIN/MAX blend, or null (vk_blend_rewrite.h).
+    /// wipeout: second draw squaring a self-scaled MIN/MAX blend, or null (vk_blend_rewrite.h).
     vk::Pipeline SquarePassHandle() const noexcept {
         return *square_pipeline;
     }

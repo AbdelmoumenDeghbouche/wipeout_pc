@@ -1,4 +1,4 @@
-"""packaging/windows/smoke-test.ps1 against a built package (GOW3_WINDOWS_ZIP=path\\to\\wipeout-windows.zip):
+"""packaging/windows/smoke-test.ps1 against a built package (WIPEOUT_WINDOWS_ZIP=path\\to\\wipeout-windows.zip):
 it passes on the package as built and fails when a DLL, a frozen module or a shipped file is wrong."""
 from paths import ROOT
 import os
@@ -11,10 +11,10 @@ import unittest
 import zipfile
 
 SCRIPT = ROOT / 'packaging' / 'windows' / 'smoke-test.ps1'
-PACKAGE = os.environ.get('GOW3_WINDOWS_ZIP')
+PACKAGE = os.environ.get('WIPEOUT_WINDOWS_ZIP')
 
 
-@unittest.skipUnless(sys.platform == 'win32' and PACKAGE, 'needs Windows and GOW3_WINDOWS_ZIP')
+@unittest.skipUnless(sys.platform == 'win32' and PACKAGE, 'needs Windows and WIPEOUT_WINDOWS_ZIP')
 class WindowsSmokeTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -49,7 +49,7 @@ class WindowsSmokeTests(unittest.TestCase):
         self.assertNotEqual(self.smoke(lambda tree: shutil.rmtree(tree / '_internal' / 'iced_x86')), 0)
 
     def test_a_shipped_player_file_fails(self):
-        self.assertNotEqual(self.smoke(lambda tree: (tree / 'gow3.ini').write_text('[gow3]\n')), 0)
+        self.assertNotEqual(self.smoke(lambda tree: (tree / 'wipeout.ini').write_text('[wipeout]\n')), 0)
 
 
 if __name__ == '__main__':

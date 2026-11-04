@@ -17,7 +17,7 @@ class LauncherArtworkTest(unittest.TestCase):
             (folder / 'sce_sys').mkdir(parents=True)
             (folder / 'eboot.bin').write_bytes(b'fixture')
             (folder / 'sce_sys/param.sfo').write_bytes(
-                sfo_bytes(TITLE_ID='CUSA01623', APP_VER=version, TITLE='God of War III'))
+                sfo_bytes(TITLE_ID='CUSA07671', APP_VER=version, TITLE='WipEout Omega Collection'))
         for name in ('pic1.png', 'icon0.png'):
             (self.base / 'sce_sys' / name).write_bytes(b'base artwork')
 

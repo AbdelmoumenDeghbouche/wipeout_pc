@@ -1,7 +1,7 @@
 //  SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 //  SPDX-License-Identifier: GPL-2.0-or-later
 
-#include "gow3_graphics.h"
+#include "wipeout_graphics.h"
 #include "common/assert.h"
 #include "core/emulator_settings.h"
 #include "video_core/host_shaders/fsr_easu_comp.h"
@@ -133,8 +133,8 @@ void FsrPass::Create(vk::Device device, VmaAllocator allocator, u32 num_images) 
 vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
                               vk::Extent2D input_size, vk::Extent2D output_size, Settings settings,
                               bool /*hdr*/) {
-    // gow3: FSR 1 upscales when the window is larger; RCAS alone also runs at the same size.
-    if (!Gow3Graphics::FsrPassRuns(settings.enable, settings.use_rcas, int(input_size.width),
+    // wipeout: FSR 1 upscales when the window is larger; RCAS alone also runs at the same size.
+    if (!WipeoutGraphics::FsrPassRuns(settings.enable, settings.use_rcas, int(input_size.width),
                                    int(input_size.height), int(output_size.width),
                                    int(output_size.height))) {
         DebugState.is_using_fsr = false;
@@ -195,7 +195,7 @@ vk::ImageView FsrPass::Render(vk::CommandBuffer cmdbuf, vk::ImageView input,
                static_cast<AF1>(input_size.width), static_cast<AF1>(input_size.height),
                static_cast<AF1>(input_size.width), static_cast<AF1>(input_size.height), (AF1)width,
                (AF1)height);
-    // gow3: Sample.x stays 0. It squares the result, which only undoes a square root taken
+    // wipeout: Sample.x stays 0. It squares the result, which only undoes a square root taken
     // before the pass; nothing takes one, and in HDR the PQ picture came out darker (#4).
 
     if (settings.use_rcas) {

@@ -4,7 +4,7 @@
 
 run.py makes one before every start; the launcher lists them and restores one. A restore
 first backs up the current saves, so it can always be undone. savedata: the saves' own folder
-when the player chose one (GOW3_SAVEDATA_DIR, #86); the backups stay in the user folder.
+when the player chose one (WIPEOUT_SAVEDATA_DIR, #86); the backups stay in the user folder.
 """
 import datetime
 from pathlib import Path

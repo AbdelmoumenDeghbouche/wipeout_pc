@@ -54,10 +54,10 @@ Thanks to everyone who has played, tested and reported so far!
 | HDR | Done; the darker picture when RCAS runs is fixed, waiting for a test (#4) |
 | Sound: music and effects (Audio3d) | Done; the effects are new, please report anything that sounds wrong |
 | Your own music (custom soundtrack) | Done: see [Your own music](#your-own-music) (#47) |
-| Launcher and settings | Done (`launcher/gow3_launcher_win.py`) |
+| Launcher and settings | Done (`launcher/wipeout_launcher_win.py`) |
 | Windows package (zip) | Done (`packaging/windows/package.sh`, Actions > Windows zip) |
 | Linux | Builds from source; no package yet |
-| PS4 Pro mode | Experimental (`GOW3_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
+| PS4 Pro mode | Experimental (`WIPEOUT_NEO=1`): loads a race with a correct picture since v0.2.3 (#32, #33); not tested further |
 | PSVR mode | Not planned for now (#7) |
 | Every game and event type (HD, HD Fury, 2048) | Not all tested yet |
 
@@ -67,6 +67,10 @@ it on. Without it they run at less than 1 FPS.
 The game times itself with the processor's time stamp counter (`rdtsc`), so the runtime gives
 it the real counter and its measured frequency (`src/runtime_kernel.c`). Its speed then does
 not depend on the frame rate.
+
+## Online multiplayer
+
+The game's online mode works without PlayStation Network. On the launcher's Online page, turn on **Play online**: one player hosts, the router's port opens automatically, and friends join with a short code. See [docs/online-multiplayer.md](docs/online-multiplayer.md).
 
 ## Your own music
 
@@ -82,7 +86,7 @@ sound effects stay.
    previous or next one, switch shuffle or your music off, and set the **Music volume**.
 
 Each song is leveled, so loud and quiet songs sound alike; Music volume 100% is about as loud as
-the game's own music. Without the launcher, `GOW3_MUSIC_DIR` points to another folder.
+the game's own music. Without the launcher, `WIPEOUT_MUSIC_DIR` points to another folder.
 
 ## Supported game versions
 
@@ -137,14 +141,14 @@ complete for that exact package whose size and modification time have not change
 extractions without this record are extracted again once, even when file sizes match.
 
 Then move the update's files over the base game folder, or pass the update folder with
-`GOW3_PATCH_DIR`. A folder dumped with GoldHEN works the same way.
+`WIPEOUT_PATCH_DIR`. A folder dumped with GoldHEN works the same way.
 
 ## Running
 
 Start the launcher, choose your game folder on the **Game** page, then click **Play**:
 
 ```powershell
-python launcher\gow3_launcher_win.py
+python launcher\wipeout_launcher_win.py
 ```
 
 The **Advanced** page can put a shortcut on the desktop. Settings: display mode, frame rate
@@ -153,15 +157,15 @@ limit, VSync, anisotropic filtering, HDR, controls, mods and the game language.
 Without the launcher, `run.py` starts the game:
 
 ```powershell
-$env:GOW3_GAME_DIR = 'D:\games\CUSA07671'
+$env:WIPEOUT_GAME_DIR = 'D:\games\CUSA07671'
 python run.py
 ```
 
 List the PS4 functions the runtime does not have yet:
 
 ```powershell
-$env:GOW3_GAME_DIR = 'D:\games\CUSA07671'
-$env:GOW3_MODS_ENABLED = '0'
+$env:WIPEOUT_GAME_DIR = 'D:\games\CUSA07671'
+$env:WIPEOUT_MODS_ENABLED = '0'
 python run.py --check-imports
 ```
 
@@ -184,7 +188,7 @@ function the runtime does not implement and prints its name.
 | Launcher | `launcher/` | Settings window and game start |
 | GPU | `gpu/shadps4/` | shadPS4 video core (Vulkan) |
 
-Many names (`gow3-probe.exe`, `GOW3_*` variables, the launcher) still come from the God of
+Many names (`wipeout-probe.exe`, `WIPEOUT_*` variables, the launcher) still come from the God of
 War III port this project is based on. They will be renamed.
 
 ## Credits

@@ -8,8 +8,8 @@ import sys
 import tempfile
 import unittest
 
-EXE = ROOT / 'out/gow3-probe'
-HOST_EXE = ROOT / ('out/gow3-probe' + ('.exe' if sys.platform == 'win32' else ''))
+EXE = ROOT / 'out/wipeout-probe'
+HOST_EXE = ROOT / ('out/wipeout-probe' + ('.exe' if sys.platform == 'win32' else ''))
 
 
 def package(code, relocs=(), names=(), capabilities=None):
@@ -188,10 +188,10 @@ class GuestMemoryBudgetTests(unittest.TestCase):
                                    ['pO96TwzOm5E#libkernel', 'memory-budget-matches',
                                     'memory-budget-mismatch'], capabilities=1)
                     env = host_env()
-                    env['GOW3_NEO'] = neo
-                    env.pop('GOW3_DMEM_MB', None)
+                    env['WIPEOUT_NEO'] = neo
+                    env.pop('WIPEOUT_DMEM_MB', None)
                     if requested is not None:
-                        env['GOW3_DMEM_MB'] = requested
+                        env['WIPEOUT_DMEM_MB'] = requested
                     with tempfile.TemporaryDirectory() as tmp:
                         path = Path(tmp) / 'boot.bin'
                         path.write_bytes(data)

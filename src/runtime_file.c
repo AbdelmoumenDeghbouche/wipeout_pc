@@ -31,7 +31,7 @@ static int host_stat(const char *path,HostStat *s) {
     return r;
 }
 #define host_lseek _lseeki64
-#define O_DIRECTORY 0x40000000 /* gow3 marker, removed before _open */
+#define O_DIRECTORY 0x40000000 /* wipeout marker, removed before _open */
 #else
 typedef struct stat HostStat;
 #define host_stat(path,s) stat(path,s)
@@ -85,7 +85,7 @@ void runtime_file_unmount(const char *guest) {
     }
     pthread_mutex_unlock(&lock);
 }
-/* GOW3_FILE_PATCHES=<file>: same-length byte changes the game reads in its own files, the files
+/* WIPEOUT_FILE_PATCHES=<file>: same-length byte changes the game reads in its own files, the files
  * on disk untouched (scripts/menu_patches.py writes them: "guest-path offset original new" per
  * line, hex). A change applies once the file is found to hold its original bytes. */
 typedef struct { char guest[128]; int64_t offset; size_t length; unsigned char original[512], data[512]; int state; } FilePatch;
@@ -98,7 +98,7 @@ static int hex_bytes(const char *hex,unsigned char *out,size_t max) {
     return (int)(n/2);
 }
 static void load_file_patches(void) {
-    const char *path=getenv("GOW3_FILE_PATCHES");
+    const char *path=getenv("WIPEOUT_FILE_PATCHES");
     FILE *f=path && *path ? fopen(path,"r") : NULL;
     if (!f) return;
     char line[2200], guest[128], original[1100], data[1100]; long long offset;
@@ -251,8 +251,8 @@ static File *get(int fd) {
     if (fd<3 || fd>=MAX_FILES || !files[fd].used) return NULL;
     return &files[fd];
 }
-/* GOW3_AUDIO_TRACE=1: sound file opens and failed reads (missing game sounds). */
-static int audio_trace(void) { static int v=-1; if (v<0) { const char *e=getenv("GOW3_AUDIO_TRACE"); v=e && e[0]=='1'; } return v; }
+/* WIPEOUT_AUDIO_TRACE=1: sound file opens and failed reads (missing game sounds). */
+static int audio_trace(void) { static int v=-1; if (v<0) { const char *e=getenv("WIPEOUT_AUDIO_TRACE"); v=e && e[0]=='1'; } return v; }
 /* Game mounts (including linked mod overlays) are read-only. Saves use other mounts. */
 static int game_path(const char *p) {
     if (!p || !*p) return 0;
@@ -310,7 +310,7 @@ static int64_t do_open(const char *guest,int flags,int mode) {
     ++opens;
     pthread_mutex_unlock(&lock);
     if (audio_trace() && strstr(guest,"sound/")) printf("Audio trace: open(%s) -> fd %d, %lld bytes\n",guest,fd,(long long)s.st_size);
-    const char *mod_trace=getenv("GOW3_MOD_TRACE"), *mod_root=getenv("GOW3_MODS_DIR");
+    const char *mod_trace=getenv("WIPEOUT_MOD_TRACE"), *mod_root=getenv("WIPEOUT_MODS_DIR");
     if (mod_trace && mod_trace[0]=='1' && mod_root) {
         char actual[PATH_MAX],root[PATH_MAX];
         static unsigned traced;

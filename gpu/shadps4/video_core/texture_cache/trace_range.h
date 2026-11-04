@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: the guest address range GOW3_TC_TRACE names (#109). The texture cache logs its decisions
+// wipeout: the guest address range WIPEOUT_TC_TRACE names (#109). The texture cache logs its decisions
 // for images and requests that intersect it while a frame capture records. The parser is pure
 // (tests/test_trace_range.cpp); IsTraced is defined in texture_cache.cpp.
 
@@ -48,7 +48,7 @@ inline std::optional<TraceRange> ParseTraceRange(const char* text) {
     return range;
 }
 
-/// True when GOW3_TC_TRACE is set, [address, address + size) intersects its range and a frame
+/// True when WIPEOUT_TC_TRACE is set, [address, address + size) intersects its range and a frame
 /// capture records (texture_cache.cpp).
 bool IsTraced(u64 address, u64 size);
 

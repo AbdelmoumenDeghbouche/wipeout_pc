@@ -168,7 +168,7 @@ def main():
         driver.parent.mkdir(parents=True, exist_ok=True)
         driver.write_text(shell + '\n', encoding='utf-8')
         driver_windows = windows_dir.replace('\\', '/') + '/out/windows-debug-build.sh'
-        command = ('$env:GOW3_BUILD_TYPE="Debug"; $env:GOW3_LTO="OFF"; '
+        command = ('$env:WIPEOUT_BUILD_TYPE="Debug"; $env:WIPEOUT_LTO="OFF"; '
                    f'& {ps_quote(bash)} --login {ps_quote(driver_windows)}; '
                    'if ($LASTEXITCODE) { exit $LASTEXITCODE }; '
                    f'Set-Location -LiteralPath {ps_quote(windows_dir)}; '
@@ -181,14 +181,14 @@ def main():
             parser.error('run requires --game pointing to a directory containing eboot.bin')
         user_dir = windows_dir + '\\user-debug'
         command = (f'Set-Location -LiteralPath {ps_quote(windows_dir)}; '
-                   f'$env:GOW3_GAME_DIR={ps_quote(winpath(args.game))}; '
-                   f'$env:GOW3_USER_DIR={ps_quote(user_dir)}; '
+                   f'$env:WIPEOUT_GAME_DIR={ps_quote(winpath(args.game))}; '
+                   f'$env:WIPEOUT_USER_DIR={ps_quote(user_dir)}; '
                    f'& {ps_quote(python)} -u run.py; exit $LASTEXITCODE')
         powershell(setup + command, logs / 'run.log')
     else:
-        executable = windows_dir + '\\out\\gow3-probe.exe'
+        executable = windows_dir + '\\out\\wipeout-probe.exe'
         debugger = msys + '\\clang64\\bin\\gdb.exe'
-        command = (setup + '$games=@(Get-Process -Name gow3-probe -ErrorAction SilentlyContinue | '
+        command = (setup + '$games=@(Get-Process -Name wipeout-probe -ErrorAction SilentlyContinue | '
                    f'Where-Object {{$_.Path -eq {ps_quote(executable)}}}); '
                    'if ($games.Count -ne 1) { throw "Start exactly one debug game with the run command first" }; '
                    f'& {ps_quote(debugger)} -nx -q {ps_quote(executable)} -p $games[0].Id; exit $LASTEXITCODE')

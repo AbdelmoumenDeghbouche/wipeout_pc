@@ -1,14 +1,14 @@
-// gow3.ini graphics keys (gow3_settings.cpp, gow3_graphics.h).
+// wipeout.ini graphics keys (wipeout_settings.cpp, wipeout_graphics.h).
 #include <cassert>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
-#include "gow3_graphics.h"
-#include "gow3_settings.h"
+#include "wipeout_graphics.h"
+#include "wipeout_settings.h"
 
-namespace G = Gow3Graphics;
+namespace G = WipeoutGraphics;
 
 static std::string Read(const char* path) {
     std::ifstream in(path);
@@ -52,32 +52,32 @@ int main() {
                "render_resolution=1440p\nengine_fps=240\ndeferred_readback=0\nstale_readback=1\n"
                "fsr1=1\nrcas=0\nrcas_strength=40\nframes_queued=2\nhdr_brightness=60\nhdr_peak=800\n";
     }
-    _putenv_s("GOW3_CONFIG", path);
-    _putenv_s("GOW3_ASYNC_SHADERS", "");
-    auto& v = Gow3Settings::Get();
-    Gow3Settings::Load();
+    _putenv_s("WIPEOUT_CONFIG", path);
+    _putenv_s("WIPEOUT_ASYNC_SHADERS", "");
+    auto& v = WipeoutSettings::Get();
+    WipeoutSettings::Load();
     assert(v.display_mode == G::Borderless && !v.vsync && v.fps_limit == 240 && !v.async_shaders);
     assert(v.render_resolution == 4 && v.engine_fps == 240 && !v.deferred_readback && v.stale_readback);
-    // FSR 1 left the menus in 2.2.0: a saved fsr1=1 (or GOW3_FSR1) no longer turns it on.
+    // FSR 1 left the menus in 2.2.0: a saved fsr1=1 (or WIPEOUT_FSR1) no longer turns it on.
     assert(!v.fsr1 && !v.rcas && v.rcas_strength == 40 && v.frames_queued == 2);
     assert(v.hdr_brightness == 60 && v.hdr_peak == 800);
-    _putenv_s("GOW3_FSR1", "1");
-    Gow3Settings::Load();
+    _putenv_s("WIPEOUT_FSR1", "1");
+    WipeoutSettings::Load();
     assert(!v.fsr1);
-    _putenv_s("GOW3_FSR1", "");
-    assert(!Gow3Settings::GraphicsNeedRestart());
-    assert(v.applied_engine_fps == 240);  // no GOW3_ENGINE_FPS: the configured rate
-    _putenv_s("GOW3_ENGINE_FPS", "60");    // run.py: the frame rate patch did not apply
-    Gow3Settings::Load();
-    assert(v.engine_fps == 240 && v.applied_engine_fps == 60 && !Gow3Settings::GraphicsNeedRestart());
-    _putenv_s("GOW3_ENGINE_FPS", "");
+    _putenv_s("WIPEOUT_FSR1", "");
+    assert(!WipeoutSettings::GraphicsNeedRestart());
+    assert(v.applied_engine_fps == 240);  // no WIPEOUT_ENGINE_FPS: the configured rate
+    _putenv_s("WIPEOUT_ENGINE_FPS", "60");    // run.py: the frame rate patch did not apply
+    WipeoutSettings::Load();
+    assert(v.engine_fps == 240 && v.applied_engine_fps == 60 && !WipeoutSettings::GraphicsNeedRestart());
+    _putenv_s("WIPEOUT_ENGINE_FPS", "");
     v.engine_fps = 120;
-    assert(Gow3Settings::GraphicsNeedRestart());
+    assert(WipeoutSettings::GraphicsNeedRestart());
     v.fps_limit = 60;  // live: no restart because of it
     v.engine_fps = 240;
-    assert(!Gow3Settings::GraphicsNeedRestart());
+    assert(!WipeoutSettings::GraphicsNeedRestart());
 
-    Gow3Settings::Save();
+    WipeoutSettings::Save();
     const std::string saved = Read(path);
     for (const char* line : {"display_mode=borderless\n", "vsync=0\n", "fps_limit=60\n", "async_shaders=0\n",
                              "render_resolution=1440p\n", "engine_fps=240\n", "deferred_readback=0\n",
@@ -87,29 +87,29 @@ int main() {
     }
 
     {
-        // The resolutions of the enabled mods' patch files (run.py: GOW3_EXTRA_RESOLUTIONS) follow the built-in
+        // The resolutions of the enabled mods' patch files (run.py: WIPEOUT_EXTRA_RESOLUTIONS) follow the built-in
         // ones and keep their names through a load and a save; repeated or built-in names are not added twice.
-        _putenv_s("GOW3_EXTRA_RESOLUTIONS", "3840x1080;2880x1200;;2880x1200;4K;3440x1440");
+        _putenv_s("WIPEOUT_EXTRA_RESOLUTIONS", "3840x1080;2880x1200;;2880x1200;4K;3440x1440");
         const auto names = G::ResolutionNames();
         assert(names.size() == 24 && names[22] == "3840x1080" && names[23] == "2880x1200");
         {
             std::ofstream out(path);
             out << "render_resolution=2880x1200\n";
         }
-        Gow3Settings::Load();
+        WipeoutSettings::Load();
         assert(v.render_resolution == 23);
-        Gow3Settings::Save();
+        WipeoutSettings::Save();
         assert(Read(path).find("render_resolution=2880x1200\n") != std::string::npos);
-        _putenv_s("GOW3_EXTRA_RESOLUTIONS", "");  // the mod is off: its resolution is unknown, so native
-        Gow3Settings::Load();
+        _putenv_s("WIPEOUT_EXTRA_RESOLUTIONS", "");  // the mod is off: its resolution is unknown, so native
+        WipeoutSettings::Load();
         assert(v.render_resolution == 0 && G::ResolutionNames().size() == 22);
     }
 
     {
-        // GOW3_ALLOWED_RESOLUTIONS keeps only the listed built-ins (WipEout profile); extras still follow,
+        // WIPEOUT_ALLOWED_RESOLUTIONS keeps only the listed built-ins (WipEout profile); extras still follow,
         // repeated or unknown names are ignored, and an all-unknown list still shows native.
-        _putenv_s("GOW3_ALLOWED_RESOLUTIONS", "native;2560x1080;5120x2160");
-        _putenv_s("GOW3_EXTRA_RESOLUTIONS", "3440x1440");
+        _putenv_s("WIPEOUT_ALLOWED_RESOLUTIONS", "native;2560x1080;5120x2160");
+        _putenv_s("WIPEOUT_EXTRA_RESOLUTIONS", "3440x1440");
         const auto filtered = G::ResolutionNames();
         assert(filtered.size() == 4 && filtered[0] == "native" && filtered[1] == "2560x1080" &&
                filtered[2] == "5120x2160" && filtered[3] == "3440x1440");
@@ -117,10 +117,10 @@ int main() {
         assert(std::string_view(G::ResolutionLabel(filtered[1])) == "2560 × 1080 · 21:9 (beta)" &&
                std::string_view(G::ResolutionLabel(filtered[2])) == "5120 × 2160 · 21:9 (beta)" &&
                std::string_view(G::ResolutionLabel(filtered[3])) == "3440 × 1440 · 21:9 (beta)");
-        _putenv_s("GOW3_ALLOWED_RESOLUTIONS", "nope");
+        _putenv_s("WIPEOUT_ALLOWED_RESOLUTIONS", "nope");
         assert(G::ResolutionNames().front() == "native" && G::ResolutionNames().size() == 2);
-        _putenv_s("GOW3_ALLOWED_RESOLUTIONS", "");
-        _putenv_s("GOW3_EXTRA_RESOLUTIONS", "");
+        _putenv_s("WIPEOUT_ALLOWED_RESOLUTIONS", "");
+        _putenv_s("WIPEOUT_EXTRA_RESOLUTIONS", "");
     }
 
     {
@@ -128,21 +128,12 @@ int main() {
         out << "display_mode=huge\nfps_limit=7\nrender_resolution=8K\nengine_fps=1\n"
                "rcas_strength=250\nframes_queued=9\n";
     }
-    _putenv_s("GOW3_ASYNC_SHADERS", "1");  // the environment still wins at start
+    _putenv_s("WIPEOUT_ASYNC_SHADERS", "1");  // the environment still wins at start
     v.async_shaders = false;
-    Gow3Settings::Load();
+    WipeoutSettings::Load();
     assert(v.display_mode == G::Windowed && v.fps_limit == 0 && v.render_resolution == 0 && v.engine_fps == 120);
     assert(v.rcas_strength == 75 && v.frames_queued == 1);
     assert(v.async_shaders);
-    {
-        std::ofstream out(path);
-        out << "cheat_double_jumps=1\ncheat_very_hard=1\n";
-    }
-    Gow3Settings::Load();
-    Gow3Settings::Save();
-    const std::string cheats = Read(path);
-    assert(cheats.find("cheat_double_jumps=1\n") != std::string::npos);
-    assert(cheats.find("cheat_very_hard=1\n") != std::string::npos);
     std::remove(path);
     std::puts("PASS: graphics settings");
 }

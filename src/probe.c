@@ -6,15 +6,10 @@
 #include <string.h>
 #include <inttypes.h>
 #include "runtime.h"
+#include "runtime_online.h"
 #include "cpu_check.h"
 #include "isa_rewrite.h"
-#include "orb_hook.h"
-#include "cheat_hook.h"
-#include "qte_hook.h"
-#include "actor_hook.h"
-#include "damage_hook.h"
-#include "menu_hook.h"
-#include "gpu/gow3gpu.h"
+#include "gpu/wipeoutgpu.h"
 #ifdef _WIN32
 #include "redzone.h"
 #endif
@@ -190,7 +185,7 @@ static DWORD WINAPI start_watch_thread(LPVOID unused) {
     dump_threads();
     return 0;
 }
-/* GOW3_PROFILE=1: sample every thread's instruction pointer every 5 ms and print the hottest
+/* WIPEOUT_PROFILE=1: sample every thread's instruction pointer every 5 ms and print the hottest
  * addresses of each 5-second window (guest offsets, or host module+offset).
  * ponytail: suspends all threads per sample (slows the game a little); fine for finding hot loops. */
 /* Guest instructions that hit GPU write tracking, counted while profiling (racy counts are fine). */
@@ -250,13 +245,13 @@ static DWORD WINAPI profiler_thread(LPVOID unused) {
         fflush(stderr);
     }
 }
-/* GOW3_CPU_PROFILE=1: what the overlay's CPU time is spent on. Every millisecond, each of its
+/* WIPEOUT_CPU_PROFILE=1: what the overlay's CPU time is spent on. Every millisecond, each of its
  * two threads (the game thread that flips frames, the GPU command thread) that has used CPU
  * since the last look is stopped and its position and caller chain (16 deep)
  * recorded; the draw recording thread the GPU command thread hands draws to, and the Vulkan
  * recording thread after it, are sampled too.
  * Every second: each thread's CPU ms per frame, then its hottest positions ("self")
- * and the callers most often on its stack ("in"), as guest offsets or gow3-probe.exe+offset.
+ * and the callers most often on its stack ("in"), as guest offsets or wipeout-probe.exe+offset.
  * ponytail: a thread that ran and then blocked inside the millisecond is caught waiting
  * (ntdll); those samples are counted under "waiting" and left out of the lists. */
 enum { CPU_PROFILE_SLOTS=4096, CPU_PROFILE_DEPTH=16, CPU_PROFILE_TOP=16 };
@@ -348,14 +343,14 @@ static DWORD WINAPI cpu_profiler_thread(LPVOID unused) {
                                               {.name="draw recording thread"},{.name="Vulkan recording thread"}};
     LARGE_INTEGER frequency, start, now;
     QueryPerformanceFrequency(&frequency);
-    fputs("CPU profile: on (GOW3_CPU_PROFILE), a report every second\n",stderr);
+    fputs("CPU profile: on (WIPEOUT_CPU_PROFILE), a report every second\n",stderr);
     for (unsigned window=1;;++window) {
         unsigned long ids[THREADS]={0,0,0,0};
         uint64_t frames_start=0, frames_end=0, drain_start=0, drain_end=0;
-        gow3gpu_frame_threads(&ids[0],&ids[1],&frames_start);
-        gow3gpu_draw_rec_thread(&ids[2],&drain_start,&ids[3]);
+        wipeoutgpu_frame_threads(&ids[0],&ids[1],&frames_start);
+        wipeoutgpu_draw_rec_thread(&ids[2],&drain_start,&ids[3]);
         uint64_t counts_start[3], counts_end[3];
-        gow3gpu_draw_counts(&counts_start[0],&counts_start[1],&counts_start[2]);
+        wipeoutgpu_draw_counts(&counts_start[0],&counts_start[1],&counts_start[2]);
         const uint64_t tsc_start=__rdtsc();
         QueryPerformanceCounter(&start);
         for (int t=0;t<THREADS;++t) {
@@ -405,9 +400,9 @@ static DWORD WINAPI cpu_profiler_thread(LPVOID unused) {
             }
             QueryPerformanceCounter(&now);
         } while (now.QuadPart-start.QuadPart<frequency.QuadPart);
-        gow3gpu_frame_threads(&ids[0],&ids[1],&frames_end);
-        gow3gpu_draw_rec_thread(&ids[2],&drain_end,&ids[3]);
-        gow3gpu_draw_counts(&counts_end[0],&counts_end[1],&counts_end[2]);
+        wipeoutgpu_frame_threads(&ids[0],&ids[1],&frames_end);
+        wipeoutgpu_draw_rec_thread(&ids[2],&drain_end,&ids[3]);
+        wipeoutgpu_draw_counts(&counts_end[0],&counts_end[1],&counts_end[2]);
         const uint64_t frames=frames_end-frames_start, tsc=__rdtsc()-tsc_start;
         const double wall_ms=1000.0*(double)(now.QuadPart-start.QuadPart)/(double)frequency.QuadPart;
         const double drain_ms=tsc ? (double)(drain_end-drain_start)*wall_ms/(double)tsc : 0.0;
@@ -457,7 +452,7 @@ static LONG fatal_exception(EXCEPTION_POINTERS *info) {
         fprintf(stderr,"Fault: exception 0x%08lx at %s (thread %lu)\n",record->ExceptionCode,where,GetCurrentThreadId());
     fprintf(stderr,"  rax=%016llx rbx=%016llx rcx=%016llx rdx=%016llx\n  rsi=%016llx rdi=%016llx rbp=%016llx rsp=%016llx\n",
             c->Rax,c->Rbx,c->Rcx,c->Rdx,c->Rsi,c->Rdi,c->Rbp,c->Rsp);
-    if (gpu_enabled) gow3gpu_dump_guest_writes(info);
+    if (gpu_enabled) wipeoutgpu_dump_guest_writes(info);
     /* rbp chain (guest and host code keep frame pointers). */
     uintptr_t rbp=(uintptr_t)c->Rbp;
     for (int depth=0; depth<24 && rbp; ++depth) {
@@ -518,20 +513,20 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
     }
     if (code==EXCEPTION_ACCESS_VIOLATION && record->NumberParameters>=2) {
         /* GPU page tracking (write-protected guest pages) is resolved first. */
-        if (gpu_enabled && gow3gpu_handle_fault(info,(void *)record->ExceptionInformation[1])) {
+        if (gpu_enabled && wipeoutgpu_handle_fault(info,(void *)record->ExceptionInformation[1])) {
             if (profiling) profile_fault_site((uintptr_t)info->ContextRecord->Rip);
             return EXCEPTION_CONTINUE_EXECUTION;
         }
         if (runtime_fault_recover) {
             /* A speculative guest memory read (GPU draw preparation) faulted: the thread resumes
-             * in gow3_longjmp, outside the exception dispatcher, back at its recovery point. */
+             * in wipeout_longjmp, outside the exception dispatcher, back at its recovery point. */
             unsigned long long *buffer=*runtime_fault_recover;
             runtime_fault_recover=NULL;
             CONTEXT *c=info->ContextRecord;
             c->Rsp=((c->Rsp-128)&~(DWORD64)15)-40;
             c->Rcx=(DWORD64)(uintptr_t)buffer;
             c->Rdx=1;
-            c->Rip=(DWORD64)(uintptr_t)gow3_longjmp;
+            c->Rip=(DWORD64)(uintptr_t)wipeout_longjmp;
             return EXCEPTION_CONTINUE_EXECUTION;
         }
     }
@@ -546,7 +541,7 @@ static LONG CALLBACK vectored_fault(EXCEPTION_POINTERS *info) {
                  !module;
         if (ours) return fatal_exception(info);
     }
-    /* GOW3_STRICT_HANDLES=1: a closed or invalid handle used anywhere is reported (diagnostics). */
+    /* WIPEOUT_STRICT_HANDLES=1: a closed or invalid handle used anywhere is reported (diagnostics). */
     if (code==0xC0000008 /* STATUS_INVALID_HANDLE */) return fatal_exception(info);
     return EXCEPTION_CONTINUE_SEARCH;
 }
@@ -587,7 +582,7 @@ static void fault(int sig, siginfo_t *info, void *context) {
         }
     }
     /* GPU page tracking (write-protected guest pages) is resolved first. */
-    if (gpu_enabled && sig == SIGSEGV && gow3gpu_handle_fault(context, info->si_addr)) return;
+    if (gpu_enabled && sig == SIGSEGV && wipeoutgpu_handle_fault(context, info->si_addr)) return;
     /* A speculative guest memory read (runtime_memory.c) failed: resume its recovery point. */
     if ((sig == SIGSEGV || sig == SIGBUS) && runtime_fault_recover) {
         sigjmp_buf *recover = runtime_fault_recover;
@@ -617,7 +612,7 @@ static void fault(int sig, siginfo_t *info, void *context) {
     else
         snprintf(line, sizeof(line), "Fault (signal %d) at RIP %p, address %p\n", sig, (void *)rip, info->si_addr);
     { ssize_t written_=write(2, line, strlen(line)); (void)written_; }
-    if (gpu_enabled) gow3gpu_dump_guest_writes(context);
+    if (gpu_enabled) wipeoutgpu_dump_guest_writes(context);
     /* Host call chain (frames with unwind info; guest frames end it). */
     void *frames[32];
     int depth = backtrace(frames, 32);
@@ -708,167 +703,6 @@ static int mapped(Segment *segments, uint64_t count, uint64_t address, uint64_t 
         if (address >= segments[i].address && bytes <= segments[i].size &&
             address - segments[i].address <= segments[i].size - bytes) return 1;
     return 0;
-}
-extern ABI float gow3_orbs_gain(void *player, float requested);
-extern void gow3_orbs_status(int supported);
-extern uintptr_t gow3_cheat_flag(unsigned id);
-extern uintptr_t gow3_actor_slots_address(void);
-extern void gow3_actor_status(int supported);
-extern void gow3_cheat_status(unsigned id);
-extern uintptr_t gow3_damage_multiplier(int taken);
-extern uintptr_t gow3_orb_pickup_multiplier(unsigned kind);
-extern void gow3_stat_multipliers_status(int damage, int orb_pickup);
-extern uintptr_t gow3_qte_state_address(void);
-
-/* The hooks below find their sites by signature (src/signature.h), so they work in any region
- * and version of the game whose code matches; a site that is not found leaves its feature off. */
-static void install_cheats(Segment *segments, uint64_t count, uint64_t size) {
-    const char *names[] = {"health", "magic", "item meter", "Rage of Sparta", "red orbs",
-                           "Very Hard unlock", "infinite double jumps"};
-    uint64_t at[GOW3_CHEAT_HOOK_COUNT];
-    for (unsigned i = 0; i < GOW3_CHEAT_HOOK_COUNT; ++i)
-        at[i] = gow3_signature_find(image, size, &gow3_cheat_hooks[i].site);
-    for (unsigned id = 0; id < GOW3_CHEAT_COUNT; ++id) {
-        int valid = 1;
-        for (unsigned i = 0; i < GOW3_CHEAT_HOOK_COUNT; ++i) {
-            const Gow3CheatHook *hook = &gow3_cheat_hooks[i];
-            if (hook->id != id) continue;
-            if (at[i] == UINT64_MAX || !mapped(segments, count, at[i], hook->length) ||
-                !gow3_cheat_signature_match(hook, image + at[i], size - at[i])) valid = 0;
-        }
-        if (!valid) {
-            printf("Cheats: %s unavailable (code not found in this eboot.bin)\n", names[id]);
-            continue;
-        }
-        unsigned char *stubs = allocate(page_size);
-        int32_t relative[GOW3_CHEAT_HOOK_COUNT] = {0};
-        for (unsigned i = 0; i < GOW3_CHEAT_HOOK_COUNT; ++i) {
-            const Gow3CheatHook *hook = &gow3_cheat_hooks[i];
-            if (hook->id != id) continue;
-            unsigned char *stub = stubs + i * 256;
-            int64_t delta = (int64_t)(uintptr_t)stub - (int64_t)(uintptr_t)(image + at[i] + 5);
-            if (delta < INT32_MIN || delta > INT32_MAX) { valid = 0; break; }
-            relative[i] = (int32_t)delta;
-            gow3_cheat_build_stub(stub, hook, gow3_cheat_flag(id),
-                                 (uintptr_t)(image + at[i] + hook->length));
-        }
-        if (!valid) {
-            printf("Cheats: %s unavailable (hook outside relative-jump range)\n", names[id]);
-            continue;
-        }
-        protect(stubs, page_size, 5);
-        for (unsigned i = 0; i < GOW3_CHEAT_HOOK_COUNT; ++i) {
-            const Gow3CheatHook *hook = &gow3_cheat_hooks[i];
-            if (hook->id != id) continue;
-            image[at[i]] = 0xe9;
-            memcpy(image + at[i] + 1, &relative[i], 4);
-            memset(image + at[i] + 5, 0x90, hook->length - 5);
-        }
-        gow3_cheat_status(id);
-        printf("Cheats: %s ready (live toggle, initially disabled unless saved)\n", names[id]);
-    }
-}
-
-/* Damage hook for the enemy health bar (src/actor_hook.h). Always
- * installed when the code matches: it only records values; the overlay decides what to show. */
-static void install_actor_watch(Segment *segments, uint64_t count, uint64_t size) {
-    const uint64_t at = gow3_signature_find(image, size, &gow3_actor_site);
-    if (at == UINT64_MAX || !mapped(segments, count, at, GOW3_ACTOR_HOOK_LENGTH) ||
-        !gow3_actor_signature_match(image + at, size - at)) {
-        printf("Health display: unavailable (code not found in this eboot.bin)\n");
-        return;
-    }
-    unsigned char *stub = allocate(page_size);
-    const int64_t delta = (int64_t)(uintptr_t)stub - (int64_t)(uintptr_t)(image + at + 5);
-    if (delta < INT32_MIN || delta > INT32_MAX) {
-        printf("Health display: unavailable (hook outside relative-jump range)\n");
-        return;
-    }
-    gow3_actor_build_stub(stub, gow3_actor_slots_address(), (uintptr_t)(image + at + GOW3_ACTOR_HOOK_LENGTH));
-    protect(stub, page_size, 5);
-    const int32_t relative = (int32_t)delta;
-    image[at] = 0xe9;
-    memcpy(image + at + 1, &relative, 4);
-    memset(image + at + 5, 0x90, GOW3_ACTOR_HOOK_LENGTH - 5);
-    gow3_actor_status(1);
-    printf("Health display: damage hook ready (enemy health bar in the menu)\n");
-}
-
-/* QTE prompts (src/qte_hook.h): a frame count in the prompt's update and an answer in its
- * rotation check, for the stick prompts in runtime_pad.c (typed or drawn rotations). Both or
- * neither; they do nothing until the player finishes a rotation that way. */
-static void install_qte_hooks(Segment *segments, uint64_t count, uint64_t size) {
-    const uint64_t sites[2] = {gow3_signature_find(image, size, &gow3_qte_update_site),
-                               gow3_signature_find(image, size, &gow3_qte_rotation_site)};
-    const unsigned char *originals[2] = {gow3_qte_update_original, gow3_qte_rotation_original};
-    for (unsigned i = 0; i < 2; ++i) {
-        if (sites[i] == UINT64_MAX || !mapped(segments, count, sites[i], GOW3_QTE_BLOCK_NEXT) ||
-            memcmp(image + sites[i], originals[i], GOW3_QTE_HOOK_LENGTH)) {
-            printf("Stick prompts: unavailable (code not found in this eboot.bin)\n");
-            return;
-        }
-    }
-    const uint64_t block = gow3_qte_block(image + sites[1], sites[1]);
-    if (!mapped(segments, count, block, GOW3_QTE_TYPE_OFFSET + 2)) {
-        printf("Stick prompts: unavailable (prompt state outside the image)\n");
-        return;
-    }
-    unsigned char *stubs = allocate(page_size);
-    int32_t relative[2];
-    for (unsigned i = 0; i < 2; ++i) {
-        const int64_t delta = (int64_t)(uintptr_t)(stubs + i * 128) - (int64_t)(uintptr_t)(image + sites[i] + 5);
-        if (delta < INT32_MIN || delta > INT32_MAX) {
-            printf("Stick prompts: unavailable (hook outside relative-jump range)\n");
-            return;
-        }
-        relative[i] = (int32_t)delta;
-    }
-    Gow3QteState *state = (Gow3QteState *)gow3_qte_state_address();
-    gow3_qte_build_update_stub(stubs, (uintptr_t)&state->heartbeat,
-                               (uintptr_t)(image + sites[0] + GOW3_QTE_HOOK_LENGTH));
-    gow3_qte_build_rotation_stub(stubs + 128, (uintptr_t)&state->pass,
-                                 (uintptr_t)(image + sites[1] + GOW3_QTE_HOOK_LENGTH));
-    protect(stubs, page_size, 5);
-    for (unsigned i = 0; i < 2; ++i) {
-        image[sites[i]] = 0xe9;
-        memcpy(image + sites[i] + 1, &relative[i], 4);
-        memset(image + sites[i] + 5, 0x90, GOW3_QTE_HOOK_LENGTH - 5);
-    }
-    state->block = (uint64_t)(uintptr_t)(image + block);
-    printf("Stick prompts: rotation prompt hooks ready\n");
-}
-
-static void install_orb_multiplier(Segment *segments, uint64_t count, uint64_t size) {
-    uint64_t calls[3];
-    const uint64_t setter_at = gow3_orb_find(image, size, calls);
-    if (setter_at == UINT64_MAX) {
-        printf("Red orbs: multiplier unavailable (code not found in this eboot.bin)\n");
-        return;
-    }
-    for (unsigned i = 0; i < 3; ++i) {
-        if (!mapped(segments, count, calls[i], 5)) return;
-    }
-    /* SysV call sites: preserve the receiver across the helper, then tail-call the original
-     * setter. Its cap and upgrade notifications remain in the game's own code. */
-    unsigned char *stub = allocate(page_size);
-    uintptr_t helper = (uintptr_t)gow3_orbs_gain, setter = (uintptr_t)(image + setter_at);
-    unsigned char code[26];
-    gow3_orb_build_stub(code, helper, setter);
-    int32_t displacements[3];
-    for (unsigned i = 0; i < 3; ++i) {
-        int64_t delta = (int64_t)(uintptr_t)stub - (int64_t)(uintptr_t)(image + calls[i] + 5);
-        if (delta < INT32_MIN || delta > INT32_MAX) {
-            printf("Red orbs: multiplier unavailable (hook outside relative-call range)\n");
-            return;
-        }
-        displacements[i] = (int32_t)delta;
-    }
-    memcpy(stub, code, sizeof(code));
-    protect(stub, page_size, 5);
-    for (unsigned i = 0; i < 3; ++i)
-        memcpy(image + calls[i] + 1, &displacements[i], 4);
-    gow3_orbs_status(1);
-    printf("Red orbs: live multiplier ready (3 validated gain paths, 0.1x to 100x)\n");
 }
 /* Writes a jump from image+at to `stub`; the rest of the replaced bytes become nops (the stub
  * replays them). 0 when the stub is out of relative-jump range. */
@@ -982,61 +816,6 @@ static void install_wipeout_logs(Segment *segments, uint64_t count, int which) {
     printf("Load diagnostics: the game's loader errors and models not loaded go to this log\n");
 }
 
-/* Damage dealt/taken and green/blue/gold orb multipliers (src/damage_hook.h, src/orb_hook.h):
- * the stubs read the menu's floats directly, so changes apply on the next hit or pickup. */
-static void install_stat_multipliers(Segment *segments, uint64_t count, uint64_t size) {
-    const uint64_t damage_at = gow3_signature_find(image, size, &gow3_damage_site);
-    const uint64_t pickup_at = gow3_signature_find(image, size, &gow3_orb_pickup_site);
-    int damage = damage_at != UINT64_MAX && mapped(segments, count, damage_at, GOW3_DAMAGE_HOOK_LENGTH) &&
-                 gow3_damage_signature_match(image + damage_at, size - damage_at);
-    int pickup = pickup_at != UINT64_MAX && mapped(segments, count, pickup_at, GOW3_ORB_PICKUP_LENGTH) &&
-                 gow3_orb_pickup_signature_match(image + pickup_at, size - pickup_at);
-    unsigned char *stubs = damage || pickup ? allocate(page_size) : NULL;
-    if (damage) {
-        gow3_damage_build_stub(stubs, gow3_damage_multiplier(1), gow3_damage_multiplier(0),
-                               (uintptr_t)(image + damage_at + GOW3_DAMAGE_HOOK_LENGTH));
-    }
-    if (pickup) {
-        gow3_orb_pickup_build_stub(stubs + 256, gow3_orb_pickup_multiplier(0), gow3_orb_pickup_multiplier(1),
-                                   gow3_orb_pickup_multiplier(2),
-                                   (uintptr_t)(image + pickup_at + GOW3_ORB_PICKUP_LENGTH));
-    }
-    if (stubs) protect(stubs, page_size, 5);
-    damage = damage && install_jump(damage_at, GOW3_DAMAGE_HOOK_LENGTH, stubs);
-    pickup = pickup && install_jump(pickup_at, GOW3_ORB_PICKUP_LENGTH, stubs + 256);
-    gow3_stat_multipliers_status(damage, pickup);
-    printf("Multipliers: damage %s, green/blue/gold orbs %s\n", damage ? "ready" : "unavailable",
-           pickup ? "ready" : "unavailable");
-}
-/* The pause menu's "Exit to Desktop" row (src/menu_hook.h). Ends the process as the restart
- * does: GPU, audio and guest threads are still running, so no destructors. */
-static void menu_quit(void) {
-    puts("Pause menu: Exit to Desktop");
-    fflush(NULL);
-#ifdef _WIN32
-    TerminateProcess(GetCurrentProcess(),0);
-#endif
-    _exit(0);
-}
-/* The row comes with the hook: its copy of R_UI.WAD (scripts/pause_menu.py) is mounted over the
- * game's, and over the glyphs' copy it was made from, only once the hook is in. */
-static void install_menu_exit(Segment *segments, uint64_t count, uint64_t size, const char *wad) {
-    const uint64_t at = gow3_signature_find(image, size, &gow3_menu_site);
-    if (at == UINT64_MAX || !mapped(segments, count, at, GOW3_MENU_HOOK_LENGTH) ||
-        !gow3_menu_signature_match(image + at, size - at)) {
-        printf("Pause menu: Exit to Desktop unavailable (code not found in this eboot.bin)\n");
-        return;
-    }
-    unsigned char *stub = allocate(page_size);
-    gow3_menu_build_stub(stub, (uintptr_t)menu_quit, (uintptr_t)(image + at + GOW3_MENU_HOOK_LENGTH));
-    protect(stub, page_size, 5);
-    if (!install_jump(at, GOW3_MENU_HOOK_LENGTH, stub)) {
-        puts("Pause menu: Exit to Desktop unavailable (hook outside relative-jump range)");
-        return;
-    }
-    runtime_file_mount("/app0/EXEC/WAD/PS4_LE/R_UI.WAD", wad);
-    puts("Pause menu: Exit to Desktop ready");
-}
 /* G3PATCH2 (patches.py): the patches' image base, then byte writes at image offsets, applied
  * after relocation. A write may replace a whole base-relative pointer slot (60/90 FPS++ swap
  * function pointers): the patch holds the address at the patches' base, rebased here. */
@@ -1079,10 +858,10 @@ static void apply_patches(const char *path, Segment *segments, uint64_t ns, cons
 void runtime_restart(void) {
     fflush(NULL);
 #ifdef _WIN32
-    /* run.py sets GOW3_RESTART_COMMAND: the launch command line, started again (new patches). */
-    const char *command=getenv("GOW3_RESTART_COMMAND");
+    /* run.py sets WIPEOUT_RESTART_COMMAND: the launch command line, started again (new patches). */
+    const char *command=getenv("WIPEOUT_RESTART_COMMAND");
     puts("Runtime: restarting through run.py");
-    if (!command || !*command) { fputs("runtime_restart: GOW3_RESTART_COMMAND is not set\n",stderr); _exit(1); }
+    if (!command || !*command) { fputs("runtime_restart: WIPEOUT_RESTART_COMMAND is not set\n",stderr); _exit(1); }
     char *line=_strdup(command);
     /* Same output handles: a launcher reading the game's log keeps reading the new launch. */
     STARTUPINFOA startup={.cb=sizeof(startup),.dwFlags=STARTF_USESTDHANDLES,
@@ -1096,10 +875,10 @@ void runtime_restart(void) {
     /* The new launch waits for this process's GPU device to go away (run.py --after). */
     TerminateProcess(GetCurrentProcess(),0);
 #else
-    const char *command = getenv("GOW3_RESTART_COMMAND");
+    const char *command = getenv("WIPEOUT_RESTART_COMMAND");
     syscall(SYS_close_range, 3u, ~0u, 0u);
     if (command && *command) {
-        puts("Runtime: restarting through GOW3_RESTART_COMMAND");
+        puts("Runtime: restarting through WIPEOUT_RESTART_COMMAND");
         execl("/bin/sh", "sh", "-c", command, (char *)NULL);
     } else {
         puts("Runtime: restarting through run.sh");
@@ -1110,12 +889,12 @@ void runtime_restart(void) {
 #endif
 }
 
-/* The guest code needs the PS4's instruction sets (#33, #66); GOW3_CPU_CHECK=0 skips this. A
+/* The guest code needs the PS4's instruction sets (#33, #66); WIPEOUT_CPU_CHECK=0 skips this. A
  * missing fatal set prints STOP and returns 0; the rewritable ones go to cpu_missing_sets, named
  * in missing. */
 static int cpu_supported(char *missing, size_t size) {
     missing[0] = 0;
-    const char *check = getenv("GOW3_CPU_CHECK");
+    const char *check = getenv("WIPEOUT_CPU_CHECK");
     if (check && !strcmp(check, "0")) return 1;
     const CpuFeatureWords words = cpu_feature_words();
     if (cpu_missing_fatal(words, missing, size)) {
@@ -1156,7 +935,7 @@ int main(int argc, char **argv) {
 #endif
     int cpu_only = 0, strict_imports = 0, check_imports = 0;
     unsigned timeout_seconds = 10;
-    const char *content_profile=NULL, *app0=NULL, *user_dir=NULL, *patch_file=NULL, *isa_file=NULL, *pause_menu=NULL;
+    const char *content_profile=NULL, *app0=NULL, *user_dir=NULL, *patch_file=NULL, *isa_file=NULL;
     const char *mounts[32]; int mount_count=0;
     for (int i = 2; i < argc; ++i) {
         if (!strcmp(argv[i], "--cpu-only")) cpu_only = 1;
@@ -1167,7 +946,6 @@ int main(int argc, char **argv) {
         else if (!strcmp(argv[i], "--user") && i+1<argc) user_dir=argv[++i];
         else if (!strcmp(argv[i], "--patches") && i+1<argc) patch_file=argv[++i];
         else if (!strcmp(argv[i], "--isa-rewrite") && i+1<argc) isa_file=argv[++i];
-        else if (!strcmp(argv[i], "--pause-menu") && i+1<argc) pause_menu=argv[++i];
         else if (!strcmp(argv[i], "--mount") && i+1<argc) {
             /* guest=host; the guest part never has '=', so the first one splits */
             const char *spec=argv[++i], *eq=strchr(spec,'=');
@@ -1178,16 +956,16 @@ int main(int argc, char **argv) {
         else { fprintf(stderr, "Unknown option: %s\n", argv[i]); return 1; }
     }
     if (argc < 2) {
-        fprintf(stderr, "Usage: %s boot.bin [--cpu-only] [--strict-imports] [--check-imports] [--content-profile file] [--app0 dir] [--user dir] [--patches file] [--isa-rewrite file] [--pause-menu R_UI.WAD] [--mount guest=host]... [--timeout seconds] | --vulkan-only | --cpu-features | --gamepad\n", argv[0]);
+        fprintf(stderr, "Usage: %s boot.bin [--cpu-only] [--strict-imports] [--check-imports] [--content-profile file] [--app0 dir] [--user dir] [--patches file] [--isa-rewrite file] [--mount guest=host]... [--timeout seconds] | --vulkan-only | --cpu-features | --gamepad\n", argv[0]);
         return 1;
     }
     if (!cpu_supported(missing, sizeof missing)) return 20;
     if (cpu_missing_sets) printf("CPU: missing %s\n", missing);
-    /* GOW3_ISA_REWRITE=0 never rewrites, =1 rewrites every site; by default the sets the CPU lacks. */
-    const char *policy = getenv("GOW3_ISA_REWRITE");
+    /* WIPEOUT_ISA_REWRITE=0 never rewrites, =1 rewrites every site; by default the sets the CPU lacks. */
+    const char *policy = getenv("WIPEOUT_ISA_REWRITE");
     unsigned isa_sets = policy && !strcmp(policy, "1") ? 0xffffffffu : policy && !strcmp(policy, "0") ? 0 : cpu_missing_sets;
     if (cpu_missing_sets && !isa_sets) {
-        printf("STOP: this CPU lacks %s and the rewrite is disabled (GOW3_ISA_REWRITE=0)\n", missing);
+        printf("STOP: this CPU lacks %s and the rewrite is disabled (WIPEOUT_ISA_REWRITE=0)\n", missing);
         return 20;
     }
     if (cpu_missing_sets && !isa_file) {
@@ -1223,17 +1001,23 @@ int main(int argc, char **argv) {
         if (sfo_value(sfo,"INSTALL_DIR_SAVEDATA",id,sizeof(id),NULL) || sfo_value(sfo,"TITLE_ID",id,sizeof(id),NULL))
             runtime_savedata_configure(id);
     }
-    gow3gpu_register_kernel();
+    /* WIPEOUT_NET_HOST=1: this game hosts the match server of online play (WIPEOUT_NET_PORT, 7788). */
+    const char *net_host = getenv("WIPEOUT_NET_HOST");
+    if (net_host && *net_host && *net_host != '0') {
+        const char *net_port = getenv("WIPEOUT_NET_PORT");
+        if (runtime_matchserver_start((uint16_t)(net_port ? atoi(net_port) : 0))) fail("cannot host the match server (is the port in use?)");
+    }
+    wipeoutgpu_register_kernel();
 #ifdef _WIN32
     SYSTEM_INFO system_info; GetSystemInfo(&system_info); page_size = system_info.dwPageSize;
     AddVectoredExceptionHandler(1, vectored_fault);
     SetUnhandledExceptionFilter(unhandled_fault);
-    if (getenv("GOW3_STRICT_HANDLES")) {
+    if (getenv("WIPEOUT_STRICT_HANDLES")) {
         PROCESS_MITIGATION_STRICT_HANDLE_CHECK_POLICY strict={0};
         strict.RaiseExceptionOnInvalidHandleReference=1;
         strict.HandleExceptionsPermanentlyEnabled=1;
         if (!SetProcessMitigationPolicy(ProcessStrictHandleCheckPolicy,&strict,sizeof(strict)))
-            fprintf(stderr,"GOW3_STRICT_HANDLES: policy not set (%lu)\n",GetLastError());
+            fprintf(stderr,"WIPEOUT_STRICT_HANDLES: policy not set (%lu)\n",GetLastError());
     }
     watchdog_seconds = timeout_seconds;
     if (watchdog_seconds) CloseHandle(CreateThread(NULL,0,watchdog_thread,NULL,0,NULL));
@@ -1363,7 +1147,7 @@ int main(int argc, char **argv) {
         return 20;
     }
     if (!cpu_only) {
-        char title[128]="God of War III", serial[16]="UNKNOWN", sfo[4096];
+        char title[128]="WipEout Omega Collection", serial[16]="UNKNOWN", sfo[4096];
         uint32_t attributes=0;
         snprintf(sfo,sizeof(sfo),"%s/sce_sys/param.sfo",app0 ? app0 : ".");
         sfo_value(sfo,"TITLE",title,sizeof(title),NULL);
@@ -1371,10 +1155,10 @@ int main(int argc, char **argv) {
         sfo_value(sfo,"ATTRIBUTE",NULL,0,&attributes);
         uint64_t sdk=0;
         if (procparam) memcpy(&sdk,image+procparam+16,8); /* procparam: size, magic, count, sdk_version */
-        Gow3GpuConfig gpu={title,serial,user_dir ? user_dir : "user",(uint32_t)sdk,attributes,1920,1080};
+        WipeoutGpuConfig gpu={title,serial,user_dir ? user_dir : "user",(uint32_t)sdk,attributes,1920,1080};
         gpu_enabled=1; /* page tracking starts while the rasterizer registers guest memory */
-        if (gow3gpu_init(&gpu)) fail("GPU initialization failed");
-        printf("GPU: window and Vulkan presenter ready; SDK 0x%08x, %u HLE symbols\n",(unsigned)sdk,gow3gpu_symbol_count());
+        if (wipeoutgpu_init(&gpu)) fail("GPU initialization failed");
+        printf("GPU: window and Vulkan presenter ready; SDK 0x%08x, %u HLE symbols\n",(unsigned)sdk,wipeoutgpu_symbol_count());
     }
     unsigned char *traps = allocate(round_page((import_count + 1) * 32));
     unsigned char *data_traps = allocate((import_count + 1) * page_size);
@@ -1423,17 +1207,9 @@ int main(int argc, char **argv) {
         _exit(missing ? 1 : 0); /* no destructors: GPU threads are running */
     }
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
-    /* Cheats, multipliers, QTE and menu hooks patch God of War III's code (CUSA01623) only. */
     char hooks_sfo[4096], hooks_serial[32]="";
     snprintf(hooks_sfo,sizeof(hooks_sfo),"%s/sce_sys/param.sfo",app0 ? app0 : ".");
     sfo_value(hooks_sfo,"TITLE_ID",hooks_serial,sizeof(hooks_serial),NULL);
-    const int game_hooks=gpu_enabled && !strcmp(hooks_serial,"CUSA01623");
-    if (game_hooks) install_orb_multiplier(segments, ns, size);
-    if (game_hooks) install_cheats(segments, ns, size);
-    if (game_hooks) install_actor_watch(segments, ns, size);
-    if (game_hooks) install_stat_multipliers(segments, ns, size);
-    if (game_hooks) install_qte_hooks(segments, ns, size);
-    if (game_hooks && pause_menu && app0) install_menu_exit(segments, ns, size, pause_menu);
 #ifdef _WIN32
     printf("Guest TCB loads redirected to the TEB TLS slot: %" PRIu64 "\n", patch_tcb_loads(segments, ns));
     /* Windows writes exception records into the SysV red zone: faultable accesses of the game's
@@ -1441,7 +1217,7 @@ int main(int argc, char **argv) {
     bbport_red_zone_protect(argv[1], image, size, (const BbRedZoneSegment *)segments, ns);
 #endif
     /* After the red zone pass, which must not take the hooks' jumps for the functions' code. */
-    const char *load_log = getenv("GOW3_LOAD_LOG"); /* 0: off; 1: errors only; 2: slots only (tests) */
+    const char *load_log = getenv("WIPEOUT_LOAD_LOG"); /* 0: off; 1: errors only; 2: slots only (tests) */
     if ((!strcmp(hooks_serial, "CUSA07671") || !strcmp(hooks_serial, "CUSA05670")) && !(load_log && *load_log == '0'))
         install_wipeout_logs(segments, ns, load_log && *load_log == '1' ? 1 : load_log && *load_log == '2' ? 2 : 3);
     if (isa_table) {
@@ -1451,7 +1227,7 @@ int main(int argc, char **argv) {
             fflush(NULL);
             _exit(20); /* no destructors: GPU threads are running */
         }
-        if (isa_sets == 0xffffffffu) printf("ISA: forced rewrite of all %u sites (GOW3_ISA_REWRITE=1), %u skipped\n", r.rewritten, r.skipped);
+        if (isa_sets == 0xffffffffu) printf("ISA: forced rewrite of all %u sites (WIPEOUT_ISA_REWRITE=1), %u skipped\n", r.rewritten, r.skipped);
         else printf("ISA: CPU lacks %s: %u sites rewritten (%u jmp, %u relocated, %u int3), %u skipped\n",
                     missing, r.rewritten, r.jmp, r.relocated, r.int3, r.skipped);
         runtime_set_report_hook(isa_report_hook);
@@ -1492,8 +1268,8 @@ int main(int argc, char **argv) {
     printf("Entering original x86-64 code at guest offset 0x%" PRIx64 "\n", entry);
 #ifdef _WIN32
     atexit(report_exit_caller); /* registered last, so it runs first */
-    if ((profiling=getenv("GOW3_PROFILE")!=NULL)) CloseHandle(CreateThread(NULL,0,profiler_thread,NULL,0,NULL));
-    if (gpu_enabled && getenv("GOW3_CPU_PROFILE") && getenv("GOW3_CPU_PROFILE")[0]=='1')
+    if ((profiling=getenv("WIPEOUT_PROFILE")!=NULL)) CloseHandle(CreateThread(NULL,0,profiler_thread,NULL,0,NULL));
+    if (gpu_enabled && getenv("WIPEOUT_CPU_PROFILE") && getenv("WIPEOUT_CPU_PROFILE")[0]=='1')
         CloseHandle(CreateThread(NULL,0,cpu_profiler_thread,NULL,0,NULL));
 #endif
     entered_game=1;

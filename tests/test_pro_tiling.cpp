@@ -28,9 +28,9 @@ static u32 ExpectedPipe(u32 x, u32 y, bool pro) {
 
 int main() {
     using namespace VideoCore;
-    const char* neo = std::getenv("GOW3_NEO");
+    const char* neo = std::getenv("WIPEOUT_NEO");
     if (Libraries::Kernel::sceKernelIsNeoMode() != (neo && *neo == '1')) {
-        std::fputs("FAIL: renderer Neo mode does not match GOW3_NEO\n", stderr);
+        std::fputs("FAIL: renderer Neo mode does not match WIPEOUT_NEO\n", stderr);
         return 1;
     }
     const bool pro_mode = neo && *neo == '1';

@@ -1,5 +1,5 @@
-// gow3: replaces shadPS4's spdlog-based logger with a small fmt sink.
-// Level from GOW3_GPU_LOG (trace|debug|info|warning|error; default warning).
+// wipeout: replaces shadPS4's spdlog-based logger with a small fmt sink.
+// Level from WIPEOUT_GPU_LOG (trace|debug|info|warning|error; default warning).
 #pragma once
 #include <algorithm>
 #include <array>

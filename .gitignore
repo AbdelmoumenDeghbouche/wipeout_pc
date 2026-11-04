@@ -4,7 +4,7 @@ __pycache__/
 user/
 /user-debug/
 *.mp4
-gow3.ini
+wipeout.ini
 fsr4_shaders/
 pgo/
 *.png
@@ -24,6 +24,5 @@ perf.data
 /docs/route_run.log
 mods.json
 patches.json
-!launcher/gow3.png
-!scripts/controller_diagrams/xbox.png
-!scripts/controller_diagrams/nintendo.png
+!launcher/wipeout.png
+/user-test*/

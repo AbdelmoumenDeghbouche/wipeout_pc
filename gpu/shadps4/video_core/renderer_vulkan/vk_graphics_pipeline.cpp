@@ -24,9 +24,9 @@ namespace Vulkan {
 
 using Shader::Backend::SPIRV::AuxShaderType;
 
-// gow3: where pipeline construction time goes (reported when the background warm-up ends).
-std::atomic<u64> g_gow3_pipeline_total_ns, g_gow3_pipeline_driver_ns;
-std::atomic<u32> g_gow3_pipelines_built;
+// wipeout: where pipeline construction time goes (reported when the background warm-up ends).
+std::atomic<u64> g_wipeout_pipeline_total_ns, g_wipeout_pipeline_driver_ns;
+std::atomic<u32> g_wipeout_pipelines_built;
 namespace {
 using Clock = std::chrono::steady_clock;
 u64 NsSince(Clock::time_point start) {
@@ -140,7 +140,7 @@ GraphicsPipeline::GraphicsPipeline(
         sdata.multisampling = {
             .rasterizationSamples = LiverpoolToVK::NumSamples(
                 key.num_samples, instance.GetColorSampleCounts() & instance.GetDepthSampleCounts()),
-            // gow3: GOW3_LIGHTING_TEST=shading keeps sample shading off (vk_lighting_test.h).
+            // wipeout: WIPEOUT_LIGHTING_TEST=shading keeps sample shading off (vk_lighting_test.h).
             // A shader that interpolates at sample positions runs per sample only when DB_EQAA
             // asks for it, as on the PS4. Always per sample, some WipEout liveries drawn with
             // such a shader (see-through "sketch" hulls) vanished in the multisampled ship
@@ -315,7 +315,7 @@ GraphicsPipeline::GraphicsPipeline(
     };
 
     std::array<vk::PipelineColorBlendAttachmentState, AmdGpu::NUM_COLOR_BUFFERS> attachments;
-    // gow3: GNM scales MIN/MAX operands, Vulkan does not (vk_blend_rewrite.h). A self-scaled
+    // wipeout: GNM scales MIN/MAX operands, Vulkan does not (vk_blend_rewrite.h). A self-scaled
     // MIN/MAX is drawn twice: native, then this pipeline squares the destination.
     std::array<vk::PipelineColorBlendAttachmentState, AmdGpu::NUM_COLOR_BUFFERS> square_attachments;
     bool needs_square_pass = false;
@@ -440,7 +440,7 @@ GraphicsPipeline::GraphicsPipeline(
     auto [pipeline_result, pipe] =
         CreateCachedGraphicsPipeline(device, pipeline_cache, pipeline_info, key,
                                      instance.GetPipelineBinaryGlobalKey(), binary_directory);
-    // gow3: a cached pipeline the driver refuses at the start (a damaged cache after a crash, or a
+    // wipeout: a cached pipeline the driver refuses at the start (a damaged cache after a crash, or a
     // driver error) stays out of the warm-up (Handle() is null) instead of stopping the game (#72).
     if (pipeline_result != vk::Result::eSuccess && preloading) {
         LOG_WARNING(Render_Vulkan, "Cached graphics pipeline {} not built ({}), left out of the warm-up",
@@ -467,8 +467,8 @@ GraphicsPipeline::GraphicsPipeline(
         square_pipeline = std::move(square);
         SetObjectName(device, *square_pipeline, "Graphics Pipeline {} squaring pass", debug_str);
     }
-    g_gow3_pipeline_total_ns += NsSince(started);
-    ++g_gow3_pipelines_built;
+    g_wipeout_pipeline_total_ns += NsSince(started);
+    ++g_wipeout_pipelines_built;
 }
 
 GraphicsPipeline::~GraphicsPipeline() = default;

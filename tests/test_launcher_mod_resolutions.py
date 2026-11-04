@@ -3,7 +3,7 @@ import unittest
 
 from test_launcher_save import LauncherOverTemporaryFiles, launcher
 
-PATCH = ('<Patch><TitleID><ID>CUSA01623</ID></TitleID>'
+PATCH = ('<Patch><TitleID><ID>CUSA07671</ID></TitleID>'
          '<Metadata Name="Resolution Patch - 3840x1080" AppVer="01.02"><PatchList/></Metadata></Patch>')
 
 

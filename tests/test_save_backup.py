@@ -17,7 +17,7 @@ class SaveBackupTest(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.user = Path(self.temp.name)
-        self.save = self.user / 'savedata' / '1' / 'CUSA01623' / 'AUTOSAVE' / 'data.bin'
+        self.save = self.user / 'savedata' / '1' / 'CUSA07671' / 'AUTOSAVE' / 'data.bin'
         self.clock = datetime.datetime(2026, 10, 9, 18, 0, 0)
 
     def tearDown(self):
@@ -34,7 +34,7 @@ class SaveBackupTest(unittest.TestCase):
         self.assertEqual((made / self.save.relative_to(self.user / 'savedata')).read_text(), 'v1')
 
     def test_saves_in_their_own_folder(self):
-        # #86 (GOW3_SAVEDATA_DIR): the saves live elsewhere, the backups stay in the user folder.
+        # #86 (WIPEOUT_SAVEDATA_DIR): the saves live elsewhere, the backups stay in the user folder.
         own = self.user / 'share' / 'wipeout-saves'
         save = own / '1' / 'CUSA07671' / 'PROFILE03' / 'DATA.BIN'
         write(save, 'v1')

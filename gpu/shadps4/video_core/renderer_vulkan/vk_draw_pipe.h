@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
-// gow3: two-stage draw pipeline (docs/parallel_gpu.md, "Two-stage draw pipeline").
+// wipeout: two-stage draw pipeline (docs/parallel_gpu.md, "Two-stage draw pipeline").
 //
 // The GPU command thread (stage A) decodes PM4, keeps the register file and selects pipelines;
 // for a direct draw it writes a packet (the register blocks changed since the previous packet,
@@ -12,8 +12,8 @@
 #pragma once
 
 #include <cstdlib>
-#include "gow3_threads.h"
-#include "gow3_toggles.h"
+#include "wipeout_threads.h"
+#include "wipeout_toggles.h"
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -122,7 +122,7 @@ public:
             }
         }
         const u64 waited = __rdtsc() - start;
-        Gow3Stats::pipe_drain_cycles.fetch_add(waited, std::memory_order_relaxed);
+        WipeoutStats::pipe_drain_cycles.fetch_add(waited, std::memory_order_relaxed);
         drain_cycles += waited;
         cycles_by_reason[slot] += waited;
     }
@@ -162,11 +162,11 @@ private:
     }
 
     void Run(std::stop_token stop) {
-        Common::SetCurrentThreadName("gow3:DrawRec");
+        Common::SetCurrentThreadName("wipeout:DrawRec");
         on_stage_b = true;
         stage_b_tid.store(static_cast<u32>(gettid()), std::memory_order_release);
 #ifdef _WIN32
-        Gow3Stats::draw_rec_thread_id.store(GetCurrentThreadId());
+        WipeoutStats::draw_rec_thread_id.store(GetCurrentThreadId());
 #endif
         u64 at = 0;
         while (true) {
@@ -175,12 +175,12 @@ private:
             u64 available = published.load(std::memory_order_acquire);
             if (available == at) {
                 // With few hardware threads (Steam Deck: 8) a long spin takes time from the
-                // game's own threads. GOW3_PIPE_SPIN_US overrides.
+                // game's own threads. WIPEOUT_PIPE_SPIN_US overrides.
                 static const auto spin_time = std::chrono::microseconds([] {
-                    if (const char* env = std::getenv("GOW3_PIPE_SPIN_US")) {
+                    if (const char* env = std::getenv("WIPEOUT_PIPE_SPIN_US")) {
                         return std::max(0, std::atoi(env));
                     }
-                    return Gow3Threads::Available() >= 12 ? 200 : 50;
+                    return WipeoutThreads::Available() >= 12 ? 200 : 50;
                 }());
                 const auto spin_until = std::chrono::steady_clock::now() + spin_time;
                 for (u32 spins = 1; available == at; ++spins) {

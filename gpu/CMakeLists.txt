@@ -1,7 +1,7 @@
-# gow3 GPU library: shadPS4 video core + shader recompiler + Gnm/VideoOut
+# wipeout GPU library: shadPS4 video core + shader recompiler + Gnm/VideoOut
 # drivers, adapted to the native_probe runtime through shims in shim/.
 cmake_minimum_required(VERSION 3.24)
-project(gow3gpu LANGUAGES C CXX)
+project(wipeoutgpu LANGUAGES C CXX)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
@@ -11,39 +11,39 @@ endif()
 # Frame pointers keep the loader's thread dumps (watchdog, SIGUSR2 sampling) walkable.
 add_compile_options(-fno-omit-frame-pointer)
 
-# gow3: link-time optimization (GOW3_LTO, default on) and profile-guided optimization
-# (GOW3_PGO: off, generate = instrumented build writing into GOW3_PGO_DIR, use = build with that
-# profile). Covers gow3gpu and the static libraries linked into it. No -march: the same build
+# wipeout: link-time optimization (WIPEOUT_LTO, default on) and profile-guided optimization
+# (WIPEOUT_PGO: off, generate = instrumented build writing into WIPEOUT_PGO_DIR, use = build with that
+# profile). Covers wipeoutgpu and the static libraries linked into it. No -march: the same build
 # runs on the Steam Deck.
-option(GOW3_LTO "Link-time optimization of gow3gpu" ON)
-set(GOW3_PGO "off" CACHE STRING "Profile-guided optimization: off, generate, use")
-set(GOW3_PGO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../pgo" CACHE PATH "Profile directory")
-if (GOW3_LTO)
+option(WIPEOUT_LTO "Link-time optimization of wipeoutgpu" ON)
+set(WIPEOUT_PGO "off" CACHE STRING "Profile-guided optimization: off, generate, use")
+set(WIPEOUT_PGO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../pgo" CACHE PATH "Profile directory")
+if (WIPEOUT_LTO)
     include(CheckIPOSupported)
-    check_ipo_supported(RESULT gow3_ipo_ok OUTPUT gow3_ipo_error)
-    if (gow3_ipo_ok)
+    check_ipo_supported(RESULT wipeout_ipo_ok OUTPUT wipeout_ipo_error)
+    if (wipeout_ipo_ok)
         set(CMAKE_INTERPROCEDURAL_OPTIMIZATION ON)
     else()
-        message(WARNING "LTO unavailable: ${gow3_ipo_error}")
+        message(WARNING "LTO unavailable: ${wipeout_ipo_error}")
     endif()
 endif()
-if (GOW3_PGO STREQUAL "generate")
+if (WIPEOUT_PGO STREQUAL "generate")
     # Atomic counters: the GPU, recording, preparation and copy threads run the same code.
-    add_compile_options(-fprofile-generate=${GOW3_PGO_DIR} -fprofile-update=atomic)
-    add_link_options(-fprofile-generate=${GOW3_PGO_DIR})
-    add_compile_definitions(GOW3_PGO_GENERATE)
-elseif (GOW3_PGO STREQUAL "use")
+    add_compile_options(-fprofile-generate=${WIPEOUT_PGO_DIR} -fprofile-update=atomic)
+    add_link_options(-fprofile-generate=${WIPEOUT_PGO_DIR})
+    add_compile_definitions(WIPEOUT_PGO_GENERATE)
+elseif (WIPEOUT_PGO STREQUAL "use")
     # Partial training keeps unprofiled code optimized normally; counters from concurrent
     # threads can be slightly inconsistent (correction). Functions changed since the profile
-    # (or built differently for it, gow3gpu_init) are compiled without it.
-    add_compile_options(-fprofile-use=${GOW3_PGO_DIR} -fprofile-partial-training
+    # (or built differently for it, wipeoutgpu_init) are compiled without it.
+    add_compile_options(-fprofile-use=${WIPEOUT_PGO_DIR} -fprofile-partial-training
                         -fprofile-correction -Wno-missing-profile -Wno-coverage-mismatch)
 endif()
 
 find_package(Vulkan REQUIRED)
 find_package(fmt REQUIRED)
 find_package(Boost REQUIRED)
-# gow3 (Windows): MSYS2 has no magic_enum/miniz packages; the submodules are used instead.
+# wipeout (Windows): MSYS2 has no magic_enum/miniz packages; the submodules are used instead.
 find_package(magic_enum QUIET)
 if (NOT magic_enum_FOUND)
     add_library(magic_enum INTERFACE)
@@ -83,7 +83,7 @@ find_program(GLSLANG_COMPILER NAMES glslang glslangValidator REQUIRED)
 set(SIRIT_USE_SYSTEM_SPIRV_HEADERS OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/sirit EXCLUDE_FROM_ALL)
 
-# gow3: FSR 3.1 temporal upscaling / frame generation, native Vulkan (MIT, FireBurn/FSR-Vulkan).
+# wipeout: FSR 3.1 temporal upscaling / frame generation, native Vulkan (MIT, FireBurn/FSR-Vulkan).
 set(FFX_VK_PORTABLE_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(FFX_VK_PORTABLE_BUILD_PROBE OFF CACHE BOOL "" FORCE)
 add_subdirectory(third_party/fsr-vulkan EXCLUDE_FROM_ALL)
@@ -145,72 +145,72 @@ set(COMMON
 file(GLOB AVPLAYER CONFIGURE_DEPENDS shadps4/core/libraries/avplayer/*.cpp)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
 file(GLOB SHIM_SOURCES CONFIGURE_DEPENDS shim/*.cpp shim/*/*.cpp)
-# Windows: a DLL cannot leave the runtime_* symbols for gow3-probe.exe to resolve, so the
+# Windows: a DLL cannot leave the runtime_* symbols for wipeout-probe.exe to resolve, so the
 # library is static there and linked into the executable.
 if (WIN32)
-    set(GOW3GPU_KIND STATIC)
+    set(WIPEOUTGPU_KIND STATIC)
 else()
-    set(GOW3GPU_KIND SHARED)
+    set(WIPEOUTGPU_KIND SHARED)
 endif()
-add_library(gow3gpu ${GOW3GPU_KIND} ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
+add_library(wipeoutgpu ${WIPEOUTGPU_KIND} ${VIDEO_CORE} ${RECOMPILER} ${COMMON} ${SHIM_SOURCES}
     shadps4/core/libraries/gnmdriver/gnmdriver.cpp
     shadps4/core/libraries/videoout/driver.cpp shadps4/core/libraries/videoout/video_out.cpp
     shadps4/core/libraries/kernel/equeue.cpp ${AVPLAYER}
     shadps4/core/libraries/videodec/video_utils.cpp)
-add_dependencies(gow3gpu host_shaders)
+add_dependencies(wipeoutgpu host_shaders)
 # In-game settings menu: Dear ImGui (third_party/imgui, MIT) with its Vulkan backend, and an
 # embedded Cyrillic font (third_party/fonts).
-target_sources(gow3gpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
+target_sources(wipeoutgpu PRIVATE third_party/imgui/imgui.cpp third_party/imgui/imgui_draw.cpp
     third_party/imgui/imgui_tables.cpp third_party/imgui/imgui_widgets.cpp
     third_party/imgui/backends/imgui_impl_vulkan.cpp)
-target_include_directories(gow3gpu PRIVATE third_party/imgui third_party/imgui/backends)
-target_compile_definitions(gow3gpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
-    GOW3_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
-set_source_files_properties(shim/gow3_overlay.cpp PROPERTIES
+target_include_directories(wipeoutgpu PRIVATE third_party/imgui third_party/imgui/backends)
+target_compile_definitions(wipeoutgpu PRIVATE IMGUI_IMPL_VULKAN_NO_PROTOTYPES
+    WIPEOUT_FONT_PATH="${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf")
+set_source_files_properties(shim/wipeout_overlay.cpp PROPERTIES
     OBJECT_DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/third_party/fonts/DejaVuSans.ttf)
-target_include_directories(gow3gpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include)
-target_compile_definitions(gow3gpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
-target_compile_options(gow3gpu PRIVATE -Wno-deprecated-declarations -Wno-missing-field-initializers)
-# Runtime symbols (runtime_memory_*, runtime_process_*) resolve against gow3-probe.
+target_include_directories(wipeoutgpu PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include third_party/half/include)
+target_compile_definitions(wipeoutgpu PRIVATE BOOST_ASIO_STANDALONE NDEBUG)
+target_compile_options(wipeoutgpu PRIVATE -Wno-deprecated-declarations -Wno-missing-field-initializers)
+# Runtime symbols (runtime_memory_*, runtime_process_*) resolve against wipeout-probe.
 if (NOT WIN32)
-    target_link_options(gow3gpu PRIVATE -Wl,--allow-shlib-undefined)
+    target_link_options(wipeoutgpu PRIVATE -Wl,--allow-shlib-undefined)
 endif()
-target_link_libraries(gow3gpu PRIVATE ffx-vulkan::portable ffx-vulkan::fsr4-v07-vulkan)
-target_link_libraries(gow3gpu PUBLIC Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum
+target_link_libraries(wipeoutgpu PRIVATE ffx-vulkan::portable ffx-vulkan::fsr4-v07-vulkan)
+target_link_libraries(wipeoutgpu PUBLIC Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum
     tsl::robin_map GPUOpen::VulkanMemoryAllocator PkgConfig::XXHASH PkgConfig::SDL3 PkgConfig::FFMPEG miniz::miniz Zydis::Zydis sirit)
-target_include_directories(gow3gpu PRIVATE third_party/xbyak)
+target_include_directories(wipeoutgpu PRIVATE third_party/xbyak)
 if (WIN32)
     # Guest code is entered with the System V ABI; NOMINMAX/WIN32_LEAN_AND_MEAN keep
     # <windows.h> out of the way of std::min/max and the Vulkan/SDL headers.
-    target_compile_definitions(gow3gpu PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
-    target_compile_options(gow3gpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/gow3_win_compat.h)
-    target_link_libraries(gow3gpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh)
+    target_compile_definitions(wipeoutgpu PUBLIC NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(wipeoutgpu PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/shim/wipeout_win_compat.h)
+    target_link_libraries(wipeoutgpu PUBLIC Vulkan::Vulkan ws2_32 bcrypt ntdll synchronization winmm pdh)
 else()
-    target_link_libraries(gow3gpu PUBLIC PkgConfig::X11)
+    target_link_libraries(wipeoutgpu PUBLIC PkgConfig::X11)
 endif()
 
-# gow3 (Windows): gow3gpu is a static library there, so the loader and the HLE runtime are
+# wipeout (Windows): wipeoutgpu is a static library there, so the loader and the HLE runtime are
 # linked here, where CMake knows its dependencies (build.sh builds them with ninja).
 if (WIN32)
     enable_language(RC)
-    file(GLOB GOW3_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
-    file(GLOB GOW3_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
-    add_library(atrac9 STATIC ${GOW3_ATRAC9})
+    file(GLOB WIPEOUT_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
+    file(GLOB WIPEOUT_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
+    add_library(atrac9 STATIC ${WIPEOUT_ATRAC9})
     target_compile_options(atrac9 PRIVATE -w)
     set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
-    add_executable(gow3-probe ../src/probe.c ${GOW3_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
+    add_executable(wipeout-probe ../src/probe.c ${WIPEOUT_RUNTIME} ../src/compat_win.c ../src/cpu_check.c ../src/vulkan_smoke.c
         ../src/isa_rewrite.c ../src/isa_emulate.c ../src/redzone.cpp
-        ../packaging/windows/gow3-probe.rc)
+        ../packaging/windows/wipeout-probe.rc)
     # redzone.cpp: Zydis decodes the game's functions, xbyak writes the trampolines.
     set_source_files_properties(../src/redzone.cpp PROPERTIES COMPILE_OPTIONS "-std=c++20")
-    set_target_properties(gow3-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
-    target_compile_options(gow3-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
-    target_include_directories(gow3-probe PRIVATE .. ../src third_party/xbyak)
-    target_link_libraries(gow3-probe PRIVATE gow3gpu atrac9 Zydis::Zydis onecore bcrypt ws2_32 -pthread)
+    set_target_properties(wipeout-probe PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_options(wipeout-probe PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+    target_include_directories(wipeout-probe PRIVATE .. ../src third_party/xbyak)
+    target_link_libraries(wipeout-probe PRIVATE wipeoutgpu atrac9 Zydis::Zydis onecore bcrypt ws2_32 -pthread)
     # The PS4 range (64 GiB - 1 TiB) must stay free: no high-entropy ASLR for heaps and stacks.
     # The guest main thread runs on the process stack: 16 MiB, committed (no stack probes).
-    target_link_options(gow3-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
-    # gow3: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test savedata-test savedata-mount-test).
+    target_link_options(wipeout-probe PRIVATE -Wl,--disable-high-entropy-va "SHELL:-Xlinker --stack -Xlinker 16777216,16777216")
+    # wipeout: runtime unit tests (ninja -C out/gpu mp3-test videodec-test services-test savedata-test savedata-mount-test).
     add_executable(mp3-test EXCLUDE_FROM_ALL ../tests/test_mp3.c ../src/runtime_mp3.c ../src/compat_win.c)
     add_executable(videodec-test EXCLUDE_FROM_ALL ../tests/test_videodec.c ../src/compat_win.c)
     add_executable(services-test EXCLUDE_FROM_ALL ../tests/test_services.c ../src/compat_win.c)
@@ -265,13 +265,25 @@ if (WIN32)
     target_compile_options(mutex-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
     target_include_directories(mutex-test PRIVATE .. ../src)
     target_link_libraries(mutex-test PRIVATE -pthread)
-    add_executable(gow3-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/gow3-gpu-capabilities.rc)
-    target_include_directories(gow3-gpu-capabilities PRIVATE shadps4)
-    target_link_libraries(gow3-gpu-capabilities PRIVATE Vulkan::Vulkan)
-    # "Play God of War III.exe": the game with the launcher's saved settings, no launcher window.
-    add_executable(gow3-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
-    target_compile_options(gow3-play PRIVATE -municode)
-    target_link_options(gow3-play PRIVATE -municode)
+    add_executable(wipeout-gpu-capabilities ../tools/gpu_capabilities.c ../packaging/windows/wipeout-gpu-capabilities.rc)
+    target_include_directories(wipeout-gpu-capabilities PRIVATE shadps4)
+    target_link_libraries(wipeout-gpu-capabilities PRIVATE Vulkan::Vulkan)
+    # "Play WipEout.exe": the game with the launcher's saved settings, no launcher window.
+    # The match server for online play, run on its own (src/runtime_matchserver.c also serves
+    # inside the game with WIPEOUT_NET_HOST=1), and the test of its protocol.
+    add_executable(wipeout-server ../tools/wipeout_server.c ../src/runtime_matchserver.c ../src/runtime_wire.c)
+    set_target_properties(wipeout-server PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_options(wipeout-server PRIVATE -Wall -Wextra -Werror)
+    target_include_directories(wipeout-server PRIVATE .. ../src)
+    target_link_libraries(wipeout-server PRIVATE ws2_32 -pthread)
+    add_executable(matching-test EXCLUDE_FROM_ALL ../tests/test_matching.c ../src/runtime_matchserver.c ../src/runtime_wire.c)
+    set_target_properties(matching-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+    target_compile_options(matching-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
+    target_include_directories(matching-test PRIVATE .. ../src)
+    target_link_libraries(matching-test PRIVATE ws2_32 -pthread)
+    add_executable(wipeout-play WIN32 ../packaging/windows/play.c ../packaging/windows/play.rc)
+    target_compile_options(wipeout-play PRIVATE -municode)
+    target_link_options(wipeout-play PRIVATE -municode)
 endif()
 
 # Explicit test targets; neither launches the game nor needs a Vulkan device.
@@ -279,11 +291,11 @@ add_executable(pipeline-binary-cache-test EXCLUDE_FROM_ALL ../tests/test_pipelin
     ../tests/test_gpu_runtime_stubs.cpp)
 target_compile_definitions(pipeline-binary-cache-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_include_directories(pipeline-binary-cache-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pipeline-binary-cache-test PRIVATE gow3gpu)
+target_link_libraries(pipeline-binary-cache-test PRIVATE wipeoutgpu)
 target_compile_options(pipeline-binary-cache-test PRIVATE -fPIC)
 if (WIN32)
     target_sources(pipeline-binary-cache-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pipeline-binary-cache-test PRIVATE sigjmp_buf=gow3_jmp_buf)
+    target_compile_definitions(pipeline-binary-cache-test PRIVATE sigjmp_buf=wipeout_jmp_buf)
     target_compile_options(pipeline-binary-cache-test PRIVATE
         -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
     target_link_libraries(pipeline-binary-cache-test PRIVATE onecore)
@@ -292,11 +304,11 @@ add_executable(pipeline-binary-initialization-test EXCLUDE_FROM_ALL
     ../tests/test_pipeline_binary_initialization.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_compile_definitions(pipeline-binary-initialization-test PRIVATE NOMINMAX WIN32_LEAN_AND_MEAN)
 target_include_directories(pipeline-binary-initialization-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pipeline-binary-initialization-test PRIVATE gow3gpu)
+target_link_libraries(pipeline-binary-initialization-test PRIVATE wipeoutgpu)
 target_compile_options(pipeline-binary-initialization-test PRIVATE -fPIC)
 if (WIN32)
     target_sources(pipeline-binary-initialization-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pipeline-binary-initialization-test PRIVATE sigjmp_buf=gow3_jmp_buf)
+    target_compile_definitions(pipeline-binary-initialization-test PRIVATE sigjmp_buf=wipeout_jmp_buf)
     target_compile_options(pipeline-binary-initialization-test PRIVATE
         -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
     target_link_libraries(pipeline-binary-initialization-test PRIVATE onecore)
@@ -308,13 +320,13 @@ target_compile_options(motion-history-test PRIVATE -UNDEBUG -Wall -Wextra -Werro
 target_include_directories(motion-history-test PRIVATE ..)
 add_executable(motion-shader-test EXCLUDE_FROM_ALL ../tests/test_motion_shaders.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(motion-shader-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(motion-shader-test PRIVATE gow3gpu)
+target_link_libraries(motion-shader-test PRIVATE wipeoutgpu)
 add_executable(pro-shader-test EXCLUDE_FROM_ALL ../tests/test_pro_shader.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-shader-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pro-shader-test PRIVATE gow3gpu)
+target_link_libraries(pro-shader-test PRIVATE wipeoutgpu)
 add_executable(pro-shader-gpu-test EXCLUDE_FROM_ALL ../tests/test_pro_shader_gpu.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-shader-gpu-test PRIVATE shim shadps4 third_party/gcn/include ${CMAKE_CURRENT_BINARY_DIR}/include)
-target_link_libraries(pro-shader-gpu-test PRIVATE gow3gpu)
+target_link_libraries(pro-shader-gpu-test PRIVATE wipeoutgpu)
 # Vulkan-Hpp's dispatcher layout must match the GPU library, including on Windows.
 target_compile_definitions(pro-shader-gpu-test PRIVATE NDEBUG)
 set_source_files_properties(../tests/test_pro_shader_gpu.cpp PROPERTIES
@@ -322,12 +334,12 @@ set_source_files_properties(../tests/test_pro_shader_gpu.cpp PROPERTIES
 if (WIN32)
     foreach(test IN ITEMS pro-shader-test pro-shader-gpu-test)
         target_sources(${test} PRIVATE ../src/compat_win.c)
-        target_compile_definitions(${test} PRIVATE sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+        target_compile_definitions(${test} PRIVATE sigjmp_buf=wipeout_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
         target_compile_options(${test} PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
         target_link_libraries(${test} PRIVATE onecore)
     endforeach()
 endif()
-add_executable(png-decode-test EXCLUDE_FROM_ALL ../tests/test_png_decode.cpp shim/gow3_png.cpp)
+add_executable(png-decode-test EXCLUDE_FROM_ALL ../tests/test_png_decode.cpp shim/wipeout_png.cpp)
 target_compile_options(png-decode-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 target_link_libraries(png-decode-test PRIVATE PkgConfig::FFMPEG)
 add_executable(aliasing-test EXCLUDE_FROM_ALL ../tests/test_aliasing.cpp
@@ -337,13 +349,13 @@ target_include_directories(aliasing-test PRIVATE shim shadps4 third_party/gcn/in
 target_link_libraries(aliasing-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
 add_executable(pro-tiling-test EXCLUDE_FROM_ALL ../tests/test_pro_tiling.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-tiling-test PRIVATE shim shadps4 third_party/gcn/include)
-target_link_libraries(pro-tiling-test PRIVATE gow3gpu)
+target_link_libraries(pro-tiling-test PRIVATE wipeoutgpu)
 target_compile_definitions(pro-tiling-test PRIVATE NDEBUG)
 set_source_files_properties(../tests/test_pro_tiling.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 if (WIN32)
     target_sources(pro-tiling-test PRIVATE ../src/compat_win.c)
-    target_compile_definitions(pro-tiling-test PRIVATE sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_definitions(pro-tiling-test PRIVATE sigjmp_buf=wipeout_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
     target_compile_options(pro-tiling-test PRIVATE -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
     target_link_libraries(pro-tiling-test PRIVATE onecore)
 endif()
@@ -414,42 +426,30 @@ target_include_directories(scene-resolution-test PRIVATE shim shadps4 third_part
 target_compile_options(scene-resolution-test PRIVATE -UNDEBUG -fPIC)
 set_source_files_properties(../tests/test_scene_resolution.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
-target_link_libraries(scene-resolution-test PRIVATE gow3gpu)
+target_link_libraries(scene-resolution-test PRIVATE wipeoutgpu)
 add_executable(taa-shader-test EXCLUDE_FROM_ALL ../tests/test_taa_shader.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(taa-shader-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
 target_compile_options(taa-shader-test PRIVATE -UNDEBUG -fPIC)
 set_source_files_properties(../tests/test_taa_shader.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
-target_link_libraries(taa-shader-test PRIVATE gow3gpu)
+target_link_libraries(taa-shader-test PRIVATE wipeoutgpu)
 add_dependencies(taa-shader-test host_shaders)
 
 add_executable(camera-motion-test EXCLUDE_FROM_ALL ../tests/test_camera_motion.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(camera-motion-test PRIVATE shim shadps4 ${SHADER_INCLUDE} third_party/gcn/include)
 target_compile_options(camera-motion-test PRIVATE -UNDEBUG -fPIC)
-target_link_libraries(camera-motion-test PRIVATE gow3gpu)
+target_link_libraries(camera-motion-test PRIVATE wipeoutgpu)
 add_dependencies(camera-motion-test host_shaders)
 
-# gow3: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.
+# wipeout: FSR 4 benchmark outside the game (tools/fsr4_bench.cpp): ninja -C out/gpu fsr4-bench.
 add_executable(upscaler-support-test EXCLUDE_FROM_ALL ../tests/test_upscaler_support.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_settings.cpp)
 target_include_directories(upscaler-support-test PRIVATE shim)
 target_compile_options(upscaler-support-test PRIVATE -UNDEBUG)
-add_executable(orb-multiplier-test EXCLUDE_FROM_ALL ../tests/test_orb_multiplier.cpp
-    shim/gow3_orbs.cpp shim/gow3_settings.cpp)
-target_include_directories(orb-multiplier-test PRIVATE shim)
-target_compile_options(orb-multiplier-test PRIVATE -UNDEBUG)
-add_executable(stat-multipliers-test EXCLUDE_FROM_ALL ../tests/test_stat_multipliers.cpp
-    shim/gow3_settings.cpp)
-target_include_directories(stat-multipliers-test PRIVATE shim)
-target_compile_options(stat-multipliers-test PRIVATE -UNDEBUG)
 add_executable(perf-overlay-test EXCLUDE_FROM_ALL ../tests/test_perf_overlay.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_settings.cpp)
 target_include_directories(perf-overlay-test PRIVATE shim)
 target_compile_options(perf-overlay-test PRIVATE -UNDEBUG)
-add_executable(cheat-hooks-test EXCLUDE_FROM_ALL ../tests/test_cheat_hooks.cpp)
-target_compile_options(cheat-hooks-test PRIVATE -UNDEBUG)
-add_executable(signatures-test EXCLUDE_FROM_ALL ../tests/test_signatures.cpp)
-target_compile_options(signatures-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_executable(readback-queue-test EXCLUDE_FROM_ALL ../tests/test_readback_queue.cpp)
 target_include_directories(readback-queue-test PRIVATE shadps4)
 target_compile_options(readback-queue-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
@@ -457,16 +457,9 @@ add_executable(wait-diagnostics-test EXCLUDE_FROM_ALL ../tests/test_wait_diagnos
 target_include_directories(wait-diagnostics-test PRIVATE shadps4)
 target_compile_options(wait-diagnostics-test PRIVATE -UNDEBUG)
 add_executable(graphics-settings-test EXCLUDE_FROM_ALL ../tests/test_graphics_settings.cpp
-    shim/gow3_settings.cpp)
+    shim/wipeout_settings.cpp)
 target_include_directories(graphics-settings-test PRIVATE shim)
 target_compile_options(graphics-settings-test PRIVATE -UNDEBUG)
-add_executable(actor-hook-test EXCLUDE_FROM_ALL ../tests/test_actor_hook.cpp)
-target_include_directories(actor-hook-test PRIVATE shim)
-target_compile_options(actor-hook-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
-add_executable(qte-hook-test EXCLUDE_FROM_ALL ../tests/test_qte_hook.cpp)
-target_compile_options(qte-hook-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
-add_executable(menu-hook-test EXCLUDE_FROM_ALL ../tests/test_menu_hook.cpp)
-target_compile_options(menu-hook-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
 add_executable(readback-sources-test EXCLUDE_FROM_ALL ../tests/test_readback_sources.cpp)
 target_include_directories(readback-sources-test PRIVATE shadps4)
 target_compile_options(readback-sources-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)
@@ -480,5 +473,3 @@ add_executable(fsr4-bench EXCLUDE_FROM_ALL tools/fsr4_bench.cpp
 target_include_directories(fsr4-bench PRIVATE shadps4/video_core/renderer_vulkan/fsr411)
 target_link_libraries(fsr4-bench PRIVATE ffx-vulkan::fsr4-v07-vulkan ffx-vulkan::fsr4-v07-assets Vulkan::Vulkan)
 
-add_executable(cheat-hook-test ../tests/test_cheat_hook.cpp)
-target_compile_options(cheat-hook-test PRIVATE -UNDEBUG -Wall -Wextra -Werror)

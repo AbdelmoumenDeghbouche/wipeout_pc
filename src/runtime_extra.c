@@ -8,6 +8,7 @@
 #define _GNU_SOURCE
 #define _CRT_RAND_S /* rand_s */
 #include "runtime.h"
+#include "runtime_online.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -158,10 +159,10 @@ static ABI int32_t ef_cancel(EventFlag *handle, uint64_t bits, int32_t *waiters)
 }
 
 /* ---- Small kernel and libc queries ---- */
-/* Base PS4, or PS4 Pro with GOW3_NEO=1 (games then pick their Pro render path and resolution). */
+/* Base PS4, or PS4 Pro with WIPEOUT_NEO=1 (games then pick their Pro render path and resolution). */
 static ABI int32_t is_neo_mode(void) {
     static int neo=-1;
-    if (neo<0) { const char *v=getenv("GOW3_NEO"); neo=v && *v=='1'; if (neo) puts("Runtime: reporting a PS4 Pro (Neo mode)"); }
+    if (neo<0) { const char *v=getenv("WIPEOUT_NEO"); neo=v && *v=='1'; if (neo) puts("Runtime: reporting a PS4 Pro (Neo mode)"); }
     return neo;
 }
 static ABI int32_t get_cpumode(void) { return 0; }        /* SCE_KERNEL_CPUMODE_6CPU */
@@ -374,7 +375,6 @@ static ABI int32_t sched_min(int32_t policy) { (void)policy; return 256; }
 static ABI int32_t mutexattr_setprotocol(void *attr, int32_t protocol) { (void)attr; (void)protocol; return 0; }
 
 /* ---- Sockets: network cable unplugged ---- */
-static ABI int32_t socket_none(void) { *runtime_errno()=E_NETDOWN; return -1; }
 static ABI int32_t socket_badf(void) { *runtime_errno()=E_BADF; return -1; }
 
 /* ---- Coredump, PlayGo, AppContent ---- */
@@ -491,10 +491,6 @@ static ABI int32_t load_start_module(const char *path, uint64_t argc, const void
     if (result) *result=0;
     return ERR(2); /* ENOENT */
 }
-static ABI int32_t posix_fcntl(int32_t fd, int32_t cmd, int64_t arg) {
-    (void)fd; (void)arg;
-    return cmd==1 || cmd==3 ? 0 : 0; /* F_GETFD/F_GETFL: no flags; set commands accepted */
-}
 static ABI int32_t posix_cancel(void *thread) { (void)thread; return E_SRCH; }
 
 /* ---- HTTP extras: the network is unplugged ---- */
@@ -504,8 +500,6 @@ static ABI int32_t http_last_errno(int32_t request, int32_t *error) {
     *error=65; /* EHOSTUNREACH */
     return 0;
 }
-static ABI int32_t http_network(void) { return (int32_t)0x80431063; } /* SCE_HTTP_ERROR_NETWORK */
-static ABI int32_t http_bad_url(void) { return (int32_t)0x80431061; } /* SCE_HTTP_ERROR_INVALID_URL */
 
 /* ---- Dialogs the offline console never shows: opening fails, status stays idle ---- */
 static ABI int32_t dialog_unavailable(void) { return (int32_t)0x80B80001; } /* COMMON_DIALOG not available */
@@ -529,29 +523,65 @@ static ABI __attribute__((noreturn)) void load_exec(const char *path, const void
     _exit(0);
 }
 
+/* Traced stubs (WIPEOUT_NET_TRACE=1 prints the name). */
+static ABI int32_t T_sceHttpAbortRequest(void) { runtime_online_log("sceHttpAbortRequest (stub)"); return 0; }
+static ABI int32_t T_sceHttpGetAllResponseHeaders(void) { runtime_online_log("sceHttpGetAllResponseHeaders (stub)"); return (int32_t)0x80431063; }
+static ABI int32_t T_sceHttpGetMemoryPoolStats(void) { runtime_online_log("sceHttpGetMemoryPoolStats (stub)"); return (int32_t)0x80431063; }
+static ABI int32_t T_sceHttpUriParse(void) { runtime_online_log("sceHttpUriParse (stub)"); return (int32_t)0x80431061; }
+static ABI int32_t T_sceHttpUriBuild(void) { runtime_online_log("sceHttpUriBuild (stub)"); return (int32_t)0x80431061; }
+static ABI int32_t T_sceHttpUriEscape(void) { runtime_online_log("sceHttpUriEscape (stub)"); return (int32_t)0x80431061; }
+static ABI int32_t T_sceInvitationDialogOpenA(void) { runtime_online_log("sceInvitationDialogOpenA (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceInvitationDialogUpdateStatus(void) { runtime_online_log("sceInvitationDialogUpdateStatus (stub)"); return 0; }
+static ABI int32_t T_sceInvitationDialogGetResultA(void) { runtime_online_log("sceInvitationDialogGetResultA (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceSigninDialogOpen(void) { runtime_online_log("sceSigninDialogOpen (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceSigninDialogUpdateStatus(void) { runtime_online_log("sceSigninDialogUpdateStatus (stub)"); return 0; }
+static ABI int32_t T_sceSigninDialogGetResult(void) { runtime_online_log("sceSigninDialogGetResult (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceNpSnsFacebookDialogOpen(void) { runtime_online_log("sceNpSnsFacebookDialogOpen (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceNpSnsFacebookDialogUpdateStatus(void) { runtime_online_log("sceNpSnsFacebookDialogUpdateStatus (stub)"); return 0; }
+static ABI int32_t T_sceNpSnsFacebookDialogGetResult(void) { runtime_online_log("sceNpSnsFacebookDialogGetResult (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceNpProfileDialogOpenA(void) { runtime_online_log("sceNpProfileDialogOpenA (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceNpCommerceDialogGetResult(void) { runtime_online_log("sceNpCommerceDialogGetResult (stub)"); return (int32_t)0x80B80001; }
+static ABI int32_t T_sceNpTrophyShowTrophyList(void) { runtime_online_log("sceNpTrophyShowTrophyList (stub)"); return 0; }
+static ABI int32_t T_sceNpTrophyCaptureScreenshot(void) { runtime_online_log("sceNpTrophyCaptureScreenshot (stub)"); return 0; }
+static ABI int32_t T_sceNetCtlTerm(void) { runtime_online_log("sceNetCtlTerm (stub)"); return 0; }
+static ABI int32_t T_sceNpCommerceShowPsStoreIcon(void) { runtime_online_log("sceNpCommerceShowPsStoreIcon (stub)"); return 0; }
+static ABI int32_t T_sceNpCommerceHidePsStoreIcon(void) { runtime_online_log("sceNpCommerceHidePsStoreIcon (stub)"); return 0; }
+static ABI int32_t T_sceInvitationDialogInitialize(void) { runtime_online_log("sceInvitationDialogInitialize (stub)"); return 0; }
+static ABI int32_t T_sceInvitationDialogTerminate(void) { runtime_online_log("sceInvitationDialogTerminate (stub)"); return 0; }
+static ABI int32_t T_sceSigninDialogInitialize(void) { runtime_online_log("sceSigninDialogInitialize (stub)"); return 0; }
+static ABI int32_t T_sceSigninDialogTerminate(void) { runtime_online_log("sceSigninDialogTerminate (stub)"); return 0; }
+static ABI int32_t T_sceNpSnsFacebookDialogInitialize(void) { runtime_online_log("sceNpSnsFacebookDialogInitialize (stub)"); return 0; }
+static ABI int32_t T_sceNpSnsFacebookDialogTerminate(void) { runtime_online_log("sceNpSnsFacebookDialogTerminate (stub)"); return 0; }
+static ABI int32_t T_sceHttpsSetSslCallback(void) { runtime_online_log("sceHttpsSetSslCallback (stub)"); return 0; }
+static ABI int32_t T_sceHttpSetCookieEnabled(void) { runtime_online_log("sceHttpSetCookieEnabled (stub)"); return 0; }
+static ABI int32_t T_sceHttpSetChunkedTransferEnabled(void) { runtime_online_log("sceHttpSetChunkedTransferEnabled (stub)"); return 0; }
+static ABI int32_t T_sceHttpSetRecvTimeOut(void) { runtime_online_log("sceHttpSetRecvTimeOut (stub)"); return 0; }
+static ABI int32_t T_sceHttpSetResolveTimeOut(void) { runtime_online_log("sceHttpSetResolveTimeOut (stub)"); return 0; }
+static ABI int32_t T_sceHttpSetSendTimeOut(void) { runtime_online_log("sceHttpSetSendTimeOut (stub)"); return 0; }
+
 static const RuntimeExport exports[]={
     {"sceKernelLoadStartModule",load_start_module}, {"sceKernelDlsym",not_found},
-    {"fcntl",posix_fcntl}, {"pthread_cancel",posix_cancel},
-    {"sceHttpGetLastErrno",http_last_errno}, {"sceHttpAbortRequest",ok_noop},
-    {"sceHttpGetAllResponseHeaders",http_network}, {"sceHttpGetMemoryPoolStats",http_network},
-    {"sceHttpUriParse",http_bad_url}, {"sceHttpUriBuild",http_bad_url}, {"sceHttpUriEscape",http_bad_url},
+    {"pthread_cancel",posix_cancel},
+    {"sceHttpGetLastErrno",http_last_errno}, {"sceHttpAbortRequest",T_sceHttpAbortRequest},
+    {"sceHttpGetAllResponseHeaders",T_sceHttpGetAllResponseHeaders}, {"sceHttpGetMemoryPoolStats",T_sceHttpGetMemoryPoolStats},
+    {"sceHttpUriParse",T_sceHttpUriParse}, {"sceHttpUriBuild",T_sceHttpUriBuild}, {"sceHttpUriEscape",T_sceHttpUriEscape},
     {"sceWebBrowserDialogOpen",dialog_unavailable}, {"sceWebBrowserDialogOpenForPredeterminedContent",dialog_unavailable},
     {"sceWebBrowserDialogUpdateStatus",dialog_none}, {"sceWebBrowserDialogGetResult",dialog_unavailable},
     {"sceWebBrowserDialogClose",ok_noop}, {"sceWebBrowserDialogResetCookie",ok_noop},
     {"sceGameCustomDataDialogOpenA",dialog_unavailable}, {"sceGameCustomDataDialogUpdateStatus",dialog_none},
     {"sceGameCustomDataDialogGetResultA",dialog_unavailable},
-    {"sceInvitationDialogOpenA",dialog_unavailable}, {"sceInvitationDialogUpdateStatus",dialog_none},
-    {"sceInvitationDialogGetResultA",dialog_unavailable},
-    {"sceSigninDialogOpen",dialog_unavailable}, {"sceSigninDialogUpdateStatus",dialog_none},
-    {"sceSigninDialogGetResult",dialog_unavailable},
-    {"sceNpSnsFacebookDialogOpen",dialog_unavailable}, {"sceNpSnsFacebookDialogUpdateStatus",dialog_none},
-    {"sceNpSnsFacebookDialogGetResult",dialog_unavailable},
-    {"sceNpProfileDialogOpenA",dialog_unavailable}, {"sceNpCommerceDialogGetResult",dialog_unavailable},
+    {"sceInvitationDialogOpenA",T_sceInvitationDialogOpenA}, {"sceInvitationDialogUpdateStatus",T_sceInvitationDialogUpdateStatus},
+    {"sceInvitationDialogGetResultA",T_sceInvitationDialogGetResultA},
+    {"sceSigninDialogOpen",T_sceSigninDialogOpen}, {"sceSigninDialogUpdateStatus",T_sceSigninDialogUpdateStatus},
+    {"sceSigninDialogGetResult",T_sceSigninDialogGetResult},
+    {"sceNpSnsFacebookDialogOpen",T_sceNpSnsFacebookDialogOpen}, {"sceNpSnsFacebookDialogUpdateStatus",T_sceNpSnsFacebookDialogUpdateStatus},
+    {"sceNpSnsFacebookDialogGetResult",T_sceNpSnsFacebookDialogGetResult},
+    {"sceNpProfileDialogOpenA",T_sceNpProfileDialogOpenA}, {"sceNpCommerceDialogGetResult",T_sceNpCommerceDialogGetResult},
     {"sceImeDialogGetPanelSizeExtended",dialog_unavailable},
     {"sceNetGetMacAddress",net_mac}, {"sceNetGetSockInfo",socket_badf},
     {"sceMoveGetDeviceInfo",move_absent}, {"sceMoveSetVibration",move_absent},
     {"sceGameLiveStreamingGetCurrentStatus2",streaming_off}, {"sceGameLiveStreamingGetProgramInfo",streaming_off},
-    {"sceNpTrophyShowTrophyList",ok_noop}, {"sceNpTrophyCaptureScreenshot",ok_noop},
+    {"sceNpTrophyShowTrophyList",T_sceNpTrophyShowTrophyList}, {"sceNpTrophyCaptureScreenshot",T_sceNpTrophyCaptureScreenshot},
     {"sceNpTrophyGetGameIcon",trophy_no_icon}, {"sceNpTrophyGetGroupIcon",trophy_no_icon},
     {"sceNpTrophyGetTrophyIcon",trophy_no_icon}, {"sceNpTrophyGetGroupInfo",trophy_no_icon},
     {"sceSystemServiceLoadExec",load_exec},
@@ -565,14 +595,14 @@ static const RuntimeExport exports[]={
     {"sceSharePlayInitialize",ok_noop}, {"sceSharePlaySetProhibition",ok_noop}, {"sceSharePlayTerminate",ok_noop},
     {"sceGameLiveStreamingInitialize",ok_noop}, {"sceGameLiveStreamingTerminate",ok_noop},
     {"sceGameLiveStreamingEnableLiveStreaming",ok_noop},
-    {"sceNetCtlTerm",ok_noop}, {"sceNpCommerceShowPsStoreIcon",ok_noop}, {"sceNpCommerceHidePsStoreIcon",ok_noop},
+    {"sceNetCtlTerm",T_sceNetCtlTerm}, {"sceNpCommerceShowPsStoreIcon",T_sceNpCommerceShowPsStoreIcon}, {"sceNpCommerceHidePsStoreIcon",T_sceNpCommerceHidePsStoreIcon},
     {"sceSystemServiceGetPlatformPrivacySetting",privacy_setting},
     {"sceContentExportInit",ok_noop}, {"sceContentExportTerm",ok_noop},
     {"sceErrorDialogInitialize",ok_noop}, {"sceErrorDialogTerminate",ok_noop},
     {"sceErrorDialogOpen",error_dialog_open}, {"sceErrorDialogUpdateStatus",error_dialog_status_get},
     {"sceWebBrowserDialogInitialize",ok_noop}, {"sceWebBrowserDialogTerminate",ok_noop},
     {"sceGameCustomDataDialogInitialize",ok_noop}, {"sceGameCustomDataDialogTerminate",ok_noop},
-    {"sceInvitationDialogInitialize",ok_noop}, {"sceInvitationDialogTerminate",ok_noop},
+    {"sceInvitationDialogInitialize",T_sceInvitationDialogInitialize}, {"sceInvitationDialogTerminate",T_sceInvitationDialogTerminate},
     /* Video recording (share button clips): accepted, nothing is recorded (as in shadPS4). */
     {"sceVideoRecordingSetInfo",ok_noop}, {"sceVideoRecordingQueryMemSize2",ok_noop},
     {"sceVideoRecordingOpen2",ok_noop}, {"sceVideoRecordingStart",ok_noop}, {"sceVideoRecordingStop",ok_noop},
@@ -626,14 +656,14 @@ static const RuntimeExport exports[]={
     {"scePlayGoDialogOpen",ok_noop}, {"scePlayGoDialogClose",ok_noop},
     {"scePlayGoDialogUpdateStatus",dialog_finished}, {"scePlayGoDialogGetStatus",dialog_finished},
     {"sceErrorDialogGetStatus",error_dialog_status_get}, {"sceErrorDialogClose",ok_noop},
-    {"sceSigninDialogInitialize",ok_noop}, {"sceSigninDialogTerminate",ok_noop},
-    {"sceNpSnsFacebookDialogInitialize",ok_noop}, {"sceNpSnsFacebookDialogTerminate",ok_noop},
+    {"sceSigninDialogInitialize",T_sceSigninDialogInitialize}, {"sceSigninDialogTerminate",T_sceSigninDialogTerminate},
+    {"sceNpSnsFacebookDialogInitialize",T_sceNpSnsFacebookDialogInitialize}, {"sceNpSnsFacebookDialogTerminate",T_sceNpSnsFacebookDialogTerminate},
     /* No add-ons: downloads are accepted but never arrive, and no entitlement key exists. */
     {"sceAppContentAddcontEnqueueDownload",ok_noop}, {"sceAppContentGetEntitlementKey",no_entitlement},
     /* HTTP settings are accepted; every request still fails with SCE_HTTP_ERROR_NETWORK. */
-    {"sceHttpsGetCaList",https_ca_list}, {"sceHttpsSetSslCallback",ok_noop},
-    {"sceHttpSetCookieEnabled",ok_noop}, {"sceHttpSetChunkedTransferEnabled",ok_noop},
-    {"sceHttpSetRecvTimeOut",ok_noop}, {"sceHttpSetResolveTimeOut",ok_noop}, {"sceHttpSetSendTimeOut",ok_noop},
+    {"sceHttpsGetCaList",https_ca_list}, {"sceHttpsSetSslCallback",T_sceHttpsSetSslCallback},
+    {"sceHttpSetCookieEnabled",T_sceHttpSetCookieEnabled}, {"sceHttpSetChunkedTransferEnabled",T_sceHttpSetChunkedTransferEnabled},
+    {"sceHttpSetRecvTimeOut",T_sceHttpSetRecvTimeOut}, {"sceHttpSetResolveTimeOut",T_sceHttpSetResolveTimeOut}, {"sceHttpSetSendTimeOut",T_sceHttpSetSendTimeOut},
     {"sceRandomGetRandomNumber",random_number},
     {"pthread_rwlock_init",posix_rw_init}, {"pthread_rwlock_destroy",posix_rw_destroy},
     {"pthread_rwlock_rdlock",posix_rw_rdlock}, {"pthread_rwlock_wrlock",posix_rw_wrlock},
@@ -641,11 +671,8 @@ static const RuntimeExport exports[]={
     {"pthread_getschedparam",posix_getschedparam}, {"pthread_setschedparam",posix_setschedparam},
     {"sched_get_priority_max",sched_max}, {"sched_get_priority_min",sched_min},
     {"pthread_mutexattr_setprotocol",mutexattr_setprotocol},
-    {"socket",socket_none},
-    {"accept",socket_badf}, {"bind",socket_badf}, {"connect",socket_badf}, {"getpeername",socket_badf},
-    {"getsockname",socket_badf}, {"getsockopt",socket_badf}, {"setsockopt",socket_badf}, {"listen",socket_badf},
-    {"recv",socket_badf}, {"recvfrom",socket_badf}, {"send",socket_badf}, {"sendto",socket_badf},
-    {"shutdown",socket_badf}, {"select",socket_badf},
+    /* The POSIX socket calls live in runtime_net.c; select is not one the game makes. */
+    {"select",socket_badf},
     {"sceCoredumpRegisterCoredumpHandler",ok_noop}, {"sceCoredumpWriteUserData",ok_noop},
     {"scePlayGoGetEta",playgo_eta}, {"scePlayGoGetToDoList",playgo_todo}, {"scePlayGoPrefetch",ok_noop},
     {"sceAppContentTemporaryDataMount2",temp_mount2},
@@ -656,7 +683,7 @@ static const RuntimeExport exports[]={
     {"sceNgs2SystemRender",ngs2_render}, {"sceNgs2PanInit",ok_noop}, {"sceNgs2PanGetVolumeMatrix",ok_noop},
     {"sceNgs2ParseWaveformData",ngs2_unsupported_waveform}, {"sceNgs2CalcWaveformBlock",ngs2_unsupported_waveform},
 };
-/* MediEvil native output (GOW3_UE4_SETRES=WxH, run.py): the base PS4 renderer makes its buffers at
+/* MediEvil native output (WIPEOUT_UE4_SETRES=WxH, run.py): the base PS4 renderer makes its buffers at
  * the display size at start and only a live r.SetRes change resizes them (the debug menu's
  * Cinematic button). After about 10 s of play this sets the game's own r.SetRes console variable
  * as UE4's FSystemResolution::RequestResolutionChange does (0x2765ef1): flags = GetFlags()
@@ -695,7 +722,7 @@ void runtime_ue4_request_setres(const char *text) {
     __atomic_store_n(&ue4_request_pending,1,__ATOMIC_RELEASE);
 }
 
-/* MediEvil native output (GOW3_UE4_SETRES=WxH, run.py): the base PS4 renderer makes its buffers at
+/* MediEvil native output (WIPEOUT_UE4_SETRES=WxH, run.py): the base PS4 renderer makes its buffers at
  * the display size at start and only a live r.SetRes change resizes them (the debug menu's
  * Cinematic button). After about 10 s of play this sets the game's own r.SetRes console variable
  * as UE4's FSystemResolution::RequestResolutionChange does (0x2765ef1): flags = GetFlags()
@@ -714,7 +741,7 @@ void runtime_ue4_setres_poll(void) {
     if (automatic_done) return;
     if (++reads<600) return; /* the main menu, with the game viewport up */
     automatic_done=1;
-    const char *want=getenv("GOW3_UE4_SETRES");
+    const char *want=getenv("WIPEOUT_UE4_SETRES");
     if (want && *want) ue4_setres(want);
 }
 

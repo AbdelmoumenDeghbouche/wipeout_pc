@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Cutscene bars (video_core/renderer_vulkan/movie_bars.h): the game draws its H.264 cutscenes in
-// a centered 16:9 picture and never clears the rest of the display buffer, so at the Ultrawide
+// a centered 16:9 picture and never clears the rest of the display buffer, so at ultrawide sizes
 // mod's sizes the last 3D frame stayed at the sides (or at the top and bottom on 16:10). While
 // the video decoder hands out pictures, everything outside that picture is drawn black.
 // No game or Vulkan device required.

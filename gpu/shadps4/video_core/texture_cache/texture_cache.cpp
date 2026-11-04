@@ -6,7 +6,7 @@
 #include <xxhash.h>
 #include "video_core/amdgpu/liverpool.h"
 
-#include "gow3_toggles.h"
+#include "wipeout_toggles.h"
 #include "common/assert.h"
 #include "common/debug.h"
 #include "common/div_ceil.h"
@@ -35,10 +35,10 @@ namespace VideoCore {
 static constexpr u64 PageShift = 12;
 static constexpr u64 NumFramesBeforeRemoval = 32;
 
-// gow3: GOW3_TC_TRACE=0xlo-0xhi (#109). While a frame capture records, the cache logs its
+// wipeout: WIPEOUT_TC_TRACE=0xlo-0xhi (#109). While a frame capture records, the cache logs its
 // decisions ("tc-trace:" lines) for images and requests that intersect this guest range.
 static const std::optional<TraceRange> trace_range = [] {
-    return ParseTraceRange(std::getenv("GOW3_TC_TRACE"));
+    return ParseTraceRange(std::getenv("WIPEOUT_TC_TRACE"));
 }();
 
 bool IsTraced(u64 address, u64 size) {
@@ -56,7 +56,7 @@ static void TraceRegistration(const char* what, ImageId image_id, const Image& i
 
 void LimitTextureSize(ImageInfo& info, ImageViewInfo& view) {
     static const u32 limit = [] {
-        const char* value = std::getenv("GOW3_TEXTURE_LIMIT");
+        const char* value = std::getenv("WIPEOUT_TEXTURE_LIMIT");
         return value ? u32(std::strtoul(value, nullptr, 10)) : 0u;
     }();
     if (!limit || !info.props.is_block || info.type != AmdGpu::ImageType::Color2D ||
@@ -172,7 +172,7 @@ bool TextureCache::ResolveReadbacks(VAddr address, u64 size, bool assume_locks,
     if (!deferred_readbacks || !has_pending_readbacks.load(std::memory_order_acquire)) return false;
     {
         std::scoped_lock lock{readback_mutex};
-        // Stale mode, byte rule: God of War III writes every frame to the page that holds a
+        // Stale mode, byte rule: a game may write every frame to the page that holds a
         // 1x1 exposure copy, but not to its bytes. That write need not wait for the GPU: the
         // copy only stops protecting its page and is still published when the GPU is done.
         if (stale_readbacks && source == ReadbackSource::CpuWrite) {
@@ -194,7 +194,7 @@ bool TextureCache::ResolveReadbacks(VAddr address, u64 size, bool assume_locks,
                 }
             }
         }
-        Gow3Stats::Timer readback_timer{Gow3Stats::t_readback_wait};
+        WipeoutStats::Timer readback_timer{WipeoutStats::t_readback_wait};
         if (const u64 tick = pending_readbacks.RequiredTick(address, size)) {
             ++readbacks_waited;
             waited = !scheduler.IsFree(tick);
@@ -223,7 +223,7 @@ void TextureCache::CancelReadbacks(VAddr address, u64 size) {
     });
 }
 
-// gow3 (GOW3_PERF_DIAG): a request PartialHeightViews answered with a taller cached image.
+// wipeout (WIPEOUT_PERF_DIAG): a request PartialHeightViews answered with a taller cached image.
 void TextureCache::NotePartialView(const ImageInfo& request, const ImageInfo& used,
                                    BindingType binding) {
     ++partial_views;
@@ -243,7 +243,7 @@ void TextureCache::NotePartialView(const ImageInfo& request, const ImageInfo& us
     ++slot->count;
 }
 
-// gow3 (GOW3_PERF_DIAG): every 5 s, the images FindImage created most often. Takes `mutex`
+// wipeout (WIPEOUT_PERF_DIAG): every 5 s, the images FindImage created most often. Takes `mutex`
 // (held by FindImage), so it runs before ProcessDownloadImages takes readback_mutex.
 void TextureCache::ReportImageCreates() {
     const auto now = std::chrono::steady_clock::now();
@@ -285,30 +285,30 @@ void TextureCache::ReportImageCreates() {
     partial_views = 0;
 }
 
-// gow3: every copy is recorded first and the GPU is waited for once. A wait per image (as
-// before) left the GPU mostly idle in God of War III's gameplay, at about 2 FPS.
+// wipeout: every copy is recorded first and the GPU is waited for once. A wait per image (as
+// before) left the GPU mostly idle in a game's gameplay, at about 2 FPS.
 void TextureCache::ProcessDownloadImages() {
     if (Vulkan::WaitDiagnostics::Enabled()) {
         ReportImageCreates();
     }
     if (deferred_readbacks) {
-        // gow3: images are queued for download by the thread that runs this (draw recording),
+        // wipeout: images are queued for download by the thread that runs this (draw recording),
         // so with none queued no page is protected below and there is nothing to wait for.
         bool any_downloads = true;
-        if (!Gow3Toggle::Disabled(Gow3Toggle::EmptyDownloadNoWait)) {
+        if (!WipeoutToggle::Disabled(WipeoutToggle::EmptyDownloadNoWait)) {
             std::scoped_lock lock{download_images_mutex};
             any_downloads = !download_images.empty();
         }
         // Upload workers must finish reading RAM before these pages become inaccessible.
         if (any_downloads) {
-            Gow3Stats::download_waits.fetch_add(1, std::memory_order_relaxed);
+            WipeoutStats::download_waits.fetch_add(1, std::memory_order_relaxed);
             scheduler.WaitHostCopies();
         } else {
-            Gow3Stats::download_waits_skipped.fetch_add(1, std::memory_order_relaxed);
+            WipeoutStats::download_waits_skipped.fetch_add(1, std::memory_order_relaxed);
         }
         std::scoped_lock readback_lock{readback_mutex};
         RetireReadbacks();
-        const bool deep_queue = !Gow3Toggle::Disabled(Gow3Toggle::DeepReadbackQueue);
+        const bool deep_queue = !WipeoutToggle::Disabled(WipeoutToggle::DeepReadbackQueue);
         // Each pending copy watches its pages, and a page counts its watchers in 8 bits (#101):
         // 192 stays under 255 with room for the images and buffers on the same page.
         pending_readbacks.SetMaxEntries(deep_queue ? 192 : 64);
@@ -422,7 +422,7 @@ std::optional<TextureCache::PendingDownload> TextureCache::RecordImageDownload(I
     return PendingDownload{image.info.guest_address, download_size, download};
 }
 
-// gow3: as upstream shadPS4 (TextureCache::DownloadImageMemory, 91e6afa6), every mip goes
+// wipeout: as upstream shadPS4 (TextureCache::DownloadImageMemory, 91e6afa6), every mip goes
 // through TileManager::TileImage, which re-tiles tiled images and copies linear ones as they
 // are. Written row by row, a tiled image's texels landed at the wrong guest addresses:
 // WipEout's 3x1 auto-exposure texture (Thin2DThin, read by the CPU every frame) gave the game
@@ -507,7 +507,7 @@ void TextureCache::DiagDumpImage(ImageId image_id, const char* tag) {
     scheduler.Finish();
     download.Invalidate();
     static int sequence = 0;
-    const char* dir = std::getenv("GOW3_DIAG_DIR");
+    const char* dir = std::getenv("WIPEOUT_DIAG_DIR");
     const char* dir_path = dir && *dir ? dir : "out/diag";
     std::error_code ec;
     std::filesystem::create_directories(dir_path, ec);
@@ -525,7 +525,7 @@ void TextureCache::DiagDumpImage(ImageId image_id, const char* tag) {
     }
 }
 
-// gow3: images sharing guest memory (aliases), ported from cuesta4/shadPS4 (eltutz) commit
+// wipeout: images sharing guest memory (aliases), ported from cuesta4/shadPS4 (eltutz) commit
 // 189ca3b6. A write to one is copied into the others before they are read, as on the PS4,
 // where they are the same memory.
 static bool Covers(const Extent3D& extent, const ImageInfo& info) {
@@ -715,7 +715,7 @@ void TextureCache::ApplyBackingWrites() {
         writes.swap(backing_writes);
         has_backing_writes.store(false, std::memory_order_release);
     }
-    // God of War III streams textures with GPU copies through large storage images over the
+    // A game may stream textures with GPU copies through large storage images over the
     // texture pool; their readbacks put the new texels in memory without a fault. Textures
     // there kept the old contents (yellow ground #138, missing textures #194) until a restart.
     for (const auto& [address, size] : writes) {
@@ -836,7 +836,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
     const bool safe_to_delete =
         scheduler.CurrentTick() - cache_image.tick_accessed_last > NumFramesBeforeRemoval;
 
-    // gow3 (GOW3_TC_TRACE): which branch decided, logged before it acts on the images.
+    // wipeout (WIPEOUT_TC_TRACE): which branch decided, logged before it acts on the images.
     const bool traced =
         trace_range && (IsTraced(image_info.guest_address, image_info.guest_size) ||
                         IsTraced(cache_image.info.guest_address, cache_image.info.guest_size));
@@ -851,7 +851,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
     if (image_info.guest_address == cache_image.info.guest_address) {
         const u32 lhs_block_size = image_info.num_bits * image_info.guest_samples;
         const u32 rhs_block_size = cache_image.info.num_bits * cache_image.info.guest_samples;
-        // gow3: the top rows of a cached image with the same layout. God of War III reads its
+        // wipeout: the top rows of a cached image with the same layout. A game may read its
         // frame buffers as R8G8B8A8Uint with a height that changes every frame during Rage of
         // Sparta and weapon effects; as a "pool allocation" below, each read created and uploaded
         // a new ~8 MB image (FPS 120 -> 40).
@@ -868,12 +868,12 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             const std::string_view numeric = vk::componentNumericFormat(format, 0);
             return numeric == "UINT" || numeric == "SINT";
         };
-        // Launcher: Performance, "Fast screen effects" (GOW3_PARTIAL_HEIGHT_VIEWS=0 turns it off).
+        // Launcher: Performance, "Fast screen effects" (WIPEOUT_PARTIAL_HEIGHT_VIEWS=0 turns it off).
         static const bool partial_views_enabled = [] {
-            const char* value = std::getenv("GOW3_PARTIAL_HEIGHT_VIEWS");
+            const char* value = std::getenv("WIPEOUT_PARTIAL_HEIGHT_VIEWS");
             return !value || value[0] != '0';
         }();
-        if (partial_views_enabled && !Gow3Toggle::Disabled(Gow3Toggle::PartialHeightViews) &&
+        if (partial_views_enabled && !WipeoutToggle::Disabled(WipeoutToggle::PartialHeightViews) &&
             (binding == BindingType::Texture || binding == BindingType::Storage) && native_reads &&
             a.pixel_format != b.pixel_format && is_integer(a.pixel_format) &&
             lhs_block_size == rhs_block_size && a.pitch == b.pitch && a.tile_mode == b.tile_mode &&
@@ -956,7 +956,7 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
             return {merged_image_id, -1, -1};
         }
 
-        // gow3: same image, bigger guest footprint (seen in WipEout Pro mode after a frame-buffer
+        // wipeout: same image, bigger guest footprint (seen in WipEout Pro mode after a frame-buffer
         // reallocation: dimensions, format, pitch and tile mode match, only the guest size grew).
         // Treat it the same as the tiling-mode mismatch above: free the cached image when safe
         // and let the caller allocate a fresh one at the new size.
@@ -1171,7 +1171,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
 
     std::scoped_lock lock{mutex};
 
-    // gow3 (GOW3_TC_TRACE): the request and every decision below for it.
+    // wipeout (WIPEOUT_TC_TRACE): the request and every decision below for it.
     const bool traced = IsTraced(info.guest_address, info.guest_size);
     if (traced) {
         LOG_INFO(Render_Vulkan,
@@ -1189,11 +1189,11 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     key_hash = (key_hash ^ key_hash >> 33) * 0xC4CEB9FE1A85EC53ull;
     key_hash ^= key_hash >> 33;
     auto& cached = find_image_cache[key_hash % find_image_cache.size()];
-    // gow3 (#109): levels found before the image they belong to are merged into it once it
+    // wipeout (#109): levels found before the image they belong to are merged into it once it
     // exists (after the overlap loop); left out, a level image stayed next to its chain. On the
-    // Steam Deck this alone restored WipEout's sun glare. GOW3_MIP_TARGET_MERGE=0 turns it off.
+    // Steam Deck this alone restored WipEout's sun glare. WIPEOUT_MIP_TARGET_MERGE=0 turns it off.
     static const bool mip_target_merge = [] {
-        const char* value = std::getenv("GOW3_MIP_TARGET_MERGE");
+        const char* value = std::getenv("WIPEOUT_MIP_TARGET_MERGE");
         return !value || value[0] != '0';
     }();
     // An exact match stays valid while that image is registered with the same description;
@@ -1214,7 +1214,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         cached.format == info.pixel_format && cached.type == info.type &&
         cached.exact_fmt == exact_fmt && cached.binding == desc.type &&
         cached.needs_native == desc.needs_native && cached.levels == info.resources.levels && cached.layers == info.resources.layers &&
-        !Gow3Toggle::Disabled(Gow3Toggle::FindImageCache)) {
+        !WipeoutToggle::Disabled(WipeoutToggle::FindImageCache)) {
         Image& image = slot_images[cached.image_id];
         image.tick_accessed_last = scheduler.CurrentTick();
         TouchImage(image);
@@ -1269,7 +1269,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
     }
 
-    // gow3 (GOW3_PERF_DIAG): what was cached here, read before overlap resolution may free it.
+    // wipeout (WIPEOUT_PERF_DIAG): what was cached here, read before overlap resolution may free it.
     const bool diag = Vulkan::WaitDiagnostics::Enabled();
     CreateStat created{info.guest_address, info.size.width, info.size.height, 1, info.pixel_format,
                        desc.type, image_ids.empty() ? "nothing cached" : "overlap unresolved"};
@@ -1296,7 +1296,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     ImageIds unmerged_levels;
     if (!image_id) {
         for (const auto& cache_id : image_ids) {
-            // gow3: once the request has a place (image_id, view_mip/slice), later rounds resolve
+            // wipeout: once the request has a place (image_id, view_mip/slice), later rounds resolve
             // the merged image against the others, not the request: a merge returning that image
             // (mip -1) must not reset the request's mip. Reset, a mip render target found in an
             // earlier round became mip 0, and WipEout's menu blur drew a half-size copy over its
@@ -1306,7 +1306,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
             auto [overlap_image_id, overlap_view_mip, overlap_view_slice] =
                 ResolveOverlap(merged_info, desc.type, cache_id, image_id, desc.needs_native);
             if (!overlap_image_id) {
-                // gow3 (#109): a mip level of the request met before the request has an image
+                // wipeout (#109): a mip level of the request met before the request has an image
                 // ("left:no-merged") stays registered. Merged after the loop, once the image
                 // exists; left alone, it shadowed that image's level from then on.
                 if (mip_target_merge && !merging) {
@@ -1373,7 +1373,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
         }
     }
 
-    // gow3 (#109): the levels set aside in the loop go into the image now, the way
+    // wipeout (#109): the levels set aside in the loop go into the image now, the way
     // ResolveOverlap merges a level into an image that already exists: it copies the level in
     // and frees it ("left:copymip"; a level bound as render target never gets here, it is freed
     // and re-resolved in the loop). The image is tracked and refreshed first, in UpdateImage's
@@ -1434,7 +1434,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
 }
 
 ImageId TextureCache::FindImageFromRange(VAddr address, size_t size, bool ensure_valid) {
-    // gow3: under the mutex, as UnmapMemory on a guest thread: both walk the page table and set
+    // wipeout: under the mutex, as UnmapMemory on a guest thread: both walk the page table and set
     // Picked; unlocked, an unmap during a race load could list an image twice and free it twice
     // ("Trying to unregister an already unregistered image", #100).
     std::scoped_lock lock{mutex};
@@ -1484,7 +1484,7 @@ ImageView& TextureCache::FindTexture(ImageId image_id, const ImageDesc& desc, Vi
     if (desc.type == BindingType::Storage) {
         PublishAliasWrite(image_id);
     }
-    if (memo && !Gow3Toggle::Disabled(Gow3Toggle::TextureViewMemo)) {
+    if (memo && !WipeoutToggle::Disabled(WipeoutToggle::TextureViewMemo)) {
         if (memo->image_id == image_id && memo->backing == image.backing && memo->view_id) {
             return slot_image_views[memo->view_id];
         }
@@ -1510,7 +1510,7 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
     image.usage.render_target = 1u;
     UpdateImage(image_id);
     PublishAliasWrite(image_id);
-    std::scoped_lock lock{mutex}; // gow3: metas, as FindImageFromRange (#100)
+    std::scoped_lock lock{mutex}; // wipeout: metas, as FindImageFromRange (#100)
 
     // Register meta data for this color buffer
     if (desc.info.meta_info.cmask_addr) {
@@ -1534,7 +1534,7 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
     image.flags |= ImageFlagBits::GpuModified;
     image.usage.depth_target = 1u;
     UpdateImage(image_id);
-    std::scoped_lock lock{mutex}; // gow3: page table and metas, as FindImageFromRange (#100)
+    std::scoped_lock lock{mutex}; // wipeout: page table and metas, as FindImageFromRange (#100)
 
     // Register meta data for this depth buffer
     if (desc.info.meta_info.htile_addr) {
@@ -1575,7 +1575,7 @@ void TextureCache::RefreshImage(Image& image) {
     }
     ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,
                      ReadbackSource::ImageRefresh);
-    Gow3Stats::Timer timer{Gow3Stats::t_refresh};
+    WipeoutStats::Timer timer{WipeoutStats::t_refresh};
 
     RENDERER_TRACE;
     TRACE_HINT(fmt::format("{:x}:{:x}", image.info.guest_address, image.info.guest_size));
@@ -1605,7 +1605,7 @@ void TextureCache::RefreshImage(Image& image) {
     const bool is_gpu_modified = True(image.flags & ImageFlagBits::GpuModified);
     const bool is_gpu_dirty = True(image.flags & ImageFlagBits::GpuDirty);
 
-    Gow3Stats::image_upload_bytes.fetch_add(image.info.guest_size, std::memory_order_relaxed);
+    WipeoutStats::image_upload_bytes.fetch_add(image.info.guest_size, std::memory_order_relaxed);
     boost::container::small_vector<vk::BufferImageCopy, 14> image_copies;
     for (u32 m = 0; m < num_mips; m++) {
         const u32 width = std::max(image.info.size.width >> m, 1u);
@@ -1678,7 +1678,7 @@ vk::Sampler TextureCache::GetSampler(const AmdGpu::Sampler& sampler,
 }
 
 void TextureCache::RegisterImage(ImageId image_id) {
-    Gow3Stats::images_registered.fetch_add(1, std::memory_order_relaxed);
+    WipeoutStats::images_registered.fetch_add(1, std::memory_order_relaxed);
     Image& image = slot_images[image_id];
     ASSERT_MSG(False(image.flags & ImageFlagBits::Registered),
                "Trying to register an already registered image");
@@ -1849,17 +1849,17 @@ void TextureCache::UntrackImageTail(ImageId image_id) {
 }
 
 void TextureCache::GarbageCollectImages() {
-    Gow3Stats::Timer gc_timer{Gow3Stats::t_gc};
+    WipeoutStats::Timer gc_timer{WipeoutStats::t_gc};
     if (instance.CanReportMemoryUsage()) {
         total_used_memory = instance.GetDeviceMemoryUsage();
-        // gow3: on integrated GPUs (Steam Deck) the usage covers system-memory heaps holding
+        // wipeout: on integrated GPUs (Steam Deck) the usage covers system-memory heaps holding
         // much more than images (buffers backing guest memory), and the startup budget left
         // ~1 GB after its 8 GB system reserve: usage stayed above the critical mark, so the
         // collector evicted images used two or three frames ago on every submission and wrote
         // GPU-written ones back. Compare with the driver's current budget instead.
-        // GOW3_GC_BUDGET_MB=N: this rule with a fixed budget on any GPU (tests on a desktop).
+        // WIPEOUT_GC_BUDGET_MB=N: this rule with a fixed budget on any GPU (tests on a desktop).
         static const u64 forced_budget = [] {
-            const char* env = std::getenv("GOW3_GC_BUDGET_MB");
+            const char* env = std::getenv("WIPEOUT_GC_BUDGET_MB");
             return env ? std::strtoull(env, nullptr, 10) << 20 : 0;
         }();
         if (instance.IsIntegrated() || forced_budget) {
@@ -1870,7 +1870,7 @@ void TextureCache::GarbageCollectImages() {
                 critical_gc_memory = budget / 100 * 95;
             }
         } else if (gc_tick % 64 == 0) {
-            // gow3 (#116): other programs' video memory shrinks the driver's budget. The limits
+            // wipeout (#116): other programs' video memory shrinks the driver's budget. The limits
             // set at start (pressure at 19 GB of a 24 GB card) were never reached while the
             // budget ran out: out of memory loading the 8th race at 4K. They follow it now.
             static const u64 start[3] = {trigger_gc_memory, pressure_gc_memory, critical_gc_memory};
@@ -1882,7 +1882,7 @@ void TextureCache::GarbageCollectImages() {
         }
     }
     runtime.GetStagingPool().SetLowMemory(total_used_memory >= pressure_gc_memory);
-    if (Gow3Stats::enabled) {
+    if (WipeoutStats::enabled) {
         static auto last = std::chrono::steady_clock::now();
         const auto now = std::chrono::steady_clock::now();
         if (now - last >= std::chrono::seconds(1)) {
@@ -1907,16 +1907,16 @@ void TextureCache::GarbageCollectImages() {
                         "download %lld+%lld)\n",
                         (long long)(instance.CanReportMemoryUsage() ? instance.GetDeviceMemoryUsage() >> 20 : 0),
                         (unsigned long long)(pressure_gc_memory >> 20),
-                        (long long)(Gow3Stats::image_bytes.load() >> 20),
-                        (long long)Gow3Stats::image_count.load(),
-                        (long long)(Gow3Stats::resident_bytes.load() >> 20),
-                        (long long)(Gow3Stats::staging_bytes.load() >> 20),
-                        (long long)Gow3Stats::staging_mib[0][0].load(), (long long)Gow3Stats::staging_mib[0][1].load(),
-                        (long long)Gow3Stats::staging_mib[1][0].load(), (long long)Gow3Stats::staging_mib[1][1].load(),
-                        (long long)Gow3Stats::staging_mib[2][0].load(), (long long)Gow3Stats::staging_mib[2][1].load());
+                        (long long)(WipeoutStats::image_bytes.load() >> 20),
+                        (long long)WipeoutStats::image_count.load(),
+                        (long long)(WipeoutStats::resident_bytes.load() >> 20),
+                        (long long)(WipeoutStats::staging_bytes.load() >> 20),
+                        (long long)WipeoutStats::staging_mib[0][0].load(), (long long)WipeoutStats::staging_mib[0][1].load(),
+                        (long long)WipeoutStats::staging_mib[1][0].load(), (long long)WipeoutStats::staging_mib[1][1].load(),
+                        (long long)WipeoutStats::staging_mib[2][0].load(), (long long)WipeoutStats::staging_mib[2][1].load());
         }
-        // GOW3_IMAGE_CENSUS=1: every 10 s, the images by kind, format and size (4 GB cards, #16).
-        static const bool census = std::getenv("GOW3_IMAGE_CENSUS") != nullptr;
+        // WIPEOUT_IMAGE_CENSUS=1: every 10 s, the images by kind, format and size (4 GB cards, #16).
+        static const bool census = std::getenv("WIPEOUT_IMAGE_CENSUS") != nullptr;
         static auto last_census = now;
         if (census && now - last_census >= std::chrono::seconds(10)) {
             last_census = now;
@@ -1982,14 +1982,14 @@ void TextureCache::GarbageCollectImages() {
         const bool tiled = image.info.IsTiled();
         // This is a workaround for now. We can't handle non-linear image downloads.
         const bool tiled_download = tiled && download;
-        // gow3: a small picture the GPU drew that cannot be written back (its pages are marked
+        // wipeout: a small picture the GPU drew that cannot be written back (its pages are marked
         // CPU-dirty) may be state the game keeps from frame to frame, like its auto exposure
         // chain (50x25 .. 3x1). Freed, it came back from guest memory as zeros: the race or the
         // menu stayed black after a race at high resolutions (#27, #42). They are tiny.
         const bool gpu_state = True(image.flags & ImageFlagBits::GpuModified) && !download &&
                                image.info.guest_size <= (2u << 20);
         if (tiled_download || (download && !pressured) || gpu_state) {
-            // gow3: a kept image goes to the back of the list and is not a deletion. At the front
+            // wipeout: a kept image goes to the back of the list and is not a deletion. At the front
             // and counted, ~60 old render targets used up every pass: nothing else was freed,
             // and low-VRAM cards ran out of memory after a few races (#72, #16).
             lru_cache.Touch(image.lru_id, gc_tick);
@@ -1999,7 +1999,7 @@ void TextureCache::GarbageCollectImages() {
         ResolveReadbacks(image.info.guest_address, image.info.guest_size, true,
                          ReadbackSource::CacheCleanup);
         if (download) {
-            // gow3: synchronously, while the image still protects its pages. A deferred
+            // wipeout: synchronously, while the image still protects its pages. A deferred
             // write-back landed after FreeImage had unprotected them, over whatever the game
             // had meanwhile stored there (e.g. its heap after unloading an area).
             DownloadImageMemory(image_id, true);
@@ -2030,7 +2030,7 @@ void TextureCache::GarbageCollectImages() {
         configure(true);
         lru_cache.ForEachItemBelow(gc_tick - ticks_to_destroy, clean_up);
     }
-    // gow3: evictions under memory pressure, at most every 5 s (GOW3_FRAME_STATS or not).
+    // wipeout: evictions under memory pressure, at most every 5 s (WIPEOUT_FRAME_STATS or not).
     if (pressured || gc_downloads != 0) {
         const auto now = std::chrono::steady_clock::now();
         if (now - gc_report_time >= std::chrono::seconds(5)) {

@@ -1,4 +1,4 @@
-"""Menu changes the game reads in its own archives, written for the runtime (GOW3_FILE_PATCHES,
+"""Menu changes the game reads in its own archives, written for the runtime (WIPEOUT_FILE_PATCHES,
 src/runtime_file.c); the game files are not changed.
 
 WipEout's Eliminator target slider (Racebox) stops at 600 points (#89), a limit of the menu file

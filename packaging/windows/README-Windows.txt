@@ -54,7 +54,7 @@ Next time
 
 Data
 - Saves, shader cache and the log: user\ next to WipEout.exe (keep it when updating).
-- Settings: gow3.ini next to WipEout.exe; launcher options in %APPDATA%\wipeout-launcher.
+- Settings: wipeout.ini next to WipEout.exe; launcher options in %APPDATA%\wipeout-launcher.
 - Generated files (prepared game image, patches): out\.
 
 Known issues
@@ -67,13 +67,11 @@ Problems
 - Memory error (error 1450): increase the Windows page file. Win+R ->
   SystemPropertiesAdvanced -> Performance Settings -> Advanced -> Virtual memory Change ->
   set C: to 16384 MB initial, 24576 MB maximum -> Set -> OK, then restart your PC.
-- RTSS/Afterburner and ReShade must target bin\gow3-probe.exe, not the launcher. Select
+- RTSS/Afterburner and ReShade must target bin\wipeout-probe.exe, not the launcher. Select
   Vulkan in the ReShade installer.
 - Report problems here, with your GPU, driver, CPU and the log:
   https://github.com/AbdelmoumenDeghbouche/wipeout_pc/issues
 
-Some file names (gow3-probe.exe, gow3.ini) still come from the God of War III port this
-project is based on.
 
 This project is not affiliated with Sony Interactive Entertainment, XDev, Clever Beans or EPOS
 Game Studios. WipEout is a trademark of Sony Interactive Entertainment.

@@ -47,7 +47,7 @@ int main(int argc,char **argv) {
                 char guest[64]; snprintf(guest,sizeof(guest),"/app0/asset-%d",i);
                 assert(!runtime_file_mount(guest,argv[2]));
             }
-            assert(!runtime_file_mount("/app0/EXEC/WAD/PS4_LE/R_UI.WAD",argv[2]));
+            assert(!runtime_file_mount("/app0/EXEC/WAD/PS4_LE/UI.WAD",argv[2]));
         }
         for (int i=0;i<16;++i) {
             assert(!mount_save(i,MODE_CREATE,&saves[i]));

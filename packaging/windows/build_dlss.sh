@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Builds gow3_dlss.dll (gpu/dlss_bridge, the only code that uses the NVIDIA DLSS SDK) with
-# MSVC next to out/gow3-probe.exe; package.sh ships it. NVIDIA's nvngx_dlss.dll is copied too when
+# Builds wipeout_dlss.dll (gpu/dlss_bridge, the only code that uses the NVIDIA DLSS SDK) with
+# MSVC next to out/wipeout-probe.exe; package.sh ships it. NVIDIA's nvngx_dlss.dll is copied too when
 # the SDK checkout has it (for local tests); it is never packaged: the launcher downloads it.
 # Needs Visual Studio 2022 or 2026 (Build Tools) and a checkout of https://github.com/NVIDIA/DLSS:
 #   DLSS_SDK_ROOT=F:/sdk/DLSS bash packaging/windows/build_dlss.sh
@@ -22,8 +22,8 @@ rm -rf out/dlss-bridge
 "$cmake" -S gpu/dlss_bridge -B out/dlss-bridge -G "$generator" -A x64 \
     -DDLSS_SDK_ROOT="$(cygpath -m "$sdk")" -DVULKAN_INCLUDE="$(cygpath -m "$PWD/out/vkinclude")"
 "$cmake" --build out/dlss-bridge --config Release
-cp out/dlss-bridge/Release/gow3_dlss.dll out/
+cp out/dlss-bridge/Release/wipeout_dlss.dll out/
 cp "$sdk/LICENSE.txt" out/NVIDIA-DLSS-LICENSE.txt
 runtime=$sdk/lib/Windows_x86_64/rel/nvngx_dlss.dll
 [[ -f $runtime ]] && cp "$runtime" out/
-echo "DLSS bridge ready: out/gow3_dlss.dll"
+echo "DLSS bridge ready: out/wipeout_dlss.dll"

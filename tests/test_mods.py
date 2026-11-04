@@ -23,7 +23,7 @@ class ModTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()  # the long name: build_overlay resolves the game folder
-        self.game = self.root / 'CUSA01623'
+        self.game = self.root / 'CUSA07671'
         self.assets = self.game / 'dvdroot_ps4' / 'data'
         self.assets.mkdir(parents=True)
         (self.game / 'eboot.bin').write_bytes(b'original executable')
@@ -318,13 +318,13 @@ class ModTests(unittest.TestCase):
         probe = self.root / 'probe'
         probe.write_text(f'#!{sys.executable}\nimport json,sys,os\nfrom pathlib import Path\n'
             'game=Path(sys.argv[sys.argv.index("--app0")+1])\n'
-            'Path(os.environ["GOW3_DATA_DIR"],"mounted.json").write_text(json.dumps({\n'
+            'Path(os.environ["WIPEOUT_DATA_DIR"],"mounted.json").write_text(json.dumps({\n'
             '"path":str(game),"content":(game/"dvdroot_ps4/data/a.wad").read_text()}))\n'
             'sys.exit(7)\n')
         probe.chmod(0o755)
-        env = dict(os.environ, GOW3_PROBE=str(probe),
-            GOW3_DATA_DIR=str(self.root), GOW3_GAME_DIR=str(self.game),
-            GOW3_MODS_DIR=str(self.moddir), GOW3_MODS_ENABLED='1', GOW3_MODS_CONFIG=str(self.root/'mods.json'))
+        env = dict(os.environ, WIPEOUT_PROBE=str(probe),
+            WIPEOUT_DATA_DIR=str(self.root), WIPEOUT_GAME_DIR=str(self.game),
+            WIPEOUT_MODS_DIR=str(self.moddir), WIPEOUT_MODS_ENABLED='1', WIPEOUT_MODS_CONFIG=str(self.root/'mods.json'))
         result = subprocess.run([sys.executable, 'run.py'], cwd=port, env=env, capture_output=True, timeout=30)
         self.assertEqual(result.returncode, 7, result.stderr)
         mounted = json.loads((self.root / 'mounted.json').read_text())
@@ -333,19 +333,19 @@ class ModTests(unittest.TestCase):
         self.assertEqual((self.assets/'a.wad').read_bytes(), b'original')
 
 
-class GodOfWarLayout(unittest.TestCase):
-    """The GOW3PC game keeps its data in EXEC and one folder per language at the game root, with
+class GameFolderLayout(unittest.TestCase):
+    """The game keeps its data in EXEC and one folder per language at the game root, with
     no dvdroot_ps4 folder (#473, #574)."""
 
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
         self.root = Path(self.temp.name).resolve()
-        self.game = self.root / 'CUSA01623'
+        self.game = self.root / 'CUSA07671'
         for folder in ('EXEC/WAD/PS4_LE', 'PORTUGUESE/SOUNDS', 'sce_sys'):
             (self.game / folder).mkdir(parents=True)
         (self.game / 'eboot.bin').write_bytes(b'original executable')
-        (self.game / 'EXEC/WAD/PS4_LE/R_UI.WAD').write_bytes(b'original ui')
+        (self.game / 'EXEC/WAD/PS4_LE/UI.WAD').write_bytes(b'original ui')
         (self.game / 'PORTUGUESE/SOUNDS/X.XVAG').write_bytes(b'original voice')
         self.moddir = self.root / 'mods'
 
@@ -359,15 +359,15 @@ class GodOfWarLayout(unittest.TestCase):
         return mods.build_overlay(self.game, self.root / 'out', [(n, self.moddir / n) for n in names])
 
     def test_exec_and_language_folders_replace_game_files(self):
-        self.mod('UI', 'exec/wad/ps4_le/r_ui.wad', b'mod ui')
+        self.mod('UI', 'exec/wad/ps4_le/ui.wad', b'mod ui')
         self.mod('UI', 'Portuguese/SOUNDS/X.XVAG', b'mod voice')
         (self.moddir / 'UI' / 'readme.txt').write_text('ignored')
         self.assertEqual(mods.discover(self.moddir), ['UI'])
         view = self.overlay('UI')
-        self.assertEqual((view / 'EXEC/WAD/PS4_LE/R_UI.WAD').read_bytes(), b'mod ui')
+        self.assertEqual((view / 'EXEC/WAD/PS4_LE/UI.WAD').read_bytes(), b'mod ui')
         self.assertEqual((view / 'PORTUGUESE/SOUNDS/X.XVAG').read_bytes(), b'mod voice')
         self.assertFalse((view / 'readme.txt').exists())
-        self.assertEqual((self.game / 'EXEC/WAD/PS4_LE/R_UI.WAD').read_bytes(), b'original ui')
+        self.assertEqual((self.game / 'EXEC/WAD/PS4_LE/UI.WAD').read_bytes(), b'original ui')
 
     def test_dvdroot_prefix_is_dropped_when_the_game_has_none(self):
         self.mod('Voice', 'dvdroot_ps4/PORTUGUESE/SOUNDS/X.XVAG', b'mod voice')
@@ -378,12 +378,12 @@ class GodOfWarLayout(unittest.TestCase):
         self.assertIn('1 game files replaced, 0 added', ''.join(c.args[0] for c in log.write.call_args_list))
 
     def test_wrapper_folder_around_exec(self):
-        self.mod('Pack', 'Pack v1.0/EXEC/WAD/PS4_LE/R_UI.WAD', b'wrapped')
+        self.mod('Pack', 'Pack v1.0/EXEC/WAD/PS4_LE/UI.WAD', b'wrapped')
         self.assertEqual(mods.discover(self.moddir), ['Pack'])
-        self.assertEqual((self.overlay('Pack') / 'EXEC/WAD/PS4_LE/R_UI.WAD').read_bytes(), b'wrapped')
+        self.assertEqual((self.overlay('Pack') / 'EXEC/WAD/PS4_LE/UI.WAD').read_bytes(), b'wrapped')
 
     def test_system_files_are_refused_with_or_without_the_prefix(self):
-        self.mod('Bad', 'EXEC/WAD/PS4_LE/R_UI.WAD')
+        self.mod('Bad', 'EXEC/WAD/PS4_LE/UI.WAD')
         self.mod('Bad', 'sce_sys/param.sfo')
         self.mod('Sneaky', 'dvdroot_ps4/eboot.bin')
         for name in ('Bad', 'Sneaky'):
@@ -392,9 +392,9 @@ class GodOfWarLayout(unittest.TestCase):
         self.assertEqual((self.game / 'eboot.bin').read_bytes(), b'original executable')
 
     def test_conflicts_match_across_layouts(self):
-        self.mod('A', 'EXEC/WAD/PS4_LE/R_UI.WAD')
-        self.mod('B', 'dvdroot_ps4/EXEC/WAD/PS4_LE/R_UI.WAD')
-        self.assertEqual(mods.conflicts(self.moddir, ['A', 'B']), [('EXEC/WAD/PS4_LE/R_UI.WAD', ['A', 'B'])])
+        self.mod('A', 'EXEC/WAD/PS4_LE/UI.WAD')
+        self.mod('B', 'dvdroot_ps4/EXEC/WAD/PS4_LE/UI.WAD')
+        self.assertEqual(mods.conflicts(self.moddir, ['A', 'B']), [('EXEC/WAD/PS4_LE/UI.WAD', ['A', 'B'])])
 
     def test_region_folders_are_used_for_discovery_and_overlay(self):
         original = self.game / 'JAPANESE/text.wad'
@@ -445,11 +445,11 @@ class ModInfo(unittest.TestCase):
 
     def test_mod_json_fields(self):
         (self.mod / 'mod.json').write_text(json.dumps({
-            'name': 'Kratos Gold Armor', 'author': 'someone', 'version': '1.2',
-            'description': 'Golden armor.', 'url': 'https://example.com/mod'}), encoding='utf-8')
+            'name': 'Neon Ship Livery', 'author': 'someone', 'version': '1.2',
+            'description': 'A neon livery.', 'url': 'https://example.com/mod'}), encoding='utf-8')
         info = mods.mod_info(self.mod)
         self.assertEqual((info['name'], info['author'], info['version'], info['description'], info['url']),
-                         ('Kratos Gold Armor', 'someone', '1.2', 'Golden armor.', 'https://example.com/mod'))
+                         ('Neon Ship Livery', 'someone', '1.2', 'A neon livery.', 'https://example.com/mod'))
         self.assertIsNone(info['image'])
 
     def test_without_mod_json_the_folder_name_and_readme_are_used(self):
@@ -482,7 +482,7 @@ class ModInfo(unittest.TestCase):
     def test_metadata_inside_a_wrapper_folder(self):
         wrapper = Path(self.temp.name) / 'Pack'
         (wrapper / 'Pack v1' / 'EXEC').mkdir(parents=True)
-        (wrapper / 'Pack v1' / 'EXEC' / 'R_UI.WAD').write_bytes(b'x')
+        (wrapper / 'Pack v1' / 'EXEC' / 'UI.WAD').write_bytes(b'x')
         (wrapper / 'Pack v1' / 'mod.json').write_text(json.dumps({'name': 'Wrapped'}), encoding='utf-8')
         (wrapper / 'Pack v1' / 'cover.jpg').write_bytes(b'img')
         self.assertEqual(mods.discover(Path(self.temp.name)), ['Gold Armor', 'Pack'])
@@ -492,7 +492,7 @@ class ModInfo(unittest.TestCase):
     def test_mod_json_beside_the_wrapper_folder_keeps_the_mod(self):
         wrapper = Path(self.temp.name) / 'Outer'
         (wrapper / 'Outer v2' / 'EXEC').mkdir(parents=True)
-        (wrapper / 'Outer v2' / 'EXEC' / 'R_UI.WAD').write_bytes(b'x')
+        (wrapper / 'Outer v2' / 'EXEC' / 'UI.WAD').write_bytes(b'x')
         (wrapper / 'mod.json').write_text(json.dumps({'name': 'Outer Mod'}), encoding='utf-8')
         self.assertIn('Outer', mods.discover(Path(self.temp.name)))
         self.assertEqual(mods.mod_info(wrapper)['name'], 'Outer Mod')

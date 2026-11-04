@@ -11,7 +11,7 @@
 #include "core/libraries/videoout/video_out.h"
 #include "core/libraries/videoout/videoout_error.h"
 #include "core/platform.h"
-#include "gow3_perf_stats.h"
+#include "wipeout_perf_stats.h"
 #include "video_core/renderer_vulkan/vk_presenter.h"
 
 extern std::unique_ptr<Vulkan::Presenter> presenter;
@@ -154,7 +154,7 @@ s32 PS4_SYSV_ABI sceVideoOutIsFlipPending(s32 handle) {
 }
 
 s32 PS4_SYSV_ABI sceVideoOutSubmitFlip(s32 handle, s32 bufferIndex, s32 flipMode, s64 flipArg) {
-    Gow3PerfStats::NoteGameThread(); // gow3: the thread GOW3_CPU_PROFILE samples
+    WipeoutPerfStats::NoteGameThread(); // wipeout: the thread WIPEOUT_CPU_PROFILE samples
     auto* port = driver->GetPort(handle);
     if (!port) {
         LOG_ERROR(Lib_VideoOut, "Invalid handle = {}", handle);
@@ -364,8 +364,8 @@ s32 sceVideoOutSubmitEopFlip(s32 handle, u32 buf_id, u32 mode, s64 flip_arg, voi
 s32 PS4_SYSV_ABI sceVideoOutGetDeviceCapabilityInfo(
     s32 handle, SceVideoOutDeviceCapabilityInfo* pDeviceCapabilityInfo) {
     pDeviceCapabilityInfo->capability = 0;
-    // GOW3_HDR_FAKE=1 (test): the game takes its HDR path on an SDR display (PQ shown as SDR).
-    static const bool fake_hdr = std::getenv("GOW3_HDR_FAKE") != nullptr;
+    // WIPEOUT_HDR_FAKE=1 (test): the game takes its HDR path on an SDR display (PQ shown as SDR).
+    static const bool fake_hdr = std::getenv("WIPEOUT_HDR_FAKE") != nullptr;
     if (presenter->IsHDRSupported() || fake_hdr) {
         auto& game_info = Common::ElfInfo::Instance();
         if (game_info.GetPSFAttributes().support_hdr) {

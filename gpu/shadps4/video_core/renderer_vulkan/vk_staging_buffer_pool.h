@@ -49,7 +49,7 @@ public:
     /// Releases idle memory.
     void TickFrame();
 
-    /// gow3: set by the texture cache while video memory is low: large buffers then go after
+    /// wipeout: set by the texture cache while video memory is low: large buffers then go after
     /// LOW_MEMORY_IDLE_FRAMES instead of 3000 frames.
     void SetLowMemory(bool low) {
         low_memory = low;
@@ -89,7 +89,7 @@ private:
     Scheduler& scheduler;
 
     std::array<Ring, NUM_TYPES> rings;
-    u64 keep_blocks = 0; ///< gow3: ring blocks never trimmed
+    u64 keep_blocks = 0; ///< wipeout: ring blocks never trimmed
     std::array<std::vector<LargeBuffer>, NUM_TYPES> large_caches;
     u64 frame = 0;
 };
