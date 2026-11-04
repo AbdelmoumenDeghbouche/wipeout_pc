@@ -310,12 +310,18 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         const auto& size = texture_cache.GetImage(cb_descs[0].first).info.size;
         const float inner = float(size.height) * 16.0f / 9.0f;
         const float inner_height = float(size.width) * 9.0f / 16.0f;
-        if (hud_draws++ > 0 && inner + 1.0f < float(size.width)) {
+        // Split screen draws each player's scene with the first draw's shaders: those are scene
+        // draws too, not HUD (#134: player 2's half was squeezed into the middle).
+        const bool scene = hud_draws == 0 || key.stage_hashes == hud_scene_hashes;
+        if (hud_draws == 0) {
+            hud_scene_hashes = key.stage_hashes;
+        }
+        if (hud_draws++ > 0 && !scene && inner + 1.0f < float(size.width)) {
             hud_x = {inner / float(size.width), (float(size.width) - inner) * 0.5f};
-        } else if (hud_draws > 1 && inner_height + 1.0f < float(size.height)) {
+        } else if (hud_draws > 1 && !scene && inner_height + 1.0f < float(size.height)) {
             hud_y = {inner_height / float(size.height), (float(size.height) - inner_height) * 0.5f};
         }
-        hud_draw = hud_draws > 1;
+        hud_draw = !scene;
     }
     prev_target = address;
 
