@@ -6,6 +6,13 @@
 #   spec: <extracted AppImage dir>[:GOW3_X=y[:...]]   route: default ~/diag/routes/vinetak-photo.pad
 # Summarise with: python3 -I ~/diag/bench-summary.py <printed directory>
 set -u
+# Replayed input is not real input, so an idle suspend could cut a run short: re-exec under an inhibitor once.
+if [ -z "${BENCH_INHIBITED:-}" ]; then
+    if command -v systemd-inhibit >/dev/null; then
+        BENCH_INHIBITED=1 exec systemd-inhibit --what=idle:sleep --who=bench-run --why="CPU bench" "$0" "$@"
+    fi
+    echo "systemd-inhibit not found: running without an idle/sleep inhibitor" >&2
+fi
 N=${1:?runs per build}; SPEC_A=${2:?A spec}; SPEC_B=${3:?B spec}
 ROUTE=${4:-$HOME/diag/routes/vinetak-photo.pad}
 DIAG=$HOME/diag; SHOTS=$HOME/.local/share/gow3/user/screenshots
@@ -13,7 +20,7 @@ pgrep -x gow3-probe >/dev/null && { echo "the game is running" >&2; exit 1; }
 OUT=$DIAG/bench/$(date +%Y%m%d-%H%M%S); mkdir -p "$OUT"
 cp "$ROUTE" "$ROUTE.marks" "$OUT/" || exit 1
 export DISPLAY=:0 XAUTHORITY=$(ls /run/user/1000/xauth_* | head -1)
-trap 'pkill -x gow3-probe; systemctl --user stop wipeout-bench 2>/dev/null; exit 130' INT TERM
+trap 'pkill -x gow3-probe; systemctl --user stop wipeout-bench 2>/dev/null; exit 130' INT TERM HUP
 run_one() { # <run dir> <spec>
     local dir=$1 build=${2%%:*} envs=() e
     [ "$2" != "$build" ] && IFS=: read -ra envs <<<"${2#*:}"

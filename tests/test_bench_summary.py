@@ -72,7 +72,7 @@ class SpanMetrics(unittest.TestCase):
 
     def test_log_cut_short_in_photo_span_is_invalid(self):
         with tempfile.TemporaryDirectory() as root:
-            run = bench.analyse_run(make_run(root, '01-A', GOOD[:1320]), MARKS)  # ends 2 s into the photo span
+            run = bench.analyse_run(make_run(root, '01-A', GOOD[:1500]), MARKS)  # ends at about 25 s, inside the photo span (23-43 s)
             self.assertIn('photo mode cut short', run['invalid'])
 
     def test_missing_game_log_is_invalid(self):
@@ -99,6 +99,27 @@ class SpanMetrics(unittest.TestCase):
                 f.write('36050000 1234')  # killed mid-write
             run = bench.analyse_run(d, MARKS)
             self.assertIsNone(run['invalid'])
+
+    def test_truncated_last_field_without_newline_is_dropped(self):
+        with tempfile.TemporaryDirectory() as root:
+            whole = make_run(root, '01-A', GOOD)
+            cut = make_run(root, '02-A', GOOD)
+            with open(cut / 'frames.log', 'a') as f:
+                f.write('36050000 1234 5 6 7 8')  # six digit fields, the last cut short by the signal
+            self.assertEqual(bench.read_frames(cut / 'frames.log'), bench.read_frames(whole / 'frames.log'))
+            self.assertEqual(bench.analyse_run(cut, MARKS)['photo']['fps'],
+                             bench.analyse_run(whole, MARKS)['photo']['fps'])
+
+    def test_steady_but_light_photo_span_is_too_light(self):
+        with tempfile.TemporaryDirectory() as root:
+            frames = GOOD[:1200] + [2531] * 1500
+            run = bench.analyse_run(make_run(root, '01-A', frames), MARKS)
+            self.assertIn('too light', run['invalid'])
+
+    def test_b_without_draw_pipe_is_unavailable(self):
+        with tempfile.TemporaryDirectory() as root:
+            run = bench.analyse_run(make_run(root, '01-A', GOOD, b_us_per_draw=0), MARKS)
+            self.assertIsNone(run['photo']['b_us_per_draw'])
 
     def test_a_without_frame_stats_is_unavailable(self):
         with tempfile.TemporaryDirectory() as root:

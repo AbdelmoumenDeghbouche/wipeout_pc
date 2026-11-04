@@ -19,7 +19,8 @@ METRICS = ('fps', 'draws', 'a_us_per_draw', 'b_us_per_draw')
 
 def read_frames(path):
     rows = []
-    for line in Path(path).read_text().splitlines():
+    # the last element is '' after a final newline, else a line cut by the killing signal
+    for line in Path(path).read_text().split('\n')[:-1]:
         if line.startswith('#'):
             continue
         parts = line.split()
@@ -79,7 +80,7 @@ def span(rows, t0, t1, tsc_hz):
         'fps': frames / seconds if seconds > 0 else 0.0,
         'draws': draws / frames,
         'a_us_per_draw': a_us / draws if draws and a_us else None,
-        'b_us_per_draw': (last[4] - first[4]) / tsc_hz / draws * 1e6 if draws else None,
+        'b_us_per_draw': (last[4] - first[4]) / tsc_hz / draws * 1e6 if draws and last[4] != first[4] else None,
         'per_frame_draws': per_frame,
     }
 
@@ -127,8 +128,11 @@ def analyse_run(run_dir, marks):
     per_frame = photo['per_frame_draws']
     centre = statistics.median(per_frame)
     share = sum(1 for n in per_frame if abs(n - centre) <= centre * PHOTO_TOLERANCE) / len(per_frame)
-    if centre < PHOTO_MIN_DRAWS or share < PHOTO_CONSTANT_SHARE:
+    if share < PHOTO_CONSTANT_SHARE:
         result['invalid'] = f'photo mode not steady ({share:.0%} of frames within 1 % of {centre:.0f} draws)'
+        return result
+    if centre < PHOTO_MIN_DRAWS:
+        result['invalid'] = f'photo mode too light (steady at {centre:.0f} draws, below {PHOTO_MIN_DRAWS})'
         return result
     result['countdown'], result['photo'] = countdown, photo
     return result

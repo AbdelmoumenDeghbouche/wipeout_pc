@@ -73,8 +73,10 @@ opens photo mode, both read from the shifted route. A press the bench should not
 `tools/deck/routes/`; `bench-run.sh` reads `~/diag/routes/vinetak-photo.pad` on the Deck by default.
 `tools/deck/bench-run.sh <N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted
 AppImage dirs), replays the route from gamepad connect, holds photo mode 30 s and takes a
-screenshot. Run one warm-up pair first so the shader cache is filled.
-`python3 -I tools/deck/bench-summary.py <dir>` reads each run's `GOW3_FRAME_LOG` (`frames.log`),
+screenshot. Run one warm-up pair first so the shader cache is filled. The Deck needs
+`tools/deck/{bench-run.sh,bench-summary.py,route-record.sh,stamp.py}` in `~/diag/` and the routes in
+`~/diag/routes/` (copied with scp).
+`python3 -I ~/diag/bench-summary.py <dir>` reads each run's `GOW3_FRAME_LOG` (`frames.log`),
 drops broken or short runs, and prints median and range per side for two spans:
 
 - countdown: `countdown_ms` +0.5-3 s, about 4150 draws per frame;
@@ -82,7 +84,7 @@ drops broken or short runs, and prints median and range per side for two spans:
 
 Metrics: FPS, draws per frame, stage A and stage B CPU time per draw (µs).
 
-A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, build of f0826ef):
+A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, upstream 0.2.59 plus the frame log):
 
 | span | metric | A median (range) | B median (range) | spread (max − min over all 8 runs) |
 |---|---|---|---|---|
@@ -95,7 +97,8 @@ A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, build of f082
 
 The spread is the smallest difference a 4 + 4 bench can show: a change smaller than it is noise.
 Medians of the two sides differed by at most 1.3 % (A/A). Photo mode is the quieter span for
-µs/draw; FPS there is 59.5-60, near the 60 FPS cap, so it probably cannot show a gain; the per-draw costs and the countdown FPS are the metrics.
+µs/draw; FPS there is 59.5-60, near the 60 FPS cap, so it probably cannot show a gain; the per-draw
+costs and the countdown FPS are the metrics.
 
 `perf` works on the Deck as the deck user (user-space samples):
 `perf record -e cpu-clock:u -F 999 -g -p $(pgrep -x gow3-probe) -- sleep 20`.
