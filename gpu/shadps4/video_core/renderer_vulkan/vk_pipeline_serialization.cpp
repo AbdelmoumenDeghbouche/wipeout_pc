@@ -1177,7 +1177,7 @@ void PipelineCache::IndexDiskShaders() {
 
 // gow3: GPU thread, once per program: every saved permutation at its saved index, so names and
 // pipeline keys stay those of the store. Rejected blobs (other versions, motion vertex shaders,
-// damaged SPIR-V) leave their slot empty for the next compile
+// damaged SPIR-V, a module the driver refuses) leave their slot empty for the next compile
 // (NewPermutationIndex), and both files of the slot are deleted: the meta and the SPIR-V are
 // separate writes, and a slot refilled with another shader must never pair an old meta with
 // the new SPIR-V. The deletes queue in the store's write order, meta first: SPIR-V is written
@@ -1218,9 +1218,18 @@ bool PipelineCache::LoadDiskProgram(u64 hash) {
             reject();
             continue;
         }
+        // Not CompileSPV, which asserts: a saved blob the driver refuses is translated again.
         std::vector<u32> code(spv.size() / sizeof(u32));
         std::memcpy(code.data(), spv.data(), spv.size());
-        const auto module = CompileSPV(code, instance.GetDevice()); // asserts on failure
+        const vk::ShaderModuleCreateInfo module_info{
+            .codeSize = code.size() * sizeof(u32),
+            .pCode = code.data(),
+        };
+        const auto [module_result, module] = instance.GetDevice().createShaderModule(module_info);
+        if (module_result != vk::Result::eSuccess || !module) {
+            reject();
+            continue;
+        }
         if (!have_info) {
             program->info = std::move(info);
             have_info = true;
