@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <bit>
+#include <cmath>
 #include <filesystem>
 #include <map>
 #include <xxhash.h>
@@ -791,20 +793,93 @@ void TextureCache::ApplyBackingWrites() {
     }
 }
 
-void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size) {
+// gow3: the colour a dword fill gives a 32-bit colour image, or nothing for other formats.
+static std::optional<vk::ClearColorValue> FillColor(vk::Format format, u32 value) {
+    const auto unorm = [&](u32 byte) { return float((value >> (byte * 8)) & 0xff) / 255.0f; };
+    const auto srgb = [&](u32 byte) {
+        const float c = unorm(byte);
+        return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+    };
+    switch (format) {
+    case vk::Format::eR8G8B8A8Unorm:
+    case vk::Format::eA8B8G8R8UnormPack32:
+        return vk::ClearColorValue{std::array{unorm(0), unorm(1), unorm(2), unorm(3)}};
+    case vk::Format::eR8G8B8A8Srgb:
+    case vk::Format::eA8B8G8R8SrgbPack32:
+        return vk::ClearColorValue{std::array{srgb(0), srgb(1), srgb(2), unorm(3)}};
+    case vk::Format::eB8G8R8A8Unorm:
+        return vk::ClearColorValue{std::array{unorm(2), unorm(1), unorm(0), unorm(3)}};
+    case vk::Format::eB8G8R8A8Srgb:
+        return vk::ClearColorValue{std::array{srgb(2), srgb(1), srgb(0), unorm(3)}};
+    case vk::Format::eR32Uint:
+        return vk::ClearColorValue{}.setUint32({value, 0, 0, 0});
+    case vk::Format::eR32Sint:
+        return vk::ClearColorValue{}.setInt32({s32(value), 0, 0, 0});
+    case vk::Format::eR32Sfloat:
+        return vk::ClearColorValue{std::array{std::bit_cast<float>(value), 0.0f, 0.0f, 0.0f}};
+    default:
+        return std::nullopt;
+    }
+}
+
+void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size,
+                                           std::optional<u32> fill) {
     // Partial buffer writes still need the image's untouched bytes in guest memory.
     ResolveReadbacks(address, max_size, true, ReadbackSource::GpuPartialWrite);
-    std::scoped_lock lock{mutex};
-    ForEachImageInRegion(address, max_size, [&](ImageId image_id, Image& image) {
-        // Only consider images that match base address.
-        // TODO: Maybe also consider subresources
-        if (image.info.guest_address != address) {
-            return;
+    struct FillClear {
+        ImageId image_id;
+        vk::ClearColorValue color;
+        u32 layers;
+    };
+    boost::container::small_vector<FillClear, 2> clears;
+    {
+        std::scoped_lock lock{mutex};
+        ForEachImageInRegion(address, max_size, [&](ImageId image_id, Image& image) {
+            // Only consider images that match base address.
+            // TODO: Maybe also consider subresources
+            if (image.info.guest_address != address) {
+                return;
+            }
+            // gow3: WipEout clears its VR eyes every frame with the Gnmx dword fill (a compute
+            // shader writing the eye's layer as a buffer). As a GPU write the 2-layer eye was
+            // uploaded again from guest memory, both eyes every frame: ~94 MiB each at 3400x3468,
+            // 11 GB/s. Whole layers of a plain 32-bit colour image are cleared in place instead.
+            const auto& info = image.info;
+            const u64 layer_size = info.resources.layers ? info.mips_layout[0].size /
+                                                               info.resources.layers
+                                                         : 0;
+            if (fill && info.resources.levels == 1 && info.num_samples == 1 &&
+                !info.props.is_depth && info.num_bits == 32 && layer_size != 0 &&
+                max_size % layer_size == 0 && max_size / layer_size <= info.resources.layers &&
+                False(image.flags & ImageFlagBits::Dirty)) {
+                if (const auto color = FillColor(info.pixel_format, *fill)) {
+                    clears.push_back({image_id, *color, u32(max_size / layer_size)});
+                    return;
+                }
+            }
+            // Ensure image is reuploaded when accessed again.
+            InvalidateAlias(image);
+            image.flags |= ImageFlagBits::GpuDirty;
+        });
+    }
+    for (const FillClear& clear : clears) {
+        Image& image = slot_images[clear.image_id];
+        scheduler.EndRendering();
+        const VideoCore::SubresourceRange range{.base = {0, 0}, .extent = {1, clear.layers}};
+        if (runtime.Transit(&image, vk::ImageLayout::eTransferDstOptimal,
+                            vk::PipelineStageFlagBits2::eClear,
+                            vk::AccessFlagBits2::eTransferWrite, range)) {
+            runtime.FlushBarriers();
         }
-        // Ensure image is reuploaded when accessed again.
-        InvalidateAlias(image);
-        image.flags |= ImageFlagBits::GpuDirty;
-    });
+        scheduler.Record([handle = image.GetImage(), color = clear.color,
+                          layers = clear.layers](vk::CommandBuffer cmdbuf) {
+            cmdbuf.clearColorImage(handle, vk::ImageLayout::eTransferDstOptimal, color,
+                                   vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0,
+                                                             1, 0, layers});
+        });
+        image.flags |= ImageFlagBits::GpuModified;
+        PublishAliasWrite(clear.image_id);
+    }
 }
 
 void TextureCache::UnmapMemory(VAddr cpu_addr, size_t size) {

@@ -139,8 +139,11 @@ public:
     /// the block and existed before this call are freed (ApplyGuestFrees).
     void NoteGuestFree(VAddr address, u64 size);
 
-    /// Marks an image as dirty if it exists at the provided address.
-    void InvalidateMemoryFromGPU(VAddr address, size_t max_size);
+    /// Marks an image as dirty if it exists at the provided address. With `fill` (gow3: every
+    /// dword of the range set to it), an image whose whole layers the range covers is cleared
+    /// on the GPU instead.
+    void InvalidateMemoryFromGPU(VAddr address, size_t max_size,
+                                 std::optional<u32> fill = std::nullopt);
 
     /// Evicts any images that overlap the unmapped range.
     void UnmapMemory(VAddr cpu_addr, size_t size);
