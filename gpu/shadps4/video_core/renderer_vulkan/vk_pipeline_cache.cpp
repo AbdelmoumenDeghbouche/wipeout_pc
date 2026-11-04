@@ -446,6 +446,31 @@ struct PhaseTimer {
     }
     ~PhaseTimer() { Stop(); }
 };
+// gow3 (#154): a draw whose shader or pipeline is compiling in the background waits for it a
+// little before it is skipped. Most builds take 1-3 ms (the driver keeps its own cache), and the
+// skipped draws showed as missing objects and surfaces when a race started; with every shader
+// option off (all built on this thread) a player saw none. Up to 10 ms per draw and 30 ms in
+// any 100 ms, so a burst of new shaders still cannot freeze the game.
+// ponytail: fixed budget, make it a setting if players need another one.
+template <typename Job>
+bool GraceWait(const Job& job) {
+    using namespace std::chrono;
+    static steady_clock::time_point window{};
+    static nanoseconds used{};
+    const auto now = steady_clock::now();
+    if (now - window > milliseconds(100)) {
+        window = now;
+        used = {};
+    }
+    const nanoseconds left = std::min<nanoseconds>(milliseconds(10), milliseconds(30) - used);
+    if (left <= nanoseconds(0)) {
+        return false;
+    }
+    PhaseTimer waiting{g_gow3_compile_wait_ns};
+    const bool ready = job.WaitFor(left);
+    used += steady_clock::now() - now;
+    return ready;
+}
 struct CompileTimer {
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
     ~CompileTimer() {
@@ -719,7 +744,22 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
         }
     }
     sel.draw_indirect_params = params;
-    if (!RefreshGraphicsKey(sel)) {
+    bool refreshed = RefreshGraphicsKey(sel);
+    if (!refreshed && sel.compilation_pending && !pending_programs.empty()) {
+        // gow3 (#154): the shaders this draw waits for are among the pending ones.
+        bool ready = true;
+        for (const auto* program : pending_programs) {
+            if (program->pending && !GraceWait(program->pending->job)) {
+                ready = false;
+                break;
+            }
+        }
+        PublishShaders();
+        if (ready) {
+            refreshed = RefreshGraphicsKey(sel);
+        }
+    }
+    if (!refreshed) {
         if (sel.compilation_pending) {
             ++g_gow3_pending_draws;
         }
@@ -761,6 +801,14 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
             });
             if (queued) {
                 pending_graphics.emplace(sel.graphics_key, std::move(build));
+            }
+        }
+        if (const auto pending = pending_graphics.find(sel.graphics_key);
+            pending != pending_graphics.end() && GraceWait(pending->second->job)) {
+            PublishGraphics(); // #154: built within the grace wait, drawn now
+            if (const auto found = graphics_pipelines.find(sel.graphics_key);
+                found != graphics_pipelines.end()) {
+                return found->second.get();
             }
         }
         ++g_gow3_pending_draws;
