@@ -2735,9 +2735,7 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
             return false;
         }
     }
-    u64 key = XXH3_64bits_withSeed(prepared->image_hashes, count * sizeof(u64),
-                                   reinterpret_cast<u64>(&stage));
-    key |= 1; // 0 marks an empty slot
+    const u64 key = TextureSetKey(prepared->image_hashes, count, &stage);
     auto& set = texture_sets[key % texture_sets.size()];
     slot = &set;
     const u64 generation = texture_cache.RegistryGeneration();
