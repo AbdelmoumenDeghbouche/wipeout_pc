@@ -64,6 +64,34 @@ class SpanMetrics(unittest.TestCase):
             run = bench.analyse_run(make_run(root, '01-A', racing), MARKS)
             self.assertIn('photo', run['invalid'])
 
+    def test_photo_alternating_by_two_draws_is_steady(self):
+        with tempfile.TemporaryDirectory() as root:
+            frames = GOOD[:1200] + [3434 + 2 * (i % 2) for i in range(1500)]
+            run = bench.analyse_run(make_run(root, '01-A', frames), MARKS)
+            self.assertIsNone(run['invalid'])
+
+    def test_log_cut_short_in_photo_span_is_invalid(self):
+        with tempfile.TemporaryDirectory() as root:
+            run = bench.analyse_run(make_run(root, '01-A', GOOD[:1320]), MARKS)  # ends 2 s into the photo span
+            self.assertIn('photo mode cut short', run['invalid'])
+
+    def test_missing_game_log_is_invalid(self):
+        with tempfile.TemporaryDirectory() as root:
+            d = make_run(root, '01-A', GOOD)
+            (d / 'game.log').unlink()
+            self.assertIn('no replay start', bench.analyse_run(d, MARKS)['invalid'])
+
+    def test_garbled_replay_stamp_is_invalid(self):
+        with tempfile.TemporaryDirectory() as root:
+            d = make_run(root, '01-A', GOOD)
+            (d / 'game.log').write_text('xx:yy Runtime: pad replay of 20 samples from x.pad\n')
+            self.assertIn('no replay start', bench.analyse_run(d, MARKS)['invalid'])
+
+    def test_single_frame_log_is_too_short(self):
+        with tempfile.TemporaryDirectory() as root:
+            run = bench.analyse_run(make_run(root, '01-A', [100]), MARKS)
+            self.assertIn('too short', run['invalid'])
+
     def test_partial_last_line_is_ignored(self):
         with tempfile.TemporaryDirectory() as root:
             d = make_run(root, '01-A', GOOD)

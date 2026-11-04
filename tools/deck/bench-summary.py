@@ -12,6 +12,8 @@ PHOTO = (3000, 23000)         # ms after photo_ms
 COUNTDOWN_MIN_DRAWS = 3500    # the grid is 4100-4250 draws a frame
 PHOTO_MIN_DRAWS = 3000        # photo mode at the race start is 3434
 PHOTO_CONSTANT_SHARE = 0.9
+PHOTO_TOLERANCE = 0.01        # a steady frame is within 1 % of the span's median draws
+MIN_SPAN_FRAMES = 30
 METRICS = ('fps', 'draws', 'a_us_per_draw', 'b_us_per_draw')
 
 
@@ -34,23 +36,38 @@ def ms_of_day(stamp):
 
 
 def replay_start(game_log):
-    for line in Path(game_log).read_text(errors='replace').splitlines():
+    try:
+        lines = Path(game_log).read_text(errors='replace').splitlines()
+    except OSError:
+        return None
+    for line in lines:
         if 'Runtime: pad replay of' in line:
-            return ms_of_day(line.split()[0])
+            try:
+                return ms_of_day(line.split()[0])
+            except (ValueError, IndexError):
+                continue
     return None
 
 
 def read_marks(path):
     marks = {}
     for line in Path(path).read_text().splitlines():
-        key, value = line.split()
-        marks[key] = int(value)
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        try:
+            marks[parts[0]] = int(parts[1])
+        except ValueError:
+            continue
+    for key in ('countdown_ms', 'photo_ms'):
+        if key not in marks:
+            raise SystemExit(f'{path}: marks file lacks {key}')
     return marks
 
 
 def span(rows, t0, t1, tsc_hz):
     inside = [r for r in rows if t0 <= r[0] <= t1]
-    if len(inside) < 2:
+    if len(inside) < MIN_SPAN_FRAMES or rows[-1][0] < t1:
         return None
     first, last = inside[0], inside[-1]
     draws = last[2] - first[2]
@@ -83,25 +100,35 @@ def analyse_run(run_dir, marks):
     if any(b[0] < a[0] for a, b in zip(rows, rows[1:])):
         result['invalid'] = 'the frame log crosses midnight'
         return result
+    if len(rows) < 2 or rows[-1][1] <= rows[0][1]:
+        result['invalid'] = 'frame log too short'
+        return result
     start = replay_start(run_dir / 'game.log')
-    if start is None or len(rows) < 2:
+    if start is None:
         result['invalid'] = 'no replay start in game.log'
         return result
     tsc_hz = (rows[-1][5] - rows[0][5]) / ((rows[-1][1] - rows[0][1]) / 1e6)
+    if tsc_hz <= 0:
+        result['invalid'] = 'frame log too short'
+        return result
     c0 = start + marks['countdown_ms']
     countdown = span(rows, c0 + COUNTDOWN[0], c0 + COUNTDOWN[1], tsc_hz)
-    if not countdown or statistics.median(countdown['per_frame_draws']) < COUNTDOWN_MIN_DRAWS:
+    if not countdown:
+        result['invalid'] = 'countdown cut short'
+        return result
+    if statistics.median(countdown['per_frame_draws']) < COUNTDOWN_MIN_DRAWS:
         result['invalid'] = 'countdown not reached (no grid-sized frames at its mark)'
         return result
     p0 = start + marks['photo_ms']
     photo = span(rows, p0 + PHOTO[0], p0 + PHOTO[1], tsc_hz)
     if not photo:
-        result['invalid'] = 'photo mode not reached (no frames at its mark)'
+        result['invalid'] = 'photo mode cut short'
         return result
-    mode = statistics.mode(photo['per_frame_draws'])
-    share = photo['per_frame_draws'].count(mode) / len(photo['per_frame_draws'])
-    if mode < PHOTO_MIN_DRAWS or share < PHOTO_CONSTANT_SHARE:
-        result['invalid'] = f'photo mode not steady ({share:.0%} of frames at {mode} draws)'
+    per_frame = photo['per_frame_draws']
+    centre = statistics.median(per_frame)
+    share = sum(1 for n in per_frame if abs(n - centre) <= centre * PHOTO_TOLERANCE) / len(per_frame)
+    if centre < PHOTO_MIN_DRAWS or share < PHOTO_CONSTANT_SHARE:
+        result['invalid'] = f'photo mode not steady ({share:.0%} of frames within 1 % of {centre:.0f} draws)'
         return result
     result['countdown'], result['photo'] = countdown, photo
     return result
@@ -109,7 +136,10 @@ def analyse_run(run_dir, marks):
 
 def summarise(bench_dir):
     bench_dir = Path(bench_dir)
-    marks = read_marks(next(bench_dir.glob('*.marks')))
+    marks_file = next(iter(sorted(bench_dir.glob('*.marks'))), None)
+    if marks_file is None:
+        raise SystemExit(f'{bench_dir}: no *.marks file')
+    marks = read_marks(marks_file)
     out = {}
     for build in ('A', 'B'):
         runs = [analyse_run(d, marks) for d in sorted(bench_dir.glob(f'*-{build}')) if d.is_dir()]
