@@ -133,6 +133,12 @@ public:
     /// are marked CPU-dirty at the next UpdateImage or GC tick (ApplyBackingWrites).
     void NoteBackingWrite(VAddr address, u64 size);
 
+    /// gow3: the game freed a block of its GPU heap (heap frees never unmap, so UnmapMemory
+    /// never ran and every track's textures stayed cached: 1.3 -> 6.8 GB of images over a few
+    /// races in VR). Any thread, any lock: at the next GC tick, images that lie wholly inside
+    /// the block and existed before this call are freed (ApplyGuestFrees).
+    void NoteGuestFree(VAddr address, u64 size);
+
     /// Marks an image as dirty if it exists at the provided address.
     void InvalidateMemoryFromGPU(VAddr address, size_t max_size);
 
@@ -570,6 +576,18 @@ private:
     std::mutex backing_writes_mutex;
     std::vector<std::pair<VAddr, u64>> backing_writes;
     std::atomic<bool> has_backing_writes{false};
+    struct GuestFree {
+        VAddr address;
+        u64 size;
+        u64 last_uid; ///< images created after the free hold the block's new contents
+    };
+    void ApplyGuestFrees();
+    std::mutex guest_frees_mutex;
+    std::vector<GuestFree> guest_frees;
+    std::atomic<bool> has_guest_frees{false};
+    u64 guest_free_images{}, guest_free_bytes{};
+    /// gow3: upload bytes in the current submission (RefreshImage submits early past a limit).
+    u64 upload_tick{}, upload_tick_bytes{}, early_submits{};
     /// gow3: images with the same guest address (guarded by `mutex`). `backing` holds the
     /// complete contents; `writer` is a newer write not yet copied into it.
     struct AliasState {

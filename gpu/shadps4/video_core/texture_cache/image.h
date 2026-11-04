@@ -194,6 +194,11 @@ public:
     u64 lru_id{};
     u64 hash{};
 
+    /// gow3: the uid of the newest image created so far.
+    static u64 LastUid() {
+        return global_image_uid.Current();
+    }
+
 private:
     static Common::IncrementalIdProvider<u64> global_image_uid;
 };

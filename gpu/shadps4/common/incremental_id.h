@@ -15,6 +15,11 @@ public:
         return counter.fetch_add(1, std::memory_order_relaxed) + 1;
     }
 
+    /// The last id handed out (0 before the first).
+    CounterType Current() const {
+        return counter.load(std::memory_order_relaxed);
+    }
+
 private:
     std::atomic<CounterType> counter;
 };

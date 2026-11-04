@@ -4,6 +4,7 @@
 #include "gow3_toggles.h"
 #include <algorithm>
 #include <bit>
+#include <chrono>
 #include <cstdlib>
 #include <cstring>
 
@@ -34,6 +35,8 @@ constexpr u64 LOW_MEMORY_IDLE_FRAMES = 120;
 constexpr u64 PREWARM_BLOCKS = 8;
 constexpr u64 LARGE_MIN_GRANULARITY = 64_KB;
 constexpr u64 BLOCK_SIZE = 16_MB;
+// gow3: no large upload for this long and a load is over: idle large buffers all go.
+constexpr auto QUIET_TIME = std::chrono::seconds(5);
 
 u64 RoundAllocationSize(u64 size) {
     const u64 step = std::max(std::bit_floor(size) / 4, LARGE_MIN_GRANULARITY);
@@ -52,6 +55,7 @@ StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& sched
             .buffer = std::make_unique<VideoCore::StreamBuffer>(
                 instance, scheduler, MemoryType::HostUncached, BLOCK_SIZE),
             .last_used_frame = frame,
+            .last_used_time = std::chrono::steady_clock::now(),
         });
         if (!block.buffer->mapped_data.empty()) {
             std::memset(block.buffer->mapped_data.data(), 0, block.buffer->mapped_data.size());
@@ -74,8 +78,14 @@ StagingBufferRef StagingBufferPool::RequestFromRing(Ring& ring, u64 size, u64 al
                                                     MemoryType type) {
     Block* best{};
     u64 best_offset{};
-    for (size_t i = 0; i < ring.blocks.size(); ++i) {
-        const size_t index = (ring.current + i) % ring.blocks.size();
+    // gow3: the current block, then the lowest one with room. Going on round the ring from the
+    // current one used every block in turn: none was ever idle, so the ~90 blocks track loads
+    // made (1.4 GB) all stayed for good.
+    for (size_t i = 0; i <= ring.blocks.size(); ++i) {
+        const size_t index = i == 0 ? ring.current : i - 1;
+        if (index >= ring.blocks.size() || (i != 0 && index == ring.current)) {
+            continue;
+        }
         Block* block = &ring.blocks[index];
         if (const auto offset = block->buffer->Reserve(size, alignment, false)) {
             ring.current = index;
@@ -90,6 +100,7 @@ StagingBufferRef StagingBufferPool::RequestFromRing(Ring& ring, u64 size, u64 al
             .buffer =
                 std::make_unique<VideoCore::StreamBuffer>(instance, scheduler, type, BLOCK_SIZE),
             .last_used_frame = frame,
+            .last_used_time = std::chrono::steady_clock::now(),
         });
         ring.current = ring.blocks.size() - 1;
         best_offset = *best->buffer->Reserve(size, alignment, false);
@@ -97,6 +108,7 @@ StagingBufferRef StagingBufferPool::RequestFromRing(Ring& ring, u64 size, u64 al
 
     auto& buffer = *best->buffer;
     best->last_used_frame = frame;
+    best->last_used_time = std::chrono::steady_clock::now();
 
     StagingBufferRef ref{
         .buffer = &buffer,
@@ -127,6 +139,16 @@ StagingBufferRef StagingBufferPool::RequestLarge(u64 size, MemoryType type, bool
     }
 
     if (!best) {
+        // gow3: no idle buffer fits, so the idle ones are all of other sizes: they go before a
+        // new one is made. Kept for reuse, a quick track load made 3-5 GB of them (loads ask
+        // for textures of many sizes) and Windows ran out of commit (RAM and page file,
+        // 1.3 GB left). Now the cache holds what the GPU still reads, plus this one.
+        std::erase_if(cache, [this](const LargeBuffer& entry) {
+            return !entry.held && scheduler.IsFree(entry.tick);
+        });
+        // gow3: only a request that needs a new buffer counts as loading (TrimLarge). A race
+        // reuses one now and then, which kept a finished load's 4.6 GB for a whole race.
+        last_large_request[u32(type)] = std::chrono::steady_clock::now();
         best = &cache.emplace_back(LargeBuffer{
             .buffer = std::make_unique<VideoCore::Buffer>(instance, 0, RoundAllocationSize(size),
                                                           type, "StagingBufferPool:Dedicated"),
@@ -182,10 +204,14 @@ void StagingBufferPool::TrimRing(Ring& ring) {
     const u64 keep = !upload ? 0 : low_memory ? std::min(keep_blocks, PREWARM_BLOCKS) : keep_blocks;
     const u64 idle_frames = low_memory ? LOW_MEMORY_IDLE_FRAMES : RING_IDLE_FRAMES;
     auto& blocks = ring.blocks;
+    const auto now = std::chrono::steady_clock::now();
     for (size_t i = blocks.size(); i-- > 0;) {
         const Block& block = blocks[i];
-        if (blocks.size() <= keep || frame - block.last_used_frame < idle_frames ||
-            !scheduler.IsFree(block.buffer->LastTick())) {
+        // gow3: or unused for QUIET_TIME. Blocks fill lowest first, so those above the kept
+        // ones serve loads only; races tick too rarely for 3000 frames to pass (1.2 GB kept).
+        const bool idle = frame - block.last_used_frame >= idle_frames ||
+                          now - block.last_used_time >= QUIET_TIME;
+        if (blocks.size() <= keep || !idle || !scheduler.IsFree(block.buffer->LastTick())) {
             continue;
         }
         blocks.erase(blocks.begin() + i);
@@ -205,6 +231,16 @@ void StagingBufferPool::TrimLarge(std::vector<LargeBuffer>& cache) {
         return !entry.held &&
                frame - entry.last_used_frame >= (low_memory ? LOW_MEMORY_IDLE_FRAMES : LARGE_IDLE_FRAMES) &&
                scheduler.IsFree(entry.tick);
+    });
+    // gow3: and all of them once no new one was needed for QUIET_TIME (a track load is over). Loads ask for textures of many sizes, a buffer serves
+    // only up to 1.25x its size, and loads ~20 s apart never let one sit 3000 frames: 3-4 GB
+    // more per load, 11 GB after five.
+    const auto type = static_cast<size_t>(&cache - large_caches.data());
+    if (std::chrono::steady_clock::now() - last_large_request[type] < QUIET_TIME) {
+        return;
+    }
+    std::erase_if(cache, [this](const LargeBuffer& entry) {
+        return !entry.held && scheduler.IsFree(entry.tick);
     });
 }
 

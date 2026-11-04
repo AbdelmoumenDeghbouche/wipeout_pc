@@ -1648,6 +1648,39 @@ void TextureCache::RefreshImage(Image& image) {
 
     scheduler.EndRendering();
 
+    // gow3: a staging buffer is free again only once the GPU is done with the submission that
+    // read it. A track load put all its uploads in one submission: 2-7 GB of upload buffers
+    // at once. Past GOW3_UPLOAD_SUBMIT_MB (512) of uploads the work so far is submitted, so
+    // the buffers of the first part are done (and freed or reused) while the rest uploads.
+    // 0: off. (Tried once before and no help then: idle buffers of other sizes were kept;
+    // the staging pool frees those now.)
+    static const u64 submit_bytes = [] {
+        const char* env = std::getenv("GOW3_UPLOAD_SUBMIT_MB");
+        return (env ? std::strtoull(env, nullptr, 10) : 512) << 20;
+    }();
+    if (upload_tick != scheduler.CurrentTick()) {
+        upload_tick = scheduler.CurrentTick();
+        upload_tick_bytes = 0;
+    }
+    if (submit_bytes != 0 && upload_tick_bytes != 0 &&
+        upload_tick_bytes + image.info.guest_size > submit_bytes) {
+        scheduler.Flush();
+        ++early_submits;
+        if (Gow3Stats::enabled) {
+            static auto last = std::chrono::steady_clock::now();
+            const auto now = std::chrono::steady_clock::now();
+            if (now - last >= std::chrono::seconds(5)) {
+                last = now;
+                std::printf("Texture cache: %llu early submissions for uploads\n",
+                            (unsigned long long)early_submits);
+                early_submits = 0;
+            }
+        }
+        upload_tick = scheduler.CurrentTick();
+        upload_tick_bytes = 0;
+    }
+    upload_tick_bytes += image.info.guest_size;
+
     const auto [in_buffer, in_offset] =
         buffer_cache.ObtainBufferForImage(image.info.guest_address, image.info.guest_size);
     const auto [buffer, offset] = tile_manager.DetileImage(in_buffer, in_offset, image.info);
@@ -2098,6 +2131,7 @@ void TextureCache::RunGarbageCollector() {
     {
         std::scoped_lock lock{mutex};
         ApplyBackingWrites();
+        ApplyGuestFrees();
     }
 
     GarbageCollectImages();

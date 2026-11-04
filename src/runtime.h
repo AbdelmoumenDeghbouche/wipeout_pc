@@ -107,6 +107,8 @@ const char *runtime_file_user_dir(void);
 void runtime_savedata_configure(const char *title);
 uintptr_t runtime_savedata_resolve(const char *name);
 void runtime_savedata_report(void);
+/* gow3: passes WipEout's GPU heap frees to the texture cache; GOW3_HEAP_TRACE=1 reports use. */
+void runtime_heap_trace_install(unsigned char *image, uint64_t size);
 /* OrbisSaveDataParam (1328 bytes) of a save directory of the current title. */
 #define RUNTIME_SAVE_PARAM_SIZE 1328
 int runtime_savedata_param(int32_t user, const char *dir, void *param);
