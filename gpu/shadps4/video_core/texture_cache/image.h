@@ -157,6 +157,10 @@ public:
     VAddr track_addr_end = 0;
     VAddr guest_begin = 0; ///< info.guest_address
     VAddr guest_end = 0;   ///< info.guest_address + info.guest_size
+    /// gow3: flip of the last CPU write fault on the image (TextureCache::InvalidateMemory).
+    u64 cpu_dirty_flip = ~0ULL;
+    /// gow3: left unprotected until a flip after cpu_dirty_flip (DeferStreamedImageTracking).
+    bool track_deferred = false;
     BackingImage* backing{};
     /// gow3: gc tick of the last LRU touch; skips the LRU list (a cache miss) when current.
     mutable u64 lru_touched_tick = ~0ULL;
