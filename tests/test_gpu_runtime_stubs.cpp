@@ -23,6 +23,7 @@ const char* runtime_music_folder() { std::abort(); }
 int runtime_music_playing() { std::abort(); }
 void runtime_music_play(int) { std::abort(); }
 void runtime_music_step(int) { std::abort(); }
+int runtime_music_in_race(void) { return 1; }
 void runtime_restart() { std::abort(); }
 void runtime_report() {}
 uint64_t runtime_process_time_counter() { return runtime_process_time_us() * 1000; }

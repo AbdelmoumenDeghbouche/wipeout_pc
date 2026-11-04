@@ -312,6 +312,9 @@ void runtime_music_step(int direction) {
     runtime_music_play((int)song);
 }
 
+/* The game loaded a race's sound banks last, not the menus' (frame limit in the menus, #118). */
+int runtime_music_in_race(void) { return in_race; }
+
 void runtime_music_scene(const char *guest_path) {
     const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
     const int was=in_race;

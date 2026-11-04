@@ -345,6 +345,8 @@ private:
     std::array<float, 2> hud_y{1.0f, 0.0f};
     VAddr hud_buffer = 0;  ///< display buffer the HUD draws are counted in
     u32 hud_draws = 0;     ///< draws into hud_buffer; the first one is the scene
+    /// shaders of hud_buffer's first draw: later draws with them are scenes too (split screen)
+    decltype(GraphicsPipelineKey::stage_hashes) hud_scene_hashes{};
     /// HDR output: the game's own buffer for scene and HUD, copied to the display buffer by one
     /// draw a frame (learned from the draws, see PrepareRenderState)
     VAddr hdr_hud_buffer = 0;

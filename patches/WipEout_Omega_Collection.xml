@@ -44,8 +44,12 @@
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="26b4973f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="26b49740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="26b4973f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="26b49740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="000a0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -97,8 +101,12 @@
             <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="26b4973f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="26b49740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="26b41740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="26b4973f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="26b49740" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="00140000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -316,8 +324,12 @@
             <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="8ee31840" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="8ee3983f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="8ee39840" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="8ee31840" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="8ee3983f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="8ee39840" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="700d0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -363,8 +375,12 @@
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="80070000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -410,8 +426,12 @@
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="000a0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -463,8 +483,12 @@
             <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="400b0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -516,8 +540,12 @@
             <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="9a991940" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="9a99993f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="9a999940" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="9a991940" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="9a99993f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="9a999940" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="000f0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -569,8 +597,12 @@
             <Line Type="bytes" Address="0x00c6bb60" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="0"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="398e6340" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
+            <Line Type="bytes" Address="0x00c60d00" Value="398ee33f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
+            <Line Type="bytes" Address="0x00c60d04" Value="398ee340" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="398e6340" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
+            <Line Type="bytes" Address="0x00c60d40" Value="398ee33f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
+            <Line Type="bytes" Address="0x00c60d44" Value="398ee340" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="00140000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
