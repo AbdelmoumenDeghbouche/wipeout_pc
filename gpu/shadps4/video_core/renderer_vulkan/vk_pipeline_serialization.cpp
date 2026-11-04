@@ -37,6 +37,25 @@
 static_assert(int(vk::Result::eErrorOutOfHostMemory) == Vulkan::WarmupMemoryStop::OutOfHostMemory &&
               int(vk::Result::eErrorOutOfDeviceMemory) == Vulkan::WarmupMemoryStop::OutOfDeviceMemory);
 
+namespace {
+/// gow3 (#149): the blocking warm-up keeps every cached pipeline it builds (about 9 GB of commit
+/// for 8,600 pipelines on an RTX 4070), and stopping only at the driver's own out-of-memory left
+/// the PC with 0.3 GB of commit. It stops while 4 GB is still free for the game and other programs;
+/// the rest compile when the game needs them.
+/// ponytail: fixed 4 GB margin; make it a setting if players need another one.
+bool LowOnCommit() {
+#ifdef _WIN32
+    MEMORYSTATUSEX memory{};
+    memory.dwLength = sizeof(memory);
+    if (GlobalMemoryStatusEx(&memory) && memory.ullAvailPageFile < (u64{4} << 30)) {
+        Vulkan::PreloadMemoryStop().Report(Vulkan::WarmupMemoryStop::OutOfHostMemory);
+        return true;
+    }
+#endif
+    return false;
+}
+} // namespace
+
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
 static constexpr u32 ShaderBinaryVersion = 13u; // gow3: SDWA VOPC writes its SGPR destination (SD)
@@ -728,7 +747,7 @@ bool PipelineCache::LoadComputePipeline(Serialization::Archive& ar) {
         // The slot stays null until WarmUp moves the built pipeline in (the map may rehash).
         warmup_pool->Push([this, key = compute_key, info = sel.infos[0], module = sel.modules[0],
                            sdata]() mutable {
-            if (PreloadMemoryStop().Stopped()) {
+            if (PreloadMemoryStop().Stopped() || LowOnCommit()) {
                 return false; // #149: out of memory, the rest compile when needed
             }
             auto pipeline = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap,
@@ -826,7 +845,7 @@ bool PipelineCache::LoadGraphicsPipeline(Serialization::Archive& ar) {
         warmup_pool->Push([this, key = sel.graphics_key, infos = sel.infos,
                            runtime_infos = sel.runtime_infos, fetch = sel.fetch_shader,
                            modules = sel.modules, sdata]() mutable {
-            if (PreloadMemoryStop().Stopped()) {
+            if (PreloadMemoryStop().Stopped() || LowOnCommit()) {
                 return false; // #149: out of memory, the rest compile when needed
             }
             auto pipeline = std::make_unique<GraphicsPipeline>(
@@ -1004,7 +1023,7 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
                 ++num_pipelines;
             }
         },
-        [] { return PreloadMemoryStop().Stopped(); }); // #149
+        [] { return PreloadMemoryStop().Stopped() || LowOnCommit(); }); // #149
 
     if (pool) {
         pool->Wait(report);
@@ -1049,7 +1068,7 @@ void PipelineCache::WarmUp(const std::function<void(u32, u32)>& progress) {
     }
 #endif
     if (PreloadMemoryStop().Stopped()) {
-        std::printf("Pipeline warm-up: stopped early, the driver ran out of memory; the other "
+        std::printf("Pipeline warm-up: stopped early, memory ran low; the other "
                     "cached pipelines compile when the game needs them\n");
     }
     LOG_INFO(Render, "Preloaded {} pipelines", num_pipelines);
