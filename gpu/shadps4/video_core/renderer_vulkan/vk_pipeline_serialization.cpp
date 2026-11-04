@@ -1169,6 +1169,9 @@ void PipelineCache::IndexDiskShaders() {
     for (auto& [hash, indices] : disk_permutations) {
         std::ranges::sort(indices);
     }
+    for (auto& name : db.ListBlobs(Storage::BlobType::PipelineKey)) {
+        disk_pipeline_keys.insert(std::move(name));
+    }
 }
 
 // gow3: GPU thread, once per program: every saved permutation at its saved index, so names and
@@ -1243,6 +1246,20 @@ size_t PipelineCache::NewPermutationIndex(const Program& program) const {
     return program.modules.size();
 }
 
+// gow3: with stable permutation indices a saved pipeline key file already holds this key, so it
+// is not written again (thousands of files every start otherwise).
+bool PipelineCache::NewPipelineKey(const std::string& name) {
+    if (!DiskShadersActive()) {
+        return true;
+    }
+    if (!disk_pipeline_keys.insert(name).second) {
+        ++disk_stats.keys_skipped;
+        return false;
+    }
+    ++disk_stats.keys_written;
+    return true;
+}
+
 void PipelineCache::ReportDiskShaders() {
     if (disk_shaders && !disk_store_untrusted && Gow3Toggle::Disabled(Gow3Toggle::DiskShaders)) {
         // Switched off live: later permutations follow first-use order again (see StartOnDemand).
@@ -1262,13 +1279,15 @@ void PipelineCache::ReportDiskShaders() {
     // Loaded modules no draw used yet stay alive with their program until exit.
     std::printf("Disk shaders: %llu programs, %llu permutations read (%.1f ms GPU thread, "
                 "%.1f MB SPIR-V), %llu rejected; %llu used, %llu compiled; %zu unused now, "
-                "%llu at most\n",
+                "%llu at most; pipeline keys %llu written, %llu already saved\n",
                 static_cast<unsigned long long>(s.programs),
                 static_cast<unsigned long long>(s.permutations), s.load_ns / 1e6,
                 s.spirv_bytes / 1048576.0, static_cast<unsigned long long>(s.rejected),
                 static_cast<unsigned long long>(s.matched),
                 static_cast<unsigned long long>(s.compiled), disk_modules_unused.size(),
-                static_cast<unsigned long long>(s.unused_peak));
+                static_cast<unsigned long long>(s.unused_peak),
+                static_cast<unsigned long long>(s.keys_written),
+                static_cast<unsigned long long>(s.keys_skipped));
 }
 
 // gow3: one cached shader stage read by the background warm-up, shared by every cached

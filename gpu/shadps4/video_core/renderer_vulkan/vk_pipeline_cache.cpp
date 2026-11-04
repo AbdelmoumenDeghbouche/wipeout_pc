@@ -638,7 +638,10 @@ void PipelineCache::PublishGraphics(bool wait) {
         }
         const auto key = it.key();
         build->pipeline->PublishStages(build->live_infos);
-        RegisterPipelineData(key, std::hash<GraphicsPipelineKey>{}(key), build->data);
+        const auto hash = std::hash<GraphicsPipelineKey>{}(key);
+        if (NewPipelineKey(fmt::format("g_{:#018x}", hash))) {
+            RegisterPipelineData(key, hash, build->data);
+        }
         graphics_pipelines.emplace(key, std::move(build->pipeline));
         ++num_new_pipelines;
         it = pending_graphics.erase(it);
@@ -827,7 +830,9 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
             instance, scheduler, desc_heap, profile, sel.graphics_key, *pipeline_cache, sel.infos,
             sel.runtime_infos, sel.fetch_shader, sel.modules, sdata, false);
 
-        RegisterPipelineData(sel.graphics_key, pipeline_hash, sdata);
+        if (NewPipelineKey(fmt::format("g_{:#018x}", pipeline_hash))) {
+            RegisterPipelineData(sel.graphics_key, pipeline_hash, sdata);
+        }
         ++num_new_pipelines;
 
         if (EmulatorSettings.IsShaderCollect()) {
@@ -860,7 +865,9 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
         it.value() = std::make_unique<ComputePipeline>(instance, scheduler, desc_heap, profile,
                                                        *pipeline_cache, compute_key, *sel.infos[0],
                                                        sel.modules[0], sdata, false);
-        RegisterPipelineData(compute_key, sdata);
+        if (NewPipelineKey(fmt::format("c_{:#018x}", compute_key.value))) {
+            RegisterPipelineData(compute_key, sdata);
+        }
         ++num_new_pipelines;
 
         if (EmulatorSettings.IsShaderCollect()) {

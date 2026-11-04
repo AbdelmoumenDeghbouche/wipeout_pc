@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <shared_mutex>
+#include <string>
 #include <variant>
 #include <boost/container/static_vector.hpp>
 #include <tsl/robin_map.h>
@@ -251,11 +252,13 @@ private:
     bool disk_shaders = false;
     bool disk_store_untrusted = false; ///< the bit went off live: the marker was reset
     std::unordered_map<u64, std::vector<u32>> disk_permutations; ///< pgm hash -> saved indices
+    std::unordered_set<std::string> disk_pipeline_keys;          ///< "g_0x..."/"c_0x..." saved
     /// Loaded modules no draw has used yet (handles only, for the "used" count).
     std::unordered_set<vk::ShaderModule> disk_modules_unused;
     struct DiskShaderStats {
         u64 programs, permutations, rejected, matched, compiled, spirv_bytes, load_ns;
         u64 unused_peak; ///< most modules loaded and not used yet at once
+        u64 keys_skipped, keys_written;
     } disk_stats{}, disk_reported{};
     std::chrono::steady_clock::time_point disk_report{};
     [[nodiscard]] bool DiskShadersActive() const;
@@ -263,6 +266,8 @@ private:
     bool LoadDiskProgram(u64 hash);
     /// Index for a new permutation: a slot the store left empty, else the next one.
     [[nodiscard]] size_t NewPermutationIndex(const Program& program) const;
+    /// False when this pipeline key is already in the store (nothing to write).
+    bool NewPipelineKey(const std::string& name);
     void ReportDiskShaders();
 
     // Only if Config::collectShadersForDebug()
