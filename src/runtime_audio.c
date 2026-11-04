@@ -146,7 +146,8 @@ static ABI int32_t audio_open(int32_t user, int32_t type, int32_t index, uint32_
         if (p->stream) SDL_ResumeAudioStreamDevice(p->stream);
         else fprintf(stderr,"Runtime: SDL audio stream failed (%s); port %d uses the timer sink\n",SDL_GetError(),id);
     }
-    p->stats=getenv("GOW3_AUDIO_STATS")!=NULL;
+    /* The launcher's "Frame statistics in the log" (GOW3_FRAME_STATS) shows them too (#66: crackles). */
+    p->stats=getenv("GOW3_AUDIO_STATS")!=NULL || (getenv("GOW3_FRAME_STATS") && getenv("GOW3_FRAME_STATS")[0]=='1');
     const char *dump=getenv("GOW3_AUDIO_DUMP");
     if (dump) {
         char path[4096];
