@@ -1236,6 +1236,9 @@ int main(int argc, char **argv) {
         if (sfo_value(sfo,"INSTALL_DIR_SAVEDATA",id,sizeof(id),NULL) || sfo_value(sfo,"TITLE_ID",id,sizeof(id),NULL))
             runtime_savedata_configure(id);
     }
+    /* Discord Rich Presence: the game's state for scripts/discord_presence.py (run.py sets the file). */
+    const char *presence_file = getenv("GOW3_PRESENCE_FILE");
+    if (presence_file && *presence_file) runtime_presence_configure(presence_file);
     /* GOW3_NET_HOST=1: this game hosts the match server of online play (GOW3_NET_PORT, 7788). */
     const char *net_host = getenv("GOW3_NET_HOST");
     if (net_host && *net_host && *net_host != '0') {

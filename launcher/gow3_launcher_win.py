@@ -2869,6 +2869,11 @@ class Launcher:
         self.row(f, _('GUI Scale'), self.choice(f, 'ui_scale', 'app', UI_SCALES),
                  _('For launcher only. Applies after Save.'))
         self.check(f, 'close_on_play', 'app', _('Close the launcher when the game starts', 'Закрывать лаунчер при запуске игры'))
+        self.check(f, 'discord_rpc', 'app', _('Show Discord Rich Presence', 'Показывать Discord Rich Presence'),
+                   _('Shows the game, the track and mode you play, your online lobby and the time played on your '
+                     'Discord profile, as "Playing WipEout: Omega Collection" with its game page.',
+                     'Показывает в вашем профиле Discord игру, трассу и режим, онлайн-лобби и время в игре: '
+                     '«Playing WipEout: Omega Collection» со страницей игры.'))
         if WINDOWS:
             self.check(f, 'update_popup', 'app', _('Check for updates when the launcher opens',
                                                     'Проверять обновления при открытии лаунчера'))
