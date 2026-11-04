@@ -14,6 +14,7 @@
 #include "core/memory.h"
 #include "shader_recompiler/runtime_info.h"
 #include "video_core/amdgpu/liverpool.h"
+#include "video_core/amdgpu/liverpool_hash.h"
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/buffer_cache/buffer_cache.h"
@@ -25,6 +26,7 @@
 #include "video_core/renderer_vulkan/vk_gpu_profiler.h"
 #include "wipeout_threads.h"
 #include "video_core/renderer_vulkan/vk_runtime.h"
+#include "video_core/renderer_vulkan/vk_scene_signature.h"
 #include "video_core/renderer_vulkan/vk_scheduler.h"
 #include "video_core/renderer_vulkan/vk_shader_hle.h"
 #include "video_core/texture_cache/image_view.h"
@@ -55,6 +57,9 @@ Rasterizer::Rasterizer(const Instance& instance_, Scheduler& scheduler_, Runtime
       guest_markers_enabled{EmulatorSettings.IsVkGuestMarkersEnabled()} {
     // Before the rasterizer is bound: Liverpool enqueues buffers only once it sees it.
     draw_prep = std::make_unique<DrawPreparation>(pipeline_cache);
+    // Only the workers read the register checksum. Set before any command buffer: the guest
+    // submits after the presenter (and this) exist; until then the default hashes as before.
+    liverpool->hash_registers = AmdGpu::HashRegisters(draw_prep ? draw_prep->WorkerCount() : 0);
     scene_targets = std::make_unique<SceneTargets>(instance, scheduler, runtime, texture_cache);
     // Object motion first: it fixes the buffer addresses the motion shader variants embed.
     object_motion = std::make_unique<ObjectMotion>(instance, scheduler);
@@ -119,6 +124,27 @@ bool IsKnownFormat(AmdGpu::DataFormat data_fmt, AmdGpu::NumberFormat num_fmt) {
     return d < 256 && n < 256 && tables.first[d] && tables.second[n];
 }
 } // namespace
+
+// wipeout (WIPEOUT_GAME_MOTION=1, game profile): read by PrepareRenderState and BeginRenderingFull.
+static const bool game_motion = [] {
+    const char* env = std::getenv("WIPEOUT_GAME_MOTION");
+    return env && env[0] == '1';
+}();
+
+/// SceneSignature::WipeoutScenePass over the bound images; an empty id is an absent target.
+static bool WipeoutScenePass(VideoCore::TextureCache& cache, u32 mrt_mask,
+                             VideoCore::ImageId color0, VideoCore::ImageId color2,
+                             VideoCore::ImageId depth) {
+    const auto target = [&](VideoCore::ImageId id) -> SceneSignature::Target {
+        if (!id) {
+            return {false, vk::Format::eUndefined, 0, 0};
+        }
+        const auto& info = cache.GetImage(id).info;
+        return {true, info.pixel_format, info.size.width, info.size.height};
+    };
+    return SceneSignature::WipeoutScenePass(mrt_mask, target(color0), target(color2),
+                                            target(depth));
+}
 
 bool Rasterizer::FilterDraw() {
     const auto& regs = Regs();
@@ -319,22 +345,12 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
     // wipeout (WIPEOUT_GAME_MOTION=1, game profile): the main scene pass draws R11G11B10 color,
     // linear depth (color1) and the game's own motion vectors (color2, R16G16F), all full size,
     // with the scene depth. It gives the upscaler depth, color and motion; no camera is needed.
-    static const bool game_motion = [] {
-        const char* env = std::getenv("WIPEOUT_GAME_MOTION");
-        return env && env[0] == '1';
-    }();
-    if (game_motion && upscaler->Enabled() && std::popcount(key.mrt_mask) == 3 &&
-        db_desc.first && cb_descs[0].first && cb_descs[2].first) {
-        const auto& color = texture_cache.GetImage(cb_descs[0].first);
-        const auto& motion = texture_cache.GetImage(cb_descs[2].first);
-        const auto& depth = texture_cache.GetImage(db_desc.first);
-        if (color.info.pixel_format == vk::Format::eB10G11R11UfloatPack32 &&
-            motion.info.pixel_format == vk::Format::eR16G16Sfloat &&
-            color.info.size == depth.info.size && motion.info.size == depth.info.size) {
-            camera_motion->OnGBufferPass(db_desc.first);
-            camera_motion->OnGameMotion(cb_descs[2].first);
-            upscaler->OnSceneColor(cb_descs[0].first);
-        }
+    if (game_motion && upscaler->Enabled() &&
+        WipeoutScenePass(texture_cache, key.mrt_mask, cb_descs[0].first, cb_descs[2].first,
+                         db_desc.first)) {
+        camera_motion->OnGBufferPass(db_desc.first);
+        camera_motion->OnGameMotion(cb_descs[2].first);
+        upscaler->OnSceneColor(cb_descs[0].first);
     }
     if (upscaler->Enabled() && cb_descs[0].first) {
         upscaler->OnColorTarget(cb_descs[0].first);
@@ -625,13 +641,12 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
     }
     std::array<u16, AmdGpu::RegDirty::NumBlocks> blocks;
     u32 num_blocks = 0;
-    dirty.ForEach([&](u32 block) { blocks[num_blocks++] = static_cast<u16>(block); });
+    const bool regs_reset = dirty.reset;
+    dirty.ForEachAndClear([&](u32 block) { blocks[num_blocks++] = static_cast<u16>(block); });
     const auto stages =
         pipeline ? pipeline->GetStages() : std::span<const Shader::Info* const>{};
     // Constants: copied here into the ring, the recording thread only binds them.
-    thread_local std::array<boost::container::static_vector<RingBinding, Shader::NUM_BUFFERS>,
-                            Shader::MaxStageTypes>
-        rings;
+    auto& rings = post_rings;
     u32 num_stages = 0;
     u32 size = sizeof(DrawPacket) + AlignPacket(num_blocks * sizeof(u16)) +
                num_blocks * AmdGpu::RegDirty::BlockWords * sizeof(u32);
@@ -672,7 +687,7 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
     packet.prepared = used_prepared;
     packet.index_offset = index_offset;
     packet.is_indexed = is_indexed;
-    packet.regs_reset = dirty.reset;
+    packet.regs_reset = regs_reset;
     packet.num_blocks = static_cast<u16>(num_blocks);
     packet.num_stages = num_stages;
     packet.verify = verify;
@@ -722,7 +737,6 @@ void Rasterizer::PostDraw(const Pipeline* pipeline, const PreparedDraw* used_pre
         std::memcpy(out, &liverpool->regs, sizeof(AmdGpu::Regs));
         out += sizeof(AmdGpu::Regs);
     }
-    dirty.Clear();
     draw_pipe->Commit(static_cast<u32>(out - start));
     PrintPipeStats();
 }
@@ -1054,8 +1068,14 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
         object_motion->OnFrameStart();
         NoteFrameStart();
         static const char* scene_debug = std::getenv("WIPEOUT_SCENE_DEBUG");
-        scene_debug_frame = scene_debug && std::remove(scene_debug) == 0;
-        scene_targets->debug = scene_debug_frame;
+        // wipeout: armed once per frame, at the first draw into a new display buffer. WipEout draws
+        // its HUD into the display buffer after the copy, and each of those draws comes through
+        // here: re-testing the trigger cleared the flag before the next frame's scene passes.
+        if (regs.color_buffers[0].Address() != scene_debug_buffer) {
+            scene_debug_buffer = regs.color_buffers[0].Address();
+            scene_debug_frame = scene_debug && std::remove(scene_debug) == 0;
+            scene_targets->debug = scene_debug_frame;
+        }
     } else if (regs.color_buffers[0] &&
                FrameCapture::IsDisplayBuffer(regs.color_buffers[0].Address()) &&
                regs.color_buffers[0].Address() != last_display_buffer) {
@@ -2858,6 +2878,37 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
     const auto& key = pipeline->GetGraphicsKey();
     if (std::popcount(key.mrt_mask & 0x7f) >= 5 && db_desc.first &&
         scene_targets->EligibleScene(texture_cache.GetImage(db_desc.first))) scene_started = true;
+    // wipeout: WipEout's scene pass has three colour targets, so the rule above never starts its
+    // reduced-size scene: the presets only downscaled the native 1080p targets for FSR (Steam
+    // Deck, 2026-11-02, docs/steam-deck-performance.md). Its signature starts it too.
+    if (game_motion && !WipeoutToggle::Disabled(WipeoutToggle::WipeoutSceneRaster) && db_desc.first &&
+        WipeoutScenePass(texture_cache, key.mrt_mask, cb_descs[0].first, cb_descs[2].first,
+                         db_desc.first) &&
+        scene_targets->EligibleScene(texture_cache.GetImage(db_desc.first))) {
+        scene_started = true;
+    }
+    // WIPEOUT_SCENE_DEBUG frame: every pass with a full-size depth, and which condition of the
+    // WipEout rule it meets, since "Scene pass:" lines below need scene_started already.
+    if (scene_debug_frame && db_desc.first) {
+        const auto& depth = texture_cache.GetImage(db_desc.first);
+        if (depth.info.size.width == 1920 && depth.info.size.height == 1080) {
+            const auto describe = [&](VideoCore::ImageId id) {
+                if (!id) return std::string{"-"};
+                const auto& info = texture_cache.GetImage(id).info;
+                return fmt::format("{} {}x{}", vk::to_string(info.pixel_format), info.size.width,
+                                   info.size.height);
+            };
+            std::printf("Scene candidate: mrt %#x color0 [%s] color2 [%s] depth [%s] eligible %d "
+                        "game_motion %d toggle_off %d signature %d scene_started %d\n",
+                        key.mrt_mask, describe(cb_descs[0].first).c_str(),
+                        describe(cb_descs[2].first).c_str(), describe(db_desc.first).c_str(),
+                        int(scene_targets->EligibleScene(depth)), int(game_motion),
+                        int(WipeoutToggle::Disabled(WipeoutToggle::WipeoutSceneRaster)),
+                        int(WipeoutScenePass(texture_cache, key.mrt_mask, cb_descs[0].first,
+                                             cb_descs[2].first, db_desc.first)),
+                        int(scene_started));
+        }
+    }
     // A proxy attachment cannot represent MSAA or a feedback loop that reads the
     // same image through the guest's native descriptor during this draw.
     bool reduced = scene_started && upscaler->RasterScaling() && key.num_samples == 1;

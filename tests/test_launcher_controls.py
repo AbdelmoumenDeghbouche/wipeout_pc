@@ -66,6 +66,24 @@ class DiskModsTest(unittest.TestCase):
 
 
 class ControlMapTest(unittest.TestCase):
+    def test_controller_buttons_and_stick(self):
+        # #145: the first connected pad's buttons; the left stick past a quarter reads as the D-pad.
+        def pad(raw):
+            def get_state(index, state):
+                if index != 1:
+                    return 1167  # ERROR_DEVICE_NOT_CONNECTED
+                state[4:6], state[8:10], state[10:12] = (v.to_bytes(2, 'little', signed=True) for v in raw)
+                return 0
+            return get_state
+        with mock.patch.object(launcher, '_xinput', pad((0x1000, 0, 0)), create=True):
+            self.assertEqual(launcher.xinput_buttons(), 0x1000)
+        with mock.patch.object(launcher, '_xinput', pad((0, -20000, 20000)), create=True):
+            self.assertEqual(launcher.xinput_buttons(), 0x1 | 0x4)
+        with mock.patch.object(launcher, '_xinput', pad((0x200, 20000, -20000)), create=True):
+            self.assertEqual(launcher.xinput_buttons(), 0x200 | 0x2 | 0x8)
+        with mock.patch.object(launcher, '_xinput', lambda _i, _s: 1167, create=True):
+            self.assertIsNone(launcher.xinput_buttons())
+
     def test_pipeline_binary_cache_switch(self):
         settings = {**launcher.APP_DEFAULTS}
         self.assertTrue(settings['pipeline_binary_cache'])
@@ -804,9 +822,9 @@ class TextureQualityTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.52')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.53'), launcher.version_tuple(launcher.VERSION))
-        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.51'))
+        self.assertEqual(launcher.VERSION, '0.2.54')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.55'), launcher.version_tuple(launcher.VERSION))
+        self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.53'))
 
     def test_update_check_is_on_by_default(self):
         # A new key: the old 'check_updates' was saved off in everyone's settings.

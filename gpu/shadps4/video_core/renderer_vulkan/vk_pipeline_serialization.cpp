@@ -26,6 +26,7 @@
 #include "shader_recompiler/info.h"
 #include "video_core/cache_storage.h"
 #include "video_core/renderer_vulkan/vk_amd_paths.h"
+#include "video_core/renderer_vulkan/vk_compile_policy.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
 #include "video_core/renderer_vulkan/vk_lighting_test.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
@@ -293,6 +294,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
                                                               : create(nullptr, used_info, false);
     };
     if (!enabled) {
+        g_compile_policy.Compiled(CompilePolicy::Now()); // wipeout: no cache, every build compiles
         return create_any(info);
     }
     SCOPE_EXIT {
@@ -318,6 +320,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         !ValidKey(global) || !ValidKey(BinaryKey(pipeline_key))) {
         ++binary_errors;
         ++binary_misses;
+        g_compile_policy.Compiled(CompilePolicy::Now());
         return create_any(info);
     }
     const auto pipeline_id = BinaryKey(pipeline_key);
@@ -393,6 +396,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         destroy();
     }
     ++binary_misses;
+    g_compile_policy.Compiled(CompilePolicy::Now()); // wipeout: a real compile
     flags.flags = vk::PipelineCreateFlags2{static_cast<VkPipelineCreateFlags>(info.flags)} |
                   vk::PipelineCreateFlagBits2::eCaptureDataKHR;
     auto result = create(nullptr, captured_info, false);

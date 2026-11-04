@@ -118,12 +118,18 @@ class AddToSteamTests(unittest.TestCase):
         self.assertEqual(entry['icon'], str(grid / f'{app_id}_icon.png'))
 
     def test_other_shortcuts_stay_and_a_backup_is_made(self):
+        file = self.steam / 'userdata' / '2222' / 'config' / 'shortcuts.vdf'
+        original = file.read_bytes()
+        legacy = file.with_name('shortcuts.vdf.wipeout-backup')
+        legacy.write_bytes(b'older backup kept')
         self.add()
+        self.assertEqual(legacy.read_bytes(), b'older backup kept')
+        self.assertEqual(file.with_name('shortcuts.vdf.wipeout-oc-backup').read_bytes(), original)
         shortcuts = self.shortcuts('2222')
         self.assertEqual(shortcuts['0']['AppName'], 'Other')
         self.assertEqual(shortcuts['0']['tags'], {'0': 'keep'})
         self.assertEqual(shortcuts['1']['AppName'], steam.APP_NAME)
-        self.assertTrue((self.steam / 'userdata' / '2222' / 'config' / 'shortcuts.vdf.wipeout-backup').is_file())
+        self.assertTrue((self.steam / 'userdata' / '2222' / 'config' / 'shortcuts.vdf.wipeout-oc-backup').is_file())
 
     def test_adding_again_updates_the_same_shortcut(self):
         self.add()

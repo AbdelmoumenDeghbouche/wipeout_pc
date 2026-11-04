@@ -501,7 +501,7 @@ u64 Liverpool::HashRegisterPacket(u64 checksum, const u32* words, u32 count) {
     return checksum;
 }
 
-void Liverpool::ApplyGraphicsRegisterPacket(Regs& regs, const PM4Header* header, u64& checksum,
+void Liverpool::ApplyGraphicsRegisterPacket(Regs& regs, const PM4Header* header, u64* checksum,
                                              RegDirty* dirty) {
     const u32 count = header->type3.NumWords();
     const auto* payload = reinterpret_cast<const u32*>(header + 2);
@@ -619,7 +619,9 @@ void Liverpool::ApplyGraphicsRegisterPacket(Regs& regs, const PM4Header* header,
     default:
         return;
     }
-    checksum = HashRegisterPacket(checksum, reinterpret_cast<const u32*>(header), count + 1);
+    if (checksum) {
+        *checksum = HashRegisterPacket(*checksum, reinterpret_cast<const u32*>(header), count + 1);
+    }
 }
 
 // wipeout: WIPEOUT_DCB_STATS=1 — structure of graphics command buffers (read-only scan, printed every
@@ -775,7 +777,8 @@ Liverpool::Task Liverpool::ProcessGraphics(std::span<const u32> dcb, std::span<c
         case 3:
             const u32 count = header->type3.NumWords();
             const PM4ItOpcode opcode = header->type3.opcode;
-            ApplyGraphicsRegisterPacket(regs, header, gfx_reg_checksum, &pipe_dirty);
+            ApplyGraphicsRegisterPacket(regs, header, hash_registers ? &gfx_reg_checksum : nullptr,
+                                        &pipe_dirty);
             // DmaData to 0x3022C does nothing here (skipped below): no need to wait.
             if (rasterizer && !PipelinedOpcode(opcode) &&
                 !(opcode == PM4ItOpcode::DmaData &&
@@ -1556,9 +1559,11 @@ Liverpool::Task Liverpool::ProcessCompute(std::span<const u32> acb, u32 vqid) {
                             header + 2, set_size);
                 // wipeout: interleaves with the graphics stream at an unpredictable point, so
                 // draw-preparation workers cannot reproduce it: make their checksums differ.
-                gfx_reg_checksum = HashRegisterPacket(gfx_reg_checksum ^ 0xA5C0A5C0A5C0ull,
-                                                      reinterpret_cast<const u32*>(header),
-                                                      header->type3.NumWords() + 1);
+                if (hash_registers) {
+                    gfx_reg_checksum = HashRegisterPacket(gfx_reg_checksum ^ 0xA5C0A5C0A5C0ull,
+                                                          reinterpret_cast<const u32*>(header),
+                                                          header->type3.NumWords() + 1);
+                }
             }
             break;
         }

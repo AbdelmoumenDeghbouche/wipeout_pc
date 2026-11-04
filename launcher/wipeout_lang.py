@@ -750,6 +750,7 @@ WINDOWS_LANGUAGES = {0x19: 'ru', 0x01: 'ar', 0x0a: 'es', 0x16: 'pt', 0x0c: 'fr',
 # other languages fall back to English for them until someone who speaks them contributes.
 EXTRA = {
     'pt': {
+        'On: start at once, using pipeline binaries on demand or loading shaders in the background. Off: wait on the loading screen for saved pipelines without disabling the binary cache. New areas can still need shader compilation.': 'Ligado: começa de imediato, usando binários de pipeline sob demanda ou carregando shaders em segundo plano. Desligado: espera na tela de carregamento pelos pipelines salvos, sem desativar o cache de binários. Áreas novas ainda podem precisar compilar shaders.',
         '7788 unless you have a reason to change it. The next free one is taken when it is in use.': '7788, a menos que você tenha um motivo para mudar. Se estiver em uso, a próxima livre é usada.',
         'Could not set up online play: {}': 'Não foi possível preparar o jogo online: {}',
         'Enter the join code your friend sees when they host. Check it for typos.': 'Digite o código que seu amigo vê ao hospedar. Confira se não há erros.',
@@ -1111,6 +1112,7 @@ EXTRA = {
         'Dodge': 'Esquiva',
     },
     'es': {
+        'On: start at once, using pipeline binaries on demand or loading shaders in the background. Off: wait on the loading screen for saved pipelines without disabling the binary cache. New areas can still need shader compilation.': 'Activado: empieza de inmediato, usando binarios de pipeline bajo demanda o cargando shaders en segundo plano. Desactivado: espera en la pantalla de carga a los pipelines guardados, sin desactivar la caché de binarios. Las zonas nuevas aún pueden necesitar compilar shaders.',
         '7788 unless you have a reason to change it. The next free one is taken when it is in use.': '7788, salvo que tengas un motivo para cambiarlo. Si está en uso, se usa el siguiente libre.',
         'Could not set up online play: {}': 'No se pudo preparar el juego en línea: {}',
         'Enter the join code your friend sees when they host. Check it for typos.': 'Escribe el código que ve tu amigo al alojar la partida. Comprueba que no tenga errores.',

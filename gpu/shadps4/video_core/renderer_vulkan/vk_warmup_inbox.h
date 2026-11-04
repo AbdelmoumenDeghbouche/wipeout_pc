@@ -12,8 +12,9 @@
 
 namespace Vulkan {
 
-inline bool UseOnDemandPipelines(bool binary_cache, bool supported, bool capture_only) {
-    return binary_cache && supported && !capture_only;
+inline bool UseOnDemandPipelines(bool binary_cache, bool supported, bool capture_only,
+                                 bool background_warmup) {
+    return background_warmup && binary_cache && supported && !capture_only;
 }
 
 /// Warm-up threads: one on four cores or fewer, otherwise all but two, at most six.

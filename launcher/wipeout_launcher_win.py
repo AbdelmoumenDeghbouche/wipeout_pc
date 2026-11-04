@@ -66,7 +66,7 @@ NO_WINDOW = getattr(subprocess, 'CREATE_NO_WINDOW', 0)
 NEW_GROUP = {} if WINDOWS else {'start_new_session': True}
 UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 # This build; GitHub release tags are windows-v<VERSION>.
-VERSION = '0.2.52'
+VERSION = '0.2.54'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'wipeout-update'
@@ -432,6 +432,30 @@ FPS_LIMITS = [('30', ('30',)), ('40', ('40',)), ('60', ('60',)), ('100', ('100',
 PAGES = ('home', 'graphics', 'performance', 'game', 'online', 'cheats', 'music', 'controls', 'mods', 'advanced')
 PAGE_REFRESH = {'home': ('refresh_status',), 'game': ('refresh_game_patches',), 'music': ('refresh_music',),
                 'mods': ('refresh_lists',)}
+# #145: XInput buttons (the left stick reads as the D-pad) and what they do in the launcher.
+PAD_ACTIONS = ((0x1, 'up'), (0x2, 'down'), (0x4, 'left'), (0x8, 'right'), (0x10, 'play'), (0x20, 'save'),
+               (0x100, 'prev_page'), (0x200, 'next_page'), (0x1000, 'select'), (0x2000, 'back'))
+
+
+def xinput_buttons():
+    """The first connected Xbox controller's buttons, None when there is none (Windows only)."""
+    global _xinput
+    if '_xinput' not in globals():
+        _xinput = None
+        for name in ('xinput1_4', 'xinput9_1_0'):
+            with contextlib.suppress(OSError):
+                _xinput = ctypes.WinDLL(name).XInputGetState
+                break
+    if not _xinput:
+        return None
+    state = (ctypes.c_ubyte * 16)()  # dwPacketNumber, wButtons, triggers, thumb LX, LY, RX, RY
+    for pad in range(4):
+        if _xinput(pad, state) == 0:
+            buttons, lx, ly = int.from_bytes(bytes(state[4:6]), 'little'), \
+                int.from_bytes(bytes(state[8:10]), 'little', signed=True), \
+                int.from_bytes(bytes(state[10:12]), 'little', signed=True)
+            return buttons | (ly > 16000) | (ly < -16000) << 1 | (lx < -16000) << 2 | (lx > 16000) << 3
+    return None
 # The custom soundtrack's file types, as src/runtime_music.c.
 MUSIC_TYPES = ('.mp3', '.ogg', '.oga', '.opus', '.flac', '.wav', '.m4a', '.aac', '.wma')
 UI_SCALES = [('auto', ('Auto',)), ('1', ('1x',)), ('2', ('2x',))]
@@ -765,8 +789,25 @@ def ini_path():
     return Path(os.environ.get('WIPEOUT_CONFIG', DATA_DIR / 'wipeout.ini'))
 
 
+DMI_PRODUCT_NAME = Path('/sys/devices/virtual/dmi/id/product_name')
+
+
+def steam_deck():
+    """A Steam Deck (LCD: Jupiter, OLED: Galileo), by the product name Linux reads from the firmware."""
+    if WINDOWS:
+        return False
+    try:
+        return DMI_PRODUCT_NAME.read_text(encoding='utf-8').strip() in ('Jupiter', 'Galileo')
+    except OSError:
+        return False
+
+
 def load_ini():
     values, lines = dict(INI_DEFAULTS), []
+    # The Deck shows 16:9 letterboxed in its 1280x800 panel: a 1280x720 output is the same picture,
+    # races 47-53 -> 58-60 FPS (2026-11-02, docs/steam-deck-performance.md). A saved value wins.
+    if steam_deck():
+        values['output_res'] = '1280x720'
     try:
         lines = ini_path().read_text(encoding='utf-8').splitlines()
     except OSError:
@@ -1376,6 +1417,8 @@ class Launcher:
         root.protocol('WM_DELETE_WINDOW', self.close)
         root.after(100, self.drain_output)
         root.after(500, self.watch_changes)
+        if WINDOWS:
+            root.after(500, self.poll_gamepad)
         if WINDOWS and self.app['update_popup']:
             threading.Thread(target=self.check_update, daemon=True).start()
 
@@ -1731,6 +1774,14 @@ class Launcher:
         canvas.pack(side='left', fill='both', expand=True)
         outer.scroll = lambda units: canvas.yview_scroll(units, 'units') if inner.winfo_height() > canvas.winfo_height() else None
 
+        def see(widget):  # a controller moved the focus (#145): keep it in view
+            height = max(1, inner.winfo_height())
+            y = widget.winfo_rooty() - inner.winfo_rooty()
+            top, bottom = (f * height for f in canvas.yview())
+            if y < top or y + widget.winfo_height() > bottom:
+                canvas.yview_moveto(max(0.0, (y - canvas.winfo_height() / 3) / height))
+        outer.see = see
+
         def fit():  # after a section is hidden: the shorter content, kept in view
             canvas.update_idletasks()
             canvas.configure(scrollregion=(0, 0, canvas.winfo_width(), inner.winfo_reqheight()))
@@ -1806,6 +1857,8 @@ class Launcher:
         self.game_changed()
 
     def wheel(self, event):
+        if hasattr(self, 'pad_marker'):  # it would stay put over the scrolled page
+            self.pad_marker.place_forget()
         if self.capture_wheel:
             return self.capture_wheel(event)
         page = self.pages.get(self.current_page)
@@ -1813,7 +1866,61 @@ class Launcher:
                 and 'popdown' not in str(event.widget):
             page.scroll({4: -1, 5: 1}.get(event.num) or int(-event.delta / 120))
 
+    def poll_gamepad(self):
+        """#145: an Xbox (XInput) controller drives the launcher while its window is in front:
+        LB/RB pages, D-pad or left stick up/down moves, left/right changes a choice or a slider,
+        A selects, B goes home, Start plays, Back saves."""
+        state = xinput_buttons()
+        held = state if state and ctypes.windll.user32.GetForegroundWindow() == int(self.root.wm_frame(), 16) else 0
+        now = time.monotonic()
+        fire = held & ~getattr(self, 'pad_prev', 0)
+        if fire:
+            self.pad_repeat_at = now + 0.4
+        elif held & 0xF and now >= getattr(self, 'pad_repeat_at', now):  # a held direction repeats
+            fire, self.pad_repeat_at = held & 0xF, now + 0.12
+        self.pad_prev = held
+        for bit, action in PAD_ACTIONS:
+            if fire & bit:
+                self.gamepad_action(action)
+        self.root.after(33 if state is not None else 1000, self.poll_gamepad)
+
+    def gamepad_action(self, action):
+        page = self.pages[self.current_page]
+        widget = self.root.focus_get()
+        if action in ('prev_page', 'next_page'):
+            i = PAGES.index(self.current_page) + (1 if action == 'next_page' else -1)
+            self.show(PAGES[i % len(PAGES)])
+        elif action in ('up', 'down'):
+            nxt = (widget.tk_focusNext() if action == 'down' else widget.tk_focusPrev()) if widget else \
+                page.tk_focusNext()
+            if nxt:
+                nxt.focus_set()
+                if hasattr(page, 'see') and str(nxt).startswith(str(page)):
+                    page.see(nxt)
+                if not hasattr(self, 'pad_marker'):  # the focus ring of the theme is hard to see
+                    self.pad_marker = self.tk.Frame(self.root, bg=ACCENT_HI)
+                self.pad_marker.place(in_=nxt, x=-self.px(10), y=0, width=self.px(4), relheight=1)
+                self.pad_marker.lift()
+        elif action in ('left', 'right', 'select') and widget:
+            step = -1 if action == 'left' else 1
+            if isinstance(widget, self.ttk.Combobox) and widget['values']:
+                widget.current((widget.current() + step) % len(widget['values']))
+                widget.event_generate('<<ComboboxSelected>>')
+            elif isinstance(widget, (self.ttk.Scale, self.tk.Scale)):
+                low, high = sorted((float(widget.cget('from')), float(widget.cget('to'))))
+                widget.set(min(high, max(low, float(widget.get()) + step * max(1.0, (high - low) / 20))))
+            elif action == 'select' and hasattr(widget, 'invoke'):
+                widget.invoke()
+        elif action == 'back':
+            self.show('home')
+        elif action == 'play':
+            self.play()
+        elif action == 'save' and str(self.save_button['state']) != 'disabled':
+            self.save()
+
     def show(self, name):
+        if hasattr(self, 'pad_marker'):
+            self.pad_marker.place_forget()
         for page in self.pages.values():
             page.pack_forget()
         self.pages[name].pack(fill='both', expand=True)
@@ -1902,6 +2009,9 @@ class Launcher:
         self.row(f, _('Render resolution'), self.choice(f, 'render_resolution', 'ini', self.game_resolution_options()),
                  _('Sizes with a resolution patch for this game. Wider than 16:9 keeps the HUD at 16:9.'),
                  restart=True)
+        self.row(f, _('Output resolution', 'Разрешение вывода'), self.choice(f, 'output_res', 'ini', OUTPUTS),
+                 _('What the upscaler produces; the HUD is drawn at this size too.',
+                   'Что выдаёт апскейлер; интерфейс рисуется в этом же размере.'), restart=True)
         self.row(f, _('Texture quality'), self.choice(f, 'texture_limit', 'app', TEXTURE_LIMITS),
                  _('Low loads the largest textures at half size or less: about 1 GB less video memory in a race. '
                    'For graphics cards with 4 GB that crash or freeze in races.'), restart=True)
@@ -1952,9 +2062,6 @@ class Launcher:
         # self.row(f, _('Quality preset', 'Пресет'), self.choice(f, 'preset', 'ini', PRESETS),
         #          _('Render scale per axis: Quality renders at 1/1.5 of the output size.',
         #            'Масштаб рендера по каждой оси: Quality рисует в 1/1.5 размера вывода.'))
-        # self.row(f, _('Output resolution', 'Разрешение вывода'), self.choice(f, 'output_res', 'ini', OUTPUTS),
-        #          _('What the upscaler produces; the HUD is drawn at this size too.',
-        #            'Что выдаёт апскейлер; интерфейс рисуется в этом же размере.'))
         # self.row(f, _('Live resolution changes', 'Смена разрешения на лету'), self.choice(f, 'live_resolution', 'ini', LIVE),
         #          _('Off: outputs other than 1080p are set by a patch at start (fastest; changing them in the '
         #            'game restarts it). On: change output and preset in the game without a restart, at a cost.',
@@ -1999,8 +2106,9 @@ class Launcher:
                    _('Reuse saved Vulkan pipelines. Disable to compare FPS with normal compilation. '
                      'Takes effect on the next launch; saved caches are preserved.'))
         self.check(f, 'background_warmup', 'app', _('Load shader cache in the background'),
-                   _('The game opens at once and the saved shaders load while you play; a small note in the '
-                     'corner shows the progress. Switch it off to wait on the loading screen instead.'))
+                   _('On: start at once, using pipeline binaries on demand or loading shaders in the background. '
+                     'Off: wait on the loading screen for saved pipelines without disabling the binary cache. '
+                     'New areas can still need shader compilation.'))
         self.check(f, 'async_shaders', 'ini', _('Compile new shaders in the background'),
                    _('Fewer stutters in new areas: the game keeps running while new shaders compile. An object '
                      'or effect may appear a moment later. Switch it off if something stays missing.'))
@@ -3862,10 +3970,22 @@ def online_ready_settings(settings):
         return settings
 
 
+def write_deck_defaults():
+    """The Steam Deck's output default (load_ini) written into wipeout.ini when it has no value: the
+    game reads the file itself, and --play never opens the window whose Play and Save write it."""
+    if not steam_deck():
+        return
+    values, lines = load_ini()
+    keys = {line.split('=', 1)[0].strip() for line in lines if '=' in line and not line.lstrip().startswith('#')}
+    if 'output_res' not in keys:
+        save_ini({'output_res': values['output_res']}, lines)
+
+
 def play_without_window(settings):
     """--play: the game with the saved settings (shortcuts, Steam). Output goes to the console
     when there is one and to <saves folder>/last_run.log."""
     attach_stdio()
+    write_deck_defaults()
     settings = online_ready_settings(settings)
     with open_run_log(settings) as log:
         process = subprocess.Popen(run_command(), cwd=PORT_DIR, env=game_environment(settings),

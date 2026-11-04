@@ -229,6 +229,16 @@ bool PipelineBinaryCacheRequested() {
 }
 }
 
+#ifdef _WIN32
+// NVIDIA's global-key query clobbers Win64's nonvolatile RDI; preserve it at the API boundary.
+__attribute__((noinline)) static vk::Result QueryGlobalPipelineKey(vk::Device device,
+                                                                vk::PipelineBinaryKeyKHR& key) {
+    const auto result = device.getPipelineKeyKHR(nullptr, &key);
+    __asm__ volatile("" ::: "rdi");
+    return result;
+}
+#endif
+
 bool InitializePipelineBinaryCache(vk::Device device, bool supported,
                                    vk::PipelineBinaryKeyKHR& global_key) {
     global_key = vk::PipelineBinaryKeyKHR{};
@@ -247,7 +257,11 @@ bool InitializePipelineBinaryCache(vk::Device device, bool supported,
         LOG_WARNING(Render_Vulkan, "Pipeline binary cache functions unavailable; using normal compilation");
         return false;
     }
+#ifdef _WIN32
+    const auto result = QueryGlobalPipelineKey(device, global_key);
+#else
     const auto result = device.getPipelineKeyKHR(nullptr, &global_key);
+#endif
     if (result != vk::Result::eSuccess || !global_key.keySize ||
         global_key.keySize > VK_MAX_PIPELINE_BINARY_KEY_SIZE_KHR) {
         const auto key_size = global_key.keySize;

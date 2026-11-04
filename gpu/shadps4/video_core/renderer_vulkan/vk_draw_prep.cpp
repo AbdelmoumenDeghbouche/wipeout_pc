@@ -13,6 +13,7 @@
 #include "video_core/amdgpu/liverpool.h"
 #include "video_core/amdgpu/pm4_cmds.h"
 #include "video_core/renderer_vulkan/vk_draw_prep.h"
+#include "video_core/renderer_vulkan/vk_prep_workers.h"
 #include "video_core/renderer_vulkan/liverpool_to_vk.h"
 #include <xxhash.h>
 
@@ -48,12 +49,7 @@ void ForEachPacket(std::span<const u32> commands, Func&& func) {
 }
 
 u32 DefaultWorkerCount() {
-    if (const char* env = std::getenv("WIPEOUT_PREP_WORKERS")) {
-        return static_cast<u32>(std::clamp(std::atoi(env), 0, 16));
-    }
-    // Workers are SCHED_IDLE and claim whole buffers, so more of them only use more idle
-    // cores: half the hardware threads (Steam Deck 4, 16-thread desktop 8).
-    return std::clamp<u32>(WipeoutThreads::Available() / 2, 1, 8);
+    return PrepWorkerCount(WipeoutThreads::Available(), std::getenv("WIPEOUT_PREP_WORKERS"));
 }
 
 /// Flattened user data of one submission: chunks never move, so the GPU thread can read a
@@ -205,8 +201,8 @@ DrawPreparation::DrawPreparation(PipelineCache& pipeline_cache_)
     for (u32 i = 0; i < worker_count; ++i) {
         workers.emplace_back([this, i](std::stop_token stop) { WorkerLoop(stop, i); });
     }
-    std::printf("GPU: draw preparation workers: %u (+1 scanner, %u hardware threads)\n",
-                worker_count, WipeoutThreads::Available());
+    std::printf("GPU: draw preparation workers: %u (%s%u hardware threads)\n", worker_count,
+                worker_count ? "+1 scanner, " : "", WipeoutThreads::Available());
 }
 
 DrawPreparation::~DrawPreparation() {
@@ -365,7 +361,7 @@ void DrawPreparation::ScannerLoop(std::stop_token stop) {
         submission->start_checksum = checksum;
         dirty.Clear();
         ForEachPacket(submission->commands, [&](const AmdGpu::PM4Header* header) {
-            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, checksum, &dirty);
+            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, &checksum, &dirty);
         });
         submission->delta.Capture(*regs, dirty);
         submission->end_checksum = checksum;
@@ -437,7 +433,7 @@ void DrawPreparation::WorkerLoop(std::stop_token stop, u32 index) {
         u32 ordinal = 0;
         arena = FlatArena{};
         ForEachPacket(target->commands, [&](const AmdGpu::PM4Header* header) {
-            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, checksum);
+            AmdGpu::Liverpool::ApplyGraphicsRegisterPacket(*regs, header, &checksum);
             if (!IsDirectDraw(header->type3.opcode)) {
                 return;
             }

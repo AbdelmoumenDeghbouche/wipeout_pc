@@ -50,9 +50,12 @@ def savedata_dir(user_dir, savedata=None):
 
 def _copy(user_dir, now, savedata=None):
     savedata = savedata_dir(user_dir, savedata)
+    root = backups_dir(user_dir)
+    source_path, backup_path = savedata.resolve(), root.resolve()
+    if source_path.is_relative_to(backup_path) or backup_path.is_relative_to(source_path):
+        raise ValueError('Savedata and backup folders overlap')
     if not _has_saves(savedata):
         return None
-    root = backups_dir(user_dir)
     root.mkdir(parents=True, exist_ok=True)
     base = (now or datetime.datetime.now()).strftime(STAMP)
     # Pruning may have removed the unsuffixed folder or left gaps. Keep the
@@ -89,11 +92,15 @@ def restore(user_dir, name, now=None, savedata=None):
     savedata = savedata_dir(user_dir, savedata)
     # Pruning waits until the copy is done: the restored backup may be the oldest one.
     safety = _copy(user_dir, now, savedata)
-    staging = savedata.with_name(savedata.name + '.restoring')
-    shutil.rmtree(staging, ignore_errors=True)
-    shutil.copytree(source, staging)
-    shutil.rmtree(savedata, ignore_errors=True)
-    staging.rename(savedata)
+    savedata.parent.mkdir(parents=True, exist_ok=True)
+    staging = Path(tempfile.mkdtemp(prefix=f'.{savedata.name}.restoring-', dir=savedata.parent))
+    try:
+        shutil.copytree(source, staging, dirs_exist_ok=True)
+        shutil.rmtree(savedata, ignore_errors=True)
+        staging.rename(savedata)
+    except BaseException:
+        shutil.rmtree(staging, ignore_errors=True)
+        raise
     _prune(user_dir)
     return safety
 
