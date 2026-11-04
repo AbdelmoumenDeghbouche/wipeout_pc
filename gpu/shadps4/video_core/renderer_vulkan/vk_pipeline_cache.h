@@ -3,8 +3,10 @@
 
 #pragma once
 
+#include <chrono>
 #include <functional>
 #include <unordered_map>
+#include <unordered_set>
 #include <shared_mutex>
 #include <variant>
 #include <boost/container/static_vector.hpp>
@@ -243,6 +245,25 @@ private:
     PipelineSelection sel{}; ///< GPU thread selection state
     ComputePipelineKey compute_key{};
     u32 num_new_pipelines{}; // new pipelines added to the cache since the game start
+    /// gow3 (Gow3Toggle::DiskShaders): with on-demand startup, a program missing from
+    /// program_cache is first read from the store at its saved permutation indices, instead of
+    /// being translated again.
+    bool disk_shaders = false;
+    bool disk_store_untrusted = false; ///< the bit went off live: the marker was reset
+    std::unordered_map<u64, std::vector<u32>> disk_permutations; ///< pgm hash -> saved indices
+    /// Loaded modules no draw has used yet (handles only, for the "used" count).
+    std::unordered_set<vk::ShaderModule> disk_modules_unused;
+    struct DiskShaderStats {
+        u64 programs, permutations, rejected, matched, compiled, spirv_bytes, load_ns;
+        u64 unused_peak; ///< most modules loaded and not used yet at once
+    } disk_stats{}, disk_reported{};
+    std::chrono::steady_clock::time_point disk_report{};
+    [[nodiscard]] bool DiskShadersActive() const;
+    void IndexDiskShaders();
+    bool LoadDiskProgram(u64 hash);
+    /// Index for a new permutation: a slot the store left empty, else the next one.
+    [[nodiscard]] size_t NewPermutationIndex(const Program& program) const;
+    void ReportDiskShaders();
 
     // Only if Config::collectShadersForDebug()
     tsl::robin_map<vk::ShaderModule,
