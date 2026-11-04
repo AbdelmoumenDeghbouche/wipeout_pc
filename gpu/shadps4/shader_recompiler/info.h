@@ -7,6 +7,7 @@
 #include <vector>
 #include <boost/container/static_vector.hpp>
 #include "common/assert.h"
+#include "gow3_tls.h"
 #include "common/types.h"
 #include "shader_recompiler/backend/bindings.h"
 #include "shader_recompiler/frontend/copy_shader.h"
@@ -171,8 +172,8 @@ struct Info : InfoPersistent {
         VAddr pgm_base;
     };
     static constexpr u32 MaxUdSnapshots = 6;
-    static inline thread_local UdSnapshot ud_snapshots[MaxUdSnapshots];
-    static inline thread_local u32 num_ud_snapshots = 0;
+    static inline thread_local UdSnapshot ud_snapshots[MaxUdSnapshots] GOW3_TLS_INITIAL_EXEC;
+    static inline thread_local u32 num_ud_snapshots GOW3_TLS_INITIAL_EXEC = 0;
 
     const UdSnapshot* Snapshot() const noexcept {
         for (u32 i = 0; i < num_ud_snapshots; ++i) {

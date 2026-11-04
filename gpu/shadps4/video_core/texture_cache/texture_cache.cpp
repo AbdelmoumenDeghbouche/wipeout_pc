@@ -2104,10 +2104,7 @@ void TextureCache::RunGarbageCollector() {
     GarbageCollectSamplers();
 }
 
-void TextureCache::TouchImage(const Image& image) {
-    if (image.lru_touched_tick == gc_tick) {
-        return;
-    }
+void TextureCache::TouchImageSlow(const Image& image) {
     image.lru_touched_tick = gc_tick;
     lru_cache.Touch(image.lru_id, gc_tick);
 }

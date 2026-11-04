@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <type_traits>
+#include <utility>
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
 #include "gow3_settings.h"
@@ -387,7 +389,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
 
 static std::pair<u32, u32> GetDrawOffsets(
     const AmdGpu::Regs& regs, const Shader::Info& info,
-    const std::optional<Shader::Gcn::FetchShaderData>& fetch_shader) {
+    const std::optional<const Shader::Gcn::FetchShaderData>& fetch_shader) {
     u32 vertex_offset = regs.index_offset;
     u32 instance_offset = 0;
     if (fetch_shader) {
@@ -400,6 +402,12 @@ static std::pair<u32, u32> GetDrawOffsets(
     }
     return {vertex_offset, instance_offset};
 }
+
+// The parameter is the type GetFetchShader returns: optional<FetchShaderData> would copy the
+// attribute vector into a temporary on every draw.
+static_assert(std::is_same_v<std::remove_cvref_t<decltype(std::declval<const GraphicsPipeline&>()
+                                                              .GetFetchShader())>,
+                             std::optional<const Shader::Gcn::FetchShaderData>>);
 
 void Rasterizer::EliminateFastClear() {
     auto& col_buf = Regs().color_buffers[0];
@@ -2862,9 +2870,8 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
         texture_set_why = {};
         begin_memo_hits = begin_memo_misses = texture_set_hits = texture_set_misses = 0;
     }
-    BeginSignature signature;
     if (memo_on) {
-        signature = MakeBeginSignature(pipeline);
+        const BeginSignature signature = MakeBeginSignature(pipeline);
         const auto& regs = Regs();
         bool usable = begin_memo.valid && scheduler.IsRenderingWith(begin_memo.state) &&
                       !regs.depth_render_control.depth_clear_enable &&

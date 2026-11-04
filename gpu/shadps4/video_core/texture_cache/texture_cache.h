@@ -457,7 +457,13 @@ private:
     void DeleteImage(ImageId image_id);
 
     /// Touch the image in the LRU cache.
-    void TouchImage(const Image& image);
+    /// Marks the image used in this GC tick (LRU). Inline: most lookups are already marked.
+    void TouchImage(const Image& image) {
+        if (image.lru_touched_tick != gc_tick) {
+            TouchImageSlow(image);
+        }
+    }
+    void TouchImageSlow(const Image& image);
 
     void FreeImage(ImageId image_id) {
         const auto& image = slot_images[image_id];

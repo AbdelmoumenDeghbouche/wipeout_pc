@@ -3,6 +3,7 @@
 
 #pragma once
 
+#include "gow3_tls.h"
 #include "common/recursive_lock.h"
 #include "common/shared_first_mutex.h"
 #include "video_core/buffer_cache/buffer_cache.h"
@@ -500,8 +501,8 @@ private:
     bool needs_barrier{};
     // gow3: two-stage draw pipeline (stage B state; the thread is the last member so it
     // stops first).
-    static inline thread_local const AmdGpu::Regs* stage_regs = nullptr;
-    static inline thread_local const AmdGpu::ComputeProgram* stage_cs = nullptr;
+    static inline thread_local const AmdGpu::Regs* stage_regs GOW3_TLS_INITIAL_EXEC = nullptr;
+    static inline thread_local const AmdGpu::ComputeProgram* stage_cs GOW3_TLS_INITIAL_EXEC = nullptr;
     AmdGpu::Regs pipe_regs{};
     bool pipe_synced = false;
     std::array<AmdGpu::CbDbExtent, AmdGpu::NUM_COLOR_BUFFERS> pipe_cb_extent{};

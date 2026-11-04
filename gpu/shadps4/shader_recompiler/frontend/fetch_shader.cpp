@@ -5,6 +5,7 @@
 #include <unordered_map>
 #include <vector>
 #include "gow3_toggles.h"
+#include "gow3_tls.h"
 #include "common/assert.h"
 #include "shader_recompiler/frontend/decode.h"
 #include "shader_recompiler/frontend/fetch_shader.h"
@@ -12,7 +13,7 @@
 namespace Shader::Gcn {
 
 namespace {
-thread_local const FetchShaderSnapshot* compiler_snapshot = nullptr;
+thread_local const FetchShaderSnapshot* compiler_snapshot GOW3_TLS_INITIAL_EXEC = nullptr;
 }
 
 AmdGpu::Buffer VertexAttribute::GetSharp(const Shader::Info& info) const noexcept {
