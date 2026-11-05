@@ -73,7 +73,9 @@ opens photo mode, both read from the shifted route. A press the bench should not
 `tools/deck/routes/`; `bench-run.sh` reads `~/diag/routes/vinetak-photo.pad` on the Deck by default.
 `tools/deck/bench-run.sh <N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted
 AppImage dirs), replays the route from gamepad connect, holds photo mode 30 s and takes a
-screenshot. Run one warm-up pair first so the shader cache is filled. The Deck needs
+screenshot. Each run names itself in the top right corner, `<title> - test X of Y`
+(`GOW3_TEST_LABEL`; the title is `BENCH_TITLE`, default `Benchmark`, and `(A)`/`(B)` is added when
+the two specs differ). Run one warm-up pair first so the shader cache is filled. The Deck needs
 `tools/deck/{bench-run.sh,bench-summary.py,route-record.sh,stamp.py}` in `~/diag/` and the routes in
 `~/diag/routes/` (copied with scp).
 `python3 -I ~/diag/bench-summary.py <dir>` reads each run's `GOW3_FRAME_LOG` (`frames.log`),
