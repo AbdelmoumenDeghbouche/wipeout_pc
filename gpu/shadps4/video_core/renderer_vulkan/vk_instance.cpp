@@ -813,6 +813,10 @@ void Instance::CreateAllocator() {
         .flags = VMA_ALLOCATOR_CREATE_BUFFER_DEVICE_ADDRESS_BIT,
         .physicalDevice = physical_device,
         .device = *device,
+        // gow3: 64 MiB instead of VMA's default 256 MiB per memory block. A new block is cleared by
+        // the driver when it is allocated, which stalled the frame that needed it by up to ~40 ms;
+        // smaller blocks spread that cost over several frames.
+        .preferredLargeHeapBlockSize = 64ull << 20,
         .pVulkanFunctions = &functions,
         .instance = *instance,
         .vulkanApiVersion = TargetVulkanApiVersion,
