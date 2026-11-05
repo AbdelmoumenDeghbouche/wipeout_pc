@@ -286,6 +286,37 @@ if (WIN32)
     target_link_options(gow3-play PRIVATE -municode)
 endif()
 
+# Real guest mappings and page protection for the fallback readback regression.
+file(GLOB READBACK_TEST_RUNTIME CONFIGURE_DEPENDS ../src/runtime*.c)
+if (NOT TARGET atrac9)
+    file(GLOB READBACK_TEST_ATRAC9 CONFIGURE_DEPENDS ../third_party/LibAtrac9/C/src/*.c)
+    add_library(atrac9 STATIC EXCLUDE_FROM_ALL ${READBACK_TEST_ATRAC9})
+    target_compile_options(atrac9 PRIVATE -w)
+    set_target_properties(atrac9 PROPERTIES C_STANDARD 99 INTERPROCEDURAL_OPTIMIZATION OFF)
+endif()
+add_executable(readback-fallback-gpu-test EXCLUDE_FROM_ALL
+    ../tests/test_readback_fallback_gpu.cpp ${READBACK_TEST_RUNTIME})
+set_target_properties(readback-fallback-gpu-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+target_include_directories(readback-fallback-gpu-test PRIVATE shim shadps4 third_party/gcn/include ../src ..)
+target_compile_definitions(readback-fallback-gpu-test PRIVATE NDEBUG)
+target_compile_options(readback-fallback-gpu-test PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+target_link_libraries(readback-fallback-gpu-test PRIVATE gow3gpu atrac9 -pthread)
+set_source_files_properties(../tests/test_readback_fallback_gpu.cpp PROPERTIES
+    COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
+if (WIN32)
+    target_sources(readback-fallback-gpu-test PRIVATE ../src/compat_win.c)
+    target_compile_definitions(readback-fallback-gpu-test PRIVATE
+        sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(readback-fallback-gpu-test PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/shim/gow3_win_compat.h>")
+    target_link_libraries(readback-fallback-gpu-test PRIVATE onecore)
+    target_link_options(readback-fallback-gpu-test PRIVATE -Wl,--disable-high-entropy-va)
+else()
+    target_compile_options(readback-fallback-gpu-test PRIVATE $<$<COMPILE_LANGUAGE:C>:-pthread>)
+    target_link_libraries(readback-fallback-gpu-test PRIVATE m)
+    target_link_options(readback-fallback-gpu-test PRIVATE -Wl,--export-dynamic)
+endif()
+
 # Explicit test targets; neither launches the game nor needs a Vulkan device.
 add_executable(pipeline-binary-cache-test EXCLUDE_FROM_ALL ../tests/test_pipeline_binary_cache.cpp
     ../tests/test_gpu_runtime_stubs.cpp)
