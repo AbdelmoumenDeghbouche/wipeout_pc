@@ -65,10 +65,12 @@ are not ready), so it is no guide on the Deck.
 ### The CPU bench
 
 Hands-off, same route every run. Record the pad route once: on the Deck run
-`route-record.sh start <build dir>`, play the route, then `route-record.sh stop`, which writes
-`~/diag/route-shifted.pad`. Copy it to `tools/deck/routes/<name>.pad` and write
-`<name>.pad.marks` by hand: `countdown_ms` is the X press at START RACE, `photo_ms` the press that
-opens photo mode, both read from the shifted route. A press the bench should not replay
+`route-record.sh start <build dir> <name>`, play the route, then `route-record.sh stop`, which
+writes `~/diag/routes/<name>.pad` (without a name, `~/diag/route-shifted.pad`).
+`route-record.sh list` shows the saved routes and whether their marks are written, and
+`bench-run.sh <N> <A> <B> <name>` replays one by name. Copy a route worth keeping to
+`tools/deck/routes/<name>.pad`. Write `<name>.pad.marks` by hand: `countdown_ms` is the X press
+at START RACE, `photo_ms` the press that opens photo mode, both read from the shifted route. A press the bench should not replay
 (accelerating at "go") is removed from the route, as for `vinetak-photo`. The repo copy lives in
 `tools/deck/routes/`; `bench-run.sh` reads `~/diag/routes/vinetak-photo.pad` on the Deck by default.
 `tools/deck/bench-run.sh <N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted

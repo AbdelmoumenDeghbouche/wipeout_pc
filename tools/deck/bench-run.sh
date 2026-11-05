@@ -1,7 +1,7 @@
 #!/bin/bash
 # CPU benchmark on the Steam Deck: N launches of build A and build B, alternating, each replaying
 # a pad route from boot into a Vineta K race and photo mode with GOW3_FRAME_LOG on.
-#   bench-run.sh <runs per build> <A spec> <B spec> [route]
+#   bench-run.sh <runs per build> <A spec> <B spec> [route: a name in ~/diag/routes or a .pad path]
 #   ':' separates the spec fields, so build paths and env values must not contain ':'
 #   spec: <extracted AppImage dir>[:GOW3_X=y[:...]]   route: default ~/diag/routes/vinetak-photo.pad
 #   BENCH_TITLE=<text>: the game shows "<text> - test X of Y" in the top right during each run,
@@ -16,7 +16,9 @@ if [ -z "${BENCH_INHIBITED:-}" ]; then
     echo "systemd-inhibit not found: running without an idle/sleep inhibitor" >&2
 fi
 N=${1:?runs per build}; SPEC_A=${2:?A spec}; SPEC_B=${3:?B spec}
-ROUTE=${4:-$HOME/diag/routes/vinetak-photo.pad}
+ROUTE=${4:-vinetak-photo}
+[[ $ROUTE == */* || $ROUTE == *.pad ]] || ROUTE=$HOME/diag/routes/$ROUTE.pad # a name from route-record.sh
+[ -e "$ROUTE" ] || { echo "no route $ROUTE (route-record.sh list shows the saved ones)" >&2; exit 1; }
 DIAG=$HOME/diag; SHOTS=$HOME/.local/share/gow3/user/screenshots
 pgrep -x gow3-probe >/dev/null && { echo "the game is running" >&2; exit 1; }
 OUT=$DIAG/bench/$(date +%Y%m%d-%H%M%S); mkdir -p "$OUT"
