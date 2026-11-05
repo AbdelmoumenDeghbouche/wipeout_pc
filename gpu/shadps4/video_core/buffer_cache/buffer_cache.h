@@ -130,6 +130,9 @@ private:
 
     void EnsureResident(const Buffer* arena, u64 first_block, u64 last_block);
 
+    /// Whether the arena already has memory backing every block of the range.
+    [[nodiscard]] bool IsResident(VAddr device_addr, u64 size) const;
+
     void DownloadMemory(const Buffer* arena, VAddr device_addr, u64 size);
 
     bool SynchronizeMemory(const Buffer* arena, VAddr device_addr, u32 size, bool is_written,
