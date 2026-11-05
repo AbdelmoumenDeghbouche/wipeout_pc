@@ -6,6 +6,9 @@
 #   spec: <extracted AppImage dir>[:GOW3_X=y[:...]]   route: default ~/diag/routes/vinetak-photo.pad
 #   BENCH_TITLE=<text>: the game shows "<text> - test X of Y" in the top right during each run,
 #   with "(A)"/"(B)" added when the two specs differ
+#   BENCH_SCREENSHOTS=1: a photo-mode screenshot per run (after the measured spans), kept in the run's
+#   directory; BENCH_SCREENSHOT_DIR=<folder> takes them too and also copies each one there as
+#   <bench>-<run>.png
 # Summarise with: python3 -I ~/diag/bench-summary.py <printed directory>
 set -u
 # Replayed input is not real input, so an idle suspend could cut a run short: re-exec under an inhibitor once.
@@ -22,9 +25,18 @@ ROUTE=${4:-vinetak-photo}
 DIAG=$HOME/diag; SHOTS=$HOME/.local/share/gow3/user/screenshots
 pgrep -x gow3-probe >/dev/null && { echo "the game is running" >&2; exit 1; }
 OUT=$DIAG/bench/$(date +%Y%m%d-%H%M%S); mkdir -p "$OUT"
+[ -n "${BENCH_SCREENSHOT_DIR:-}" ] && { mkdir -p "$BENCH_SCREENSHOT_DIR" || exit 1; }
 cp "$ROUTE" "$ROUTE.marks" "$OUT/" || exit 1
 export DISPLAY=:0 XAUTHORITY=$(ls /run/user/1000/xauth_* | head -1)
 trap 'pkill -x gow3-probe; systemctl --user stop wipeout-bench 2>/dev/null; exit 130' INT TERM HUP
+screenshot() { # <run dir>: the photo-mode screenshot, into the run dir (and BENCH_SCREENSHOT_DIR)
+    local before; before=$(ls "$SHOTS" 2>/dev/null | tail -1)
+    echo shot > "$DIAG/pad.ctl"; sleep 3
+    local after; after=$(ls "$SHOTS" 2>/dev/null | tail -1)
+    if [ -z "$after" ] || [ "$after" = "$before" ]; then echo noshot >> "$1/env.txt"; return; fi
+    cp "$SHOTS/$after" "$1/"
+    [ -n "${BENCH_SCREENSHOT_DIR:-}" ] && cp "$SHOTS/$after" "$BENCH_SCREENSHOT_DIR/$(basename "$OUT")-$(basename "$1").png"
+}
 run_one() { # <run dir> <spec> <label>
     local dir=$1 build=${2%%:*} envs=() e
     [ "$2" != "$build" ] && IFS=: read -ra envs <<<"${2#*:}"
@@ -47,11 +59,7 @@ run_one() { # <run dir> <spec> <label>
     done
     if [ $status = ok ]; then
         sleep 30
-        local before; before=$(ls "$SHOTS" 2>/dev/null | tail -1)
-        echo shot > "$DIAG/pad.ctl"; sleep 3
-        local after; after=$(ls "$SHOTS" 2>/dev/null | tail -1)
-        if [ -n "$after" ] && [ "$after" != "$before" ]; then cp "$SHOTS/$after" "$dir/"
-        else echo noshot >> "$dir/env.txt"; fi
+        [ "${BENCH_SCREENSHOTS:-0}" = 1 ] || [ -n "${BENCH_SCREENSHOT_DIR:-}" ] && screenshot "$dir"
     fi
     echo "$status" > "$dir/status"
     pkill -x gow3-probe
