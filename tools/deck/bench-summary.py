@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
 """Summarise a tools/deck/bench-run.sh directory: per build (A, B), median and range over the
 valid runs of FPS, draws per frame and stage A / stage B microseconds per draw, over the race
-countdown and the photo-mode span the route's marks file names.
+countdown the route's marks file names and the first steady photo-mode frames near its photo mark.
 usage: python3 -I bench-summary.py <bench directory>"""
 import statistics
 import sys
 from pathlib import Path
 
 COUNTDOWN = (500, 3000)       # ms after countdown_ms
-PHOTO = (3000, 23000)         # ms after photo_ms
+PHOTO = (3000, 23000)         # ms after the first steady photo-mode frame
+PHOTO_SEARCH = 6000           # ms before photo_ms where that frame is looked for (after the countdown)
 COUNTDOWN_MIN_DRAWS = 3500    # the grid is 4100-4250 draws a frame
 PHOTO_MIN_DRAWS = 3000        # photo mode on the grid is about 3217 with the menu open
 PHOTO_CONSTANT_SHARE = 0.9
@@ -85,6 +86,22 @@ def span(rows, t0, t1, tsc_hz):
     }
 
 
+def steady_start(rows, t_from):
+    """Time of the first frame that starts MIN_SPAN_FRAMES steady photo-mode frames (draws at least
+    PHOTO_MIN_DRAWS, all within PHOTO_TOLERANCE of each other) at or after t_from, else None. The
+    frame log has the game's own timestamps, so photo mode is found where it is, whenever the run
+    got there."""
+    per_frame = [(b[0], b[2] - a[2]) for a, b in zip(rows, rows[1:])]
+    for i in range(len(per_frame) - MIN_SPAN_FRAMES + 1):
+        if per_frame[i][0] < t_from:
+            continue
+        window = [n for _, n in per_frame[i:i + MIN_SPAN_FRAMES]]
+        low = min(window)
+        if low >= PHOTO_MIN_DRAWS and max(window) - low <= low * PHOTO_TOLERANCE:
+            return per_frame[i][0]
+    return None
+
+
 def analyse_run(run_dir, marks):
     run_dir = Path(run_dir)
     result = {'name': run_dir.name, 'invalid': None, 'countdown': None, 'photo': None}
@@ -120,7 +137,10 @@ def analyse_run(run_dir, marks):
     if statistics.median(countdown['per_frame_draws']) < COUNTDOWN_MIN_DRAWS:
         result['invalid'] = 'countdown not reached (no grid-sized frames at its mark)'
         return result
-    p0 = start + marks['photo_ms']
+    p0 = steady_start(rows, max(start + marks['photo_ms'] - PHOTO_SEARCH, c0 + COUNTDOWN[1]))
+    if p0 is None:
+        result['invalid'] = 'photo mode not reached (no steady frames near its mark)'
+        return result
     photo = span(rows, p0 + PHOTO[0], p0 + PHOTO[1], tsc_hz)
     if not photo:
         result['invalid'] = 'photo mode cut short'

@@ -37,7 +37,9 @@ def make_run(root, name, frames, replay_at='10:00:00.000', status='ok', **kw):
 
 MARKS = {'countdown_ms': 10_000, 'photo_ms': 20_000}
 # 10:00:00.000 = 36 000 000 ms of day. Frames every 16.667 ms from there.
-GOOD = [100] * 600 + [4200] * 300 + [2500] * 300 + [3434] * 1500  # countdown at 10-13 s, photo from 20 s
+# The grid varies by a few percent from frame to frame (never steady); photo mode does not.
+GRID = [4200 + 60 * (i % 3) for i in range(300)]
+GOOD = [100] * 600 + GRID + [2500] * 300 + [3434] * 1500  # countdown at 10-13 s, photo from 20 s
 
 
 class SpanMetrics(unittest.TestCase):
@@ -50,7 +52,7 @@ class SpanMetrics(unittest.TestCase):
             self.assertAlmostEqual(photo['a_us_per_draw'], 4.5, delta=0.01)
             self.assertAlmostEqual(photo['b_us_per_draw'], 4.0, delta=0.01)
             self.assertAlmostEqual(photo['fps'], 60.0, delta=0.1)
-            self.assertAlmostEqual(run['countdown']['draws'], 4200, delta=1)
+            self.assertAlmostEqual(run['countdown']['draws'], 4260, delta=1)
 
     def test_run_that_missed_the_grid_is_invalid(self):
         with tempfile.TemporaryDirectory() as root:
@@ -110,11 +112,18 @@ class SpanMetrics(unittest.TestCase):
             self.assertEqual(bench.analyse_run(cut, MARKS)['photo']['fps'],
                              bench.analyse_run(whole, MARKS)['photo']['fps'])
 
-    def test_steady_but_light_photo_span_is_too_light(self):
+    def test_steady_but_light_frames_are_not_photo_mode(self):
         with tempfile.TemporaryDirectory() as root:
             frames = GOOD[:1200] + [2531] * 1500
             run = bench.analyse_run(make_run(root, '01-A', frames), MARKS)
-            self.assertIn('too light', run['invalid'])
+            self.assertIn('photo mode not reached', run['invalid'])
+
+    def test_photo_span_starts_where_photo_mode_is_steady(self):
+        with tempfile.TemporaryDirectory() as root:
+            late = GOOD[:1200] + [3000 + (i % 7) * 100 for i in range(240)] + [3434] * 1500  # 4 s late
+            run = bench.analyse_run(make_run(root, '01-A', late), MARKS)
+            self.assertIsNone(run['invalid'])
+            self.assertAlmostEqual(run['photo']['draws'], 3434, delta=1)
 
     def test_b_without_draw_pipe_is_unavailable(self):
         with tempfile.TemporaryDirectory() as root:
