@@ -430,6 +430,10 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
         fast_first_builds = count >= 2 && (!fast_env || fast_env[0] != '0') &&
                             instance.GetPipelineBinaryGlobalKey().keySize != 0 &&
                             EmulatorSettings.IsPipelineCacheEnabled();
+        // gow3: the longer grace wait after a load needs them: with optimised first builds it
+        // held a race intro's first frame for about 1.4 s. GOW3_LOAD_GRACE=0 turns it off.
+        const char* grace_env = std::getenv("GOW3_LOAD_GRACE");
+        g_compile_policy.load_grace = fast_first_builds && (!grace_env || grace_env[0] != '0');
         rebuild_limit = std::max(1u, count / 2);
         LOG_INFO(Render_Vulkan,
                  "gow3: async graphics compilation ready ({} capture, {} compile workers, fast "
@@ -475,6 +479,9 @@ struct PhaseTimer {
 // skipped draws showed as missing objects and surfaces when a race started; with every shader
 // option off (all built on this thread) a player saw none. Up to 10 ms per draw and 30 ms in
 // any 100 ms, so a burst of new shaders still cannot freeze the game.
+// From a load until a few seconds into its first scene (CompilePolicy::LongGrace), up to 25 ms
+// per draw and 80 ms in any 100 ms: with a fresh cache the race intro built its pipelines in
+// two bursts that skipped 1000-1400 draws (flickering pads on the grid); no racing yet.
 // ponytail: fixed budget, make it a setting if players need another one.
 template <typename Job>
 bool GraceWait(const Job& job) {
@@ -486,7 +493,11 @@ bool GraceWait(const Job& job) {
         window = now;
         used = {};
     }
-    const nanoseconds left = std::min<nanoseconds>(milliseconds(10), milliseconds(30) - used);
+    const bool long_grace =
+        g_compile_policy.LongGrace(u64(duration_cast<nanoseconds>(now.time_since_epoch()).count()));
+    const nanoseconds per_draw = long_grace ? milliseconds(25) : milliseconds(10);
+    const nanoseconds per_window = long_grace ? milliseconds(80) : milliseconds(30);
+    const nanoseconds left = std::min<nanoseconds>(per_draw, per_window - used);
     if (left <= nanoseconds(0)) {
         return false;
     }
