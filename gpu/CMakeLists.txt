@@ -347,6 +347,21 @@ add_executable(aliasing-test EXCLUDE_FROM_ALL ../tests/test_aliasing.cpp
 target_compile_options(aliasing-test PRIVATE -UNDEBUG)
 target_include_directories(aliasing-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(aliasing-test PRIVATE Vulkan::Headers fmt::fmt Boost::headers magic_enum::magic_enum)
+add_executable(small-image-retile-gpu-test EXCLUDE_FROM_ALL
+    ../tests/test_small_image_retile_gpu.cpp ../tests/test_gpu_runtime_stubs.cpp)
+target_include_directories(small-image-retile-gpu-test PRIVATE shim shadps4 third_party/gcn/include)
+target_link_libraries(small-image-retile-gpu-test PRIVATE gow3gpu)
+target_compile_definitions(small-image-retile-gpu-test PRIVATE NDEBUG)
+set_source_files_properties(../tests/test_small_image_retile_gpu.cpp PROPERTIES
+    COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
+if (WIN32)
+    target_sources(small-image-retile-gpu-test PRIVATE ../src/compat_win.c)
+    target_compile_definitions(small-image-retile-gpu-test PRIVATE
+        sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(small-image-retile-gpu-test PRIVATE
+        -include ${CMAKE_CURRENT_SOURCE_DIR}/../src/compat_win.h)
+    target_link_libraries(small-image-retile-gpu-test PRIVATE onecore)
+endif()
 add_executable(pro-tiling-test EXCLUDE_FROM_ALL ../tests/test_pro_tiling.cpp ../tests/test_gpu_runtime_stubs.cpp)
 target_include_directories(pro-tiling-test PRIVATE shim shadps4 third_party/gcn/include)
 target_link_libraries(pro-tiling-test PRIVATE gow3gpu)
