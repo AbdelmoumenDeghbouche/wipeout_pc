@@ -159,10 +159,9 @@ public:
         return consumed.load(std::memory_order_acquire) == head;
     }
 
-    /// Statistics (stage A): packets, drains that had to wait, cycles waited, cycles stage B
-    /// spent running packets.
+    /// Statistics (stage A): packets, drains that had to wait, cycles waited. Stage B's busy
+    /// cycles are Gow3Stats::pipe_busy_cycles.
     u64 packets = 0, drains = 0, drain_cycles = 0;
-    std::atomic<u64> busy_cycles{0};
 
 private:
     struct Header {
@@ -228,7 +227,7 @@ private:
             }
             const u64 start = __rdtsc();
             handler(context, reinterpret_cast<const u8*>(header + 1), header->payload);
-            busy_cycles.fetch_add(__rdtsc() - start, std::memory_order_relaxed);
+            Gow3Stats::pipe_busy_cycles.fetch_add(__rdtsc() - start, std::memory_order_relaxed);
             at += header->size;
             consumed.store(at, std::memory_order_release);
         }

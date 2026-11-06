@@ -110,6 +110,8 @@ inline std::atomic<unsigned long> draw_rec_thread_id{0};
 inline std::atomic<unsigned long> vk_recorder_thread_id{0};
 /// TSC cycles the GPU command thread waited in DrawPipe::Drain for stage B (all time).
 inline std::atomic<std::uint64_t> pipe_drain_cycles{0};
+/// TSC cycles the draw recording thread (DrawPipe stage B) spent running packets (all time).
+inline std::atomic<std::uint64_t> pipe_busy_cycles{0};
 inline std::atomic<std::uint64_t> draws{0}, dispatches{0}, submissions{0};
 /// Graphics memory by owner (GOW3_FRAME_STATS prints them once a second): images (bytes and
 /// count), device memory backing guest buffers, staging buffers.

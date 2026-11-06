@@ -8,6 +8,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <time.h>
+#include <x86intrin.h>
 #ifdef _WIN32
 #include <windows.h>
 #endif
@@ -15,6 +16,7 @@
 #include <sys/resource.h>
 #endif
 #include "common/assert.h"
+#include "gow3_frame_log.h"
 #include "gow3_toggles.h"
 #include "gow3_perf_stats.h"
 #include "gow3_settings.h"
@@ -319,6 +321,27 @@ void VideoOutDriver::Flip(const Request& req) {
         static u32 frames;
         static double worst_ms;
         const auto now = Clock::now();
+        // gow3: GOW3_FRAME_LOG, one line of cumulative counters per flip (gow3_frame_log.h).
+        static FILE* const frame_log = [] {
+            const char* path = std::getenv("GOW3_FRAME_LOG");
+            FILE* file = path && *path ? std::fopen(path, "w") : nullptr;
+            if (file) {
+                std::fputs(Gow3FrameLog::Header, file);
+            }
+            return file;
+        }();
+        if (frame_log) {
+            const Gow3FrameLog::Sample sample{
+                Gow3FrameLog::MsOfDay(std::chrono::system_clock::now()),
+                u64(std::chrono::duration_cast<std::chrono::microseconds>(now.time_since_epoch())
+                        .count()),
+                Gow3Stats::draws.load(std::memory_order_relaxed),
+                Gow3Stats::gpu_user_us.load(std::memory_order_relaxed) +
+                    Gow3Stats::gpu_sys_us.load(std::memory_order_relaxed),
+                Gow3Stats::pipe_busy_cycles.load(std::memory_order_relaxed), __rdtsc()};
+            std::fputs(Gow3FrameLog::Format(sample).c_str(), frame_log);
+            std::fflush(frame_log); // the benchmark ends the game with a signal
+        }
         const double frame_ms = std::chrono::duration<double, std::milli>(now - last).count();
         worst_ms = std::max(worst_ms, frame_ms);
         static std::vector<double> intervals;

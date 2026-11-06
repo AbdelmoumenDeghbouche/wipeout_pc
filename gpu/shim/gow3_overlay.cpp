@@ -1020,6 +1020,30 @@ s64 NowMs() {
         .count();
 }
 
+/// Automated test runs (tools/deck/bench-run.sh) name the run, "<title> - test X of Y":
+/// GOW3_TEST_LABEL, shown in the top right corner for the whole run.
+const std::string& TestLabel() {
+    static const std::string label = [] {
+        const char* text = std::getenv("GOW3_TEST_LABEL");
+        return std::string(text ? text : "");
+    }();
+    return label;
+}
+
+void TestLabelWindow() {
+    const ImGuiViewport* viewport = ImGui::GetMainViewport();
+    const float pad = 12.0f * base_scale;
+    ImGui::SetNextWindowPos(ImVec2(viewport->WorkPos.x + viewport->WorkSize.x - pad, viewport->WorkPos.y + pad),
+                            ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.6f);
+    ImGui::Begin("##test_label", nullptr,
+                 ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoNav |
+                     ImGuiWindowFlags_NoFocusOnAppearing);
+    ImGui::TextUnformatted(TestLabel().c_str());
+    ImGui::End();
+}
+
 bool NoticeActive() {
     return notice_until.load(std::memory_order_relaxed) > NowMs();
 }
@@ -1376,7 +1400,7 @@ void SetLoading(bool active, u32 done, u32 total) {
 bool Visible() {
     const auto& s = Gow3Settings::Get();
     return initialized && (loading || background_total || menu_open || text_entry_active || choice_active ||
-                           choice_retiring || s.show_fps || NoticeActive() ||
+                           choice_retiring || s.show_fps || NoticeActive() || !TestLabel().empty() ||
                            (s.actor_watch_supported && s.enemy_health_bar));
 }
 
@@ -1447,6 +1471,9 @@ void Render(vk::CommandBuffer cmdbuf, vk::ImageView view, vk::Extent2D extent) {
     }
     if (NoticeActive()) {
         Notice();
+    }
+    if (!TestLabel().empty()) {
+        TestLabelWindow();
     }
     if (!loading && !menu_open) {
         HealthDisplay();

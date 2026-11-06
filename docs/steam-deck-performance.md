@@ -62,5 +62,47 @@ a screenshot every second has a 70 ms hitch every second. `exp-run.sh` takes one
 `GOW3_GPU_PROFILE` reports almost nothing while the GPU is saturated (it skips frames whose results
 are not ready), so it is no guide on the Deck.
 
+### The CPU bench
+
+Hands-off, same route every run. Record the pad route once: on the Deck run
+`route-record.sh start <build dir> <name>`, play the route, then `route-record.sh stop`, which
+writes `~/diag/routes/<name>.pad` (without a name, `~/diag/route-shifted.pad`).
+`route-record.sh list` shows the saved routes and whether their marks are written, and
+`bench-run.sh <N> <A> <B> <name>` replays one by name. Copy a route worth keeping to
+`tools/deck/routes/<name>.pad`. Write `<name>.pad.marks` by hand: `countdown_ms` is the X press
+at START RACE, `photo_ms` the press that opens photo mode, both read from the shifted route. A press the bench should not replay
+(accelerating at "go") is removed from the route, as for `vinetak-photo`. The repo copy lives in
+`tools/deck/routes/`; `bench-run.sh` reads `~/diag/routes/vinetak-photo.pad` on the Deck by default.
+`tools/deck/bench-run.sh <N> <A> <B>` then launches N alternating A/B pairs (A and B are extracted
+AppImage dirs), replays the route from gamepad connect and holds photo mode 30 s. It takes no
+screenshots; add `GOW3_SCREENSHOT_EVERY=<seconds>` to a spec for some. Each run names itself in the top right corner, `<title> - test X of Y`
+(`GOW3_TEST_LABEL`; the title is `BENCH_TITLE`, default `Benchmark`, and `(A)`/`(B)` is added when
+the two specs differ). Run one warm-up pair first so the shader cache is filled. The Deck needs
+`tools/deck/{bench-run.sh,bench-summary.py,route-record.sh,stamp.py}` in `~/diag/` and the routes in
+`~/diag/routes/` (copied with scp).
+`python3 -I ~/diag/bench-summary.py <dir>` reads each run's `GOW3_FRAME_LOG` (`frames.log`),
+drops broken or short runs, and prints median and range per side for two spans:
+
+- countdown: `countdown_ms` +0.5-3 s, about 4150 draws per frame;
+- photo mode: `photo_ms` +3-23 s, about 3217 draws per frame (a static grid scene, the steadier span).
+
+Metrics: FPS, draws per frame, stage A and stage B CPU time per draw (µs).
+
+A/A noise floor, same build on both sides, 4 + 4 runs (2026-11-04, upstream 0.2.59 plus the frame log):
+
+| span | metric | A median (range) | B median (range) | spread (max − min over all 8 runs) |
+|---|---|---|---|---|
+| photo | stage A µs/draw | 4.76 (4.71-4.77) | 4.76 (4.74-4.78) | 0.07 (1.5 %) |
+| photo | stage B µs/draw | 4.34 (4.33-4.36) | 4.36 (4.32-4.36) | 0.04 (0.9 %) |
+| photo | FPS | 59.73 (59.45-59.79) | 59.77 (59.51-59.97) | 0.52 (0.9 %) |
+| countdown | stage A µs/draw | 4.75 (4.69-4.83) | 4.81 (4.71-4.84) | 0.15 (3.2 %) |
+| countdown | stage B µs/draw | 4.50 (4.42-4.57) | 4.54 (4.53-4.60) | 0.18 (4.0 %) |
+| countdown | FPS | 49.49 (48.71-50.27) | 48.88 (48.76-49.18) | 1.56 (3.2 %) |
+
+The spread is the smallest difference a 4 + 4 bench can show: a change smaller than it is noise.
+Medians of the two sides differed by at most 1.3 % (A/A). Photo mode is the quieter span for
+µs/draw; FPS there is 59.5-60, near the 60 FPS cap, so it probably cannot show a gain; the per-draw
+costs and the countdown FPS are the metrics.
+
 `perf` works on the Deck as the deck user (user-space samples):
 `perf record -e cpu-clock:u -F 999 -g -p $(pgrep -x gow3-probe) -- sleep 20`.
