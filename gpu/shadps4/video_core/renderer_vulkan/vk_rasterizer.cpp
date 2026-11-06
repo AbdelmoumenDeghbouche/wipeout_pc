@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <type_traits>
+#include <utility>
 #include <xxhash.h>
 #include "video_core/renderer_vulkan/ui_composition.h"
 #include "gow3_settings.h"
@@ -387,7 +389,7 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
 
 static std::pair<u32, u32> GetDrawOffsets(
     const AmdGpu::Regs& regs, const Shader::Info& info,
-    const std::optional<Shader::Gcn::FetchShaderData>& fetch_shader) {
+    const std::optional<const Shader::Gcn::FetchShaderData>& fetch_shader) {
     u32 vertex_offset = regs.index_offset;
     u32 instance_offset = 0;
     if (fetch_shader) {
@@ -400,6 +402,12 @@ static std::pair<u32, u32> GetDrawOffsets(
     }
     return {vertex_offset, instance_offset};
 }
+
+// The parameter is the type GetFetchShader returns: optional<FetchShaderData> would copy the
+// attribute vector into a temporary on every draw.
+static_assert(std::is_same_v<std::remove_cvref_t<decltype(std::declval<const GraphicsPipeline&>()
+                                                              .GetFetchShader())>,
+                             std::optional<const Shader::Gcn::FetchShaderData>>);
 
 void Rasterizer::EliminateFastClear() {
     auto& col_buf = Regs().color_buffers[0];
@@ -2405,7 +2413,21 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                               bool& barrier, bool on_helper) {
     const u32 first_image_idx = image_infos.size();
     TextureSet* set_slot = nullptr;
-    if (!on_helper && BindTexturesFromSet(stage, prepared, first_image_idx, barrier, set_slot)) {
+    // gow3: without a prepared draw (0 workers) the GPU thread fetches and hashes the stage's T#s
+    // itself, with the function a worker uses, so the texture-set memo keys them the same way.
+    // Graphics stages only: dispatches never used the memo.
+    std::array<AmdGpu::Image, TextureSet::MaxImages> local_sharps;
+    std::array<u64, TextureSet::MaxImages> local_hashes;
+    const bool local = !prepared && !on_helper &&
+                       stage.sw_stage != Shader::SwStage::Compute && TextureSetCandidate(stage);
+    if (local) {
+        for (u32 i = 0; i < stage.images.size(); ++i) {
+            local_sharps[i] = stage.images[i].GetSharp(stage);
+            local_hashes[i] = ImageDescHash(local_sharps[i], stage.images[i]);
+        }
+    }
+    const u64* hashes = prepared ? prepared->image_hashes : local ? local_hashes.data() : nullptr;
+    if (!on_helper && BindTexturesFromSet(stage, hashes, first_image_idx, barrier, set_slot)) {
         // Descriptor writes: one per image (no mip arrays in a memoized set).
         for (u32 i = 0; i < stage.images.size(); ++i) {
             auto& set_write = set_writes[write_index++];
@@ -2432,13 +2454,16 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
     // SampleSceneProxies: bindings that may read a reduced scene proxy instead of the native
     // image (normalized sampling only; see Shader::ImageResource::needs_native).
     boost::container::small_vector<bool, 16> binding_proxy_ok;
+    // TextureSetMemo: each binding's image before the depth redirect (TextureSetEntry::found_id).
+    boost::container::small_vector<VideoCore::ImageId, 16> pre_redirect_ids;
     const bool sample_proxies = !Gow3Toggle::Disabled(Gow3Toggle::SampleSceneProxies) &&
                                 !on_helper && scene_targets->Reduced();
 
     for (u32 image_index = 0; image_index < stage.images.size(); ++image_index) {
         const auto& image_desc = stage.images[image_index];
-        const auto tsharp =
-            prepared ? prepared->image_sharps[image_index] : image_desc.GetSharp(stage);
+        const auto tsharp = prepared ? prepared->image_sharps[image_index]
+                            : local  ? local_sharps[image_index]
+                                     : image_desc.GetSharp(stage);
         // gow3: a hash lookup per texture per draw for a diagnostic only.
         static const bool warn_meta = std::getenv("GOW3_WARN_META_TEXTURE") != nullptr;
         if (warn_meta && texture_cache.IsMeta(tsharp.Address())) {
@@ -2451,6 +2476,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             image_bindings.emplace_back(VideoCore::ImageId{}, &image_desc_storage.emplace_back());
             image_binding_entries.push_back(nullptr);
             binding_proxy_ok.push_back(false);
+            pre_redirect_ids.emplace_back();
             image_descriptor_array_sizes.push_back(1);
             continue;
         }
@@ -2465,6 +2491,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             image_bindings.emplace_back(VideoCore::ImageId{}, &image_desc_storage.emplace_back());
             image_binding_entries.push_back(nullptr);
             binding_proxy_ok.push_back(false);
+            pre_redirect_ids.emplace_back();
             image_descriptor_array_sizes.push_back(1);
             continue;
         }
@@ -2479,9 +2506,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                                      !image_desc.needs_native && !image_desc.is_written &&
                                      mip_fallback_mode == Shader::MipStorageFallbackMode::None;
 
-        auto& desc_entry =
-            prepared ? CachedImageDescEntry(tsharp, image_desc, prepared->image_hashes[image_index])
-                     : CachedImageDescEntry(tsharp, image_desc);
+        auto& desc_entry = hashes ? CachedImageDescEntry(tsharp, image_desc, hashes[image_index])
+                                  : CachedImageDescEntry(tsharp, image_desc);
         // GOW3_SCENE_DEBUG: proxied scene targets this binding reads at the native size, and why.
         const auto debug_native = [&](const VideoCore::Image& image) {
             if (!scene_debug_frame || proxy_candidate || !image.scene_proxy) return;
@@ -2504,6 +2530,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                     image_bindings.emplace_back(desc_entry.found_id, &desc_entry.found_desc);
                 image_binding_entries.push_back(&desc_entry);
                 binding_proxy_ok.push_back(proxy_candidate);
+                pre_redirect_ids.push_back(image_id);
                 texture_cache.MarkFound(image_id);
                 auto* image = &texture_cache.GetImage(image_id);
                 if (auto depth_image_id = texture_cache.GetAssociatedDepth(*image)) {
@@ -2521,6 +2548,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             auto& [image_id, _] = image_bindings.emplace_back(VideoCore::ImageId{}, &desc);
             image_binding_entries.push_back(nullptr);
             binding_proxy_ok.push_back(proxy_candidate);
+            pre_redirect_ids.emplace_back();
 
             if (mip_fallback_mode == Shader::MipStorageFallbackMode::ConstantIndex) {
                 ASSERT(num_bindings == 1);
@@ -2541,6 +2569,7 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                 desc_entry.found_desc = desc;
                 desc_entry.view_memo = {};
             }
+            pre_redirect_ids.back() = image_id;
             auto* image = &texture_cache.GetImage(image_id);
             if (auto depth_image_id = texture_cache.GetAssociatedDepth(*image)) {
                 // If this image has an associated depth image, it's a stencil attachment.
@@ -2600,7 +2629,8 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
                     image.usage.texture = 1u;
                     image_infos.emplace_back(VK_NULL_HANDLE, proxy->view, proxy->layout);
                     if (set_ok && binding_index < resolved.size()) {
-                        resolved[binding_index] = {image_id, proxy->view, image.backing,
+                        resolved[binding_index] = {image_id, pre_redirect_ids[binding_index],
+                                                   proxy->view, image.backing,
                                                    desc.view_info.range, true};
                     }
                     ++proxy_samples;
@@ -2649,8 +2679,9 @@ void Rasterizer::BindTextures(const Shader::Info& stage, const PreparedStage* pr
             }
             image_infos.emplace_back(VK_NULL_HANDLE, view, layout);
             if (set_ok && binding_index < resolved.size()) {
-                resolved[binding_index] = {image_id, *image_view.image_view, image.backing,
-                                           desc.view_info.range};
+                resolved[binding_index] = {image_id, pre_redirect_ids[binding_index],
+                                           *image_view.image_view, image.backing,
+                                           desc.view_info.range, false};
                 set_ok = !is_storage && !binding.force_general && !binding.is_target;
             }
         }
@@ -2735,10 +2766,9 @@ Rasterizer::BeginSignature Rasterizer::MakeBeginSignature(const GraphicsPipeline
     return sig;
 }
 
-bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedStage* prepared,
-                                     u32 first_image_idx, bool& barrier, TextureSet*& slot) {
-    const u32 count = static_cast<u32>(stage.images.size());
-    if (!prepared || count == 0 || count > TextureSet::MaxImages ||
+bool Rasterizer::TextureSetCandidate(const Shader::Info& stage) const {
+    const size_t count = stage.images.size();
+    if (count == 0 || count > TextureSet::MaxImages ||
         Gow3Toggle::Disabled(Gow3Toggle::TextureSetMemo) || FrameCapture::Active()) {
         return false;
     }
@@ -2747,17 +2777,23 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
             return false;
         }
     }
-    u64 key = XXH3_64bits_withSeed(prepared->image_hashes, count * sizeof(u64),
-                                   reinterpret_cast<u64>(&stage));
-    key |= 1; // 0 marks an empty slot
+    return true;
+}
+
+bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const u64* hashes,
+                                     u32 first_image_idx, bool& barrier, TextureSet*& slot) {
+    const u32 count = static_cast<u32>(stage.images.size());
+    if (!hashes || !TextureSetCandidate(stage)) {
+        return false;
+    }
+    const u64 key = TextureSetKey(hashes, count, &stage);
     auto& set = texture_sets[key % texture_sets.size()];
     slot = &set;
     const u64 generation = texture_cache.RegistryGeneration();
     const bool match = set.key == key && set.stage == &stage && set.count == count &&
                        set.generation == generation &&
                        set.scene_generation == scene_targets->Generation() &&
-                       std::equal(set.hashes.begin(), set.hashes.begin() + count,
-                                  prepared->image_hashes);
+                       std::equal(set.hashes.begin(), set.hashes.begin() + count, hashes);
     if (!match) {
         ++texture_set_why[set.key != key ? 0 : set.generation != generation ? 1 : 3];
         ++texture_set_misses;
@@ -2765,7 +2801,7 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
         set.stage = &stage;
         set.count = 0;
         set.generation = ~0ull;
-        std::copy_n(prepared->image_hashes, count, set.hashes.begin());
+        std::copy_n(hashes, count, set.hashes.begin());
         return false;
     }
     // Every image still has the backing its view belongs to and needs no refresh.
@@ -2778,7 +2814,12 @@ bool Rasterizer::BindTexturesFromSet(const Shader::Info& stage, const PreparedSt
         // Proxy entries need a current proxy; native entries of a proxied image go through
         // BindTextures, which may sample the proxy instead.
         const bool proxies_on = !Gow3Toggle::Disabled(Gow3Toggle::SampleSceneProxies);
-        if (image.backing != entry.backing || image.binding.needs_rebind ||
+        // The depth redirect still resolves as recorded: AssociateDepth does not bump the registry
+        // generation.
+        const bool redirect_ok =
+            texture_cache.GetAssociatedDepth(texture_cache.GetImage(entry.found_id)) ==
+            (entry.found_id != entry.id ? entry.id : VideoCore::ImageId{});
+        if (image.backing != entry.backing || !redirect_ok || image.binding.needs_rebind ||
             image.binding.is_target || !texture_cache.IsUpToDate(entry.id) ||
             (entry.proxy ? !proxies_on ||
                                !scene_targets->ProxyCurrent(image, entry.range.base.level,
@@ -2841,9 +2882,8 @@ RenderState Rasterizer::BeginRendering(const GraphicsPipeline* pipeline) {
         texture_set_why = {};
         begin_memo_hits = begin_memo_misses = texture_set_hits = texture_set_misses = 0;
     }
-    BeginSignature signature;
     if (memo_on) {
-        signature = MakeBeginSignature(pipeline);
+        const BeginSignature signature = MakeBeginSignature(pipeline);
         const auto& regs = Regs();
         bool usable = begin_memo.valid && scheduler.IsRenderingWith(begin_memo.state) &&
                       !regs.depth_render_control.depth_clear_enable &&

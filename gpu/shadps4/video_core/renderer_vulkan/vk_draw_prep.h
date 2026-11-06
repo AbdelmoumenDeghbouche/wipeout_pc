@@ -27,6 +27,7 @@
 #include "common/types.h"
 #include "video_core/amdgpu/regs.h"
 #include "video_core/renderer_vulkan/vk_pipeline_cache.h"
+#include "video_core/renderer_vulkan/vk_texture_set_key.h"
 
 namespace Vulkan {
 
@@ -46,19 +47,6 @@ struct PreparedStage {
     const AmdGpu::Buffer* buffer_sharps;
     u32 num_images, num_samplers, num_buffers;
 };
-
-/// Key of Rasterizer's texture description cache for a T# bound through `res`.
-inline u64 ImageDescHash(const AmdGpu::Image& sharp, const Shader::ImageResource& res) {
-    std::array<u64, 4> key;
-    std::memcpy(key.data(), &sharp, sizeof(key));
-    const u32 flags = u32(res.is_written) | u32(res.is_depth) << 1 | u32(res.is_array) << 2;
-    u64 hash = flags * 0x9E3779B97F4A7C15ull;
-    for (const u64 word : key) {
-        hash = (hash ^ word) * 0xFF51AFD7ED558CCDull;
-        hash ^= hash >> 32;
-    }
-    return hash;
-}
 
 /// Vertex inputs of a draw (the dynamic vertex input path): the attribute and binding
 /// descriptions, the V# of each stream, and the stream memory merged into ranges.
