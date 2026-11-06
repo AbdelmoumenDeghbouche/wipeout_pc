@@ -421,6 +421,7 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 720p', 'Resolution Patch - 900p',
                                  'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 1920x1200', 'Resolution Patch - 2560x1600', 'Resolution Patch - 2880x1800',
+                                 'Resolution Patch - 1920x1440',
                                  'Resolution Patch - 3840x1600', 'Resolution Patch - 5120x1440',
                                  'Native 4K rendering (no checkerboard)',
                                  'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
