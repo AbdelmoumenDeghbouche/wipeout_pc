@@ -980,6 +980,10 @@ EXTRA = {
             'Músicas do menu: coloque as músicas para os menus numa subpasta chamada menu. Elas tocam só nos menus, e as outras músicas tocam nas corridas.',
         'Mode songs: songs in subfolders named zone, eliminator or detonator play only in that mode. A mode without its own folder plays the race songs.':
             'Músicas de modo: as músicas em subpastas chamadas zone, eliminator ou detonator tocam só nesse modo. Um modo sem pasta própria toca as músicas das corridas.',
+        'Profile':
+            'Perfil',
+        'Each profile has its own saves and stats. Type a new name to start one. Empty: the main saves.':
+            'Cada perfil tem os seus próprios saves e estatísticas. Escreva um nome novo para começar um. Vazio: os saves principais.',
         'Texture quality': 'Qualidade das texturas',
         'Full (default)': 'Completa (padrão)',
         'Medium (largest textures at 4096)': 'Média (texturas maiores em 4096)',
@@ -1373,6 +1377,10 @@ EXTRA = {
             'Canciones del menú: pon las canciones para los menús en una subcarpeta llamada menu. Suenan solo en los menús, y las demás canciones suenan en las carreras.',
         'Mode songs: songs in subfolders named zone, eliminator or detonator play only in that mode. A mode without its own folder plays the race songs.':
             'Canciones por modo: las canciones en subcarpetas llamadas zone, eliminator o detonator suenan solo en ese modo. Un modo sin carpeta propia usa las canciones de las carreras.',
+        'Profile':
+            'Perfil',
+        'Each profile has its own saves and stats. Type a new name to start one. Empty: the main saves.':
+            'Cada perfil tiene sus propias partidas guardadas y estadísticas. Escribe un nombre nuevo para empezar uno. Vacío: las partidas principales.',
         'Texture quality': 'Calidad de texturas',
         'Full (default)': 'Completa (predeterminada)',
         'Medium (largest textures at 4096)': 'Media (texturas más grandes a 4096)',

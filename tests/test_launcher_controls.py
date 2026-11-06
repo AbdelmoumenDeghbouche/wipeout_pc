@@ -324,6 +324,9 @@ class ControlMapTest(unittest.TestCase):
         env = launcher.game_environment({**launcher.APP_DEFAULTS, 'player_name': ' Arial Tetsuo Racer '})
         self.assertEqual(env['GOW3_USER_NAME'], 'Arial Tetsuo Rac')
         self.assertNotIn('GOW3_USER_NAME', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
+        # Profiles (#162): the runtime keeps a profile's saves in profiles/<name>; empty = the main saves.
+        self.assertEqual(launcher.game_environment({**launcher.APP_DEFAULTS, 'profile': ' Sam '})['GOW3_PROFILE'], 'Sam')
+        self.assertNotIn('GOW3_PROFILE', launcher.game_environment(dict(launcher.APP_DEFAULTS)))
         for key in ('display_mode', 'fps_limit', 'render_resolution', 'engine_fps'):
             self.assertIn(key, launcher.INI_DEFAULTS)
 
