@@ -1433,6 +1433,7 @@ int main(int argc, char **argv) {
         _exit(missing ? 1 : 0); /* no destructors: GPU threads are running */
     }
     if (patch_file) apply_patches(patch_file, segments, ns, relocs, nr);
+    if (gpu_enabled) runtime_heap_trace_install(image, size); /* heap frees -> texture cache */
     /* Cheats, multipliers, QTE and menu hooks patch God of War III's code (CUSA01623) only. */
     char hooks_sfo[4096], hooks_serial[32]="";
     snprintf(hooks_sfo,sizeof(hooks_sfo),"%s/sce_sys/param.sfo",app0 ? app0 : ".");

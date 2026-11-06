@@ -54,6 +54,8 @@ void gow3gpu_movie_picture(void);
 void gow3gpu_request_screenshot(void);
 /* A short message in the lower right corner for a few seconds (the custom soundtrack's track). */
 void gow3gpu_notice(const char *utf8);
+/* The game freed a block of its GPU heap: cached images wholly inside it are dropped. */
+void gow3gpu_guest_heap_freed(uintptr_t address, uint64_t size);
 /* gow3.ini "music" and "music_shuffle": the player's songs play, in random order (runtime_music.c). */
 int gow3gpu_music_on(void);
 int gow3gpu_music_shuffle(void);

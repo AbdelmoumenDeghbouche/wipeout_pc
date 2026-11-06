@@ -2082,8 +2082,8 @@ bool Rasterizer::IsComputeMetaClear(const Pipeline* pipeline) {
                 // gow3: the target reads as cleared from now on, also when the game only samples
                 // it and draws nothing into it before. Clearing it at the next bind only left
                 // WipEout's ship select ship in the menus after it (#58).
-                if (const auto [image_id, clear_value] = texture_cache.MetaTarget(address);
-                    image_id) {
+                const auto [image_id, clear_value] = texture_cache.MetaTarget(address);
+                if (image_id) {
                     auto& image = texture_cache.GetImage(image_id);
                     runtime.ClearImage(&image, {.extent = image.info.resources}, clear_value);
                 }
@@ -2329,7 +2329,19 @@ void Rasterizer::BindBuffers(const Shader::Info& stage, const PreparedStage* pre
                 bound_buffers.emplace_back(buffer, offset, size, desc.is_written);
                 if (desc.is_written) {
                     // Raw storage-buffer writes can also make an aliased cached image stale.
-                    texture_cache.InvalidateMemoryFromGPU(vsharp.base_address, size);
+                    // gow3: the Gnmx dword fill (compute 900ef98d: buffer 1 holds the dword,
+                    // buffer 2 is filled with it) clears a cached image in place
+                    // (TextureCache::InvalidateMemoryFromGPU).
+                    std::optional<u32> fill;
+                    if (stage.sw_stage == Shader::SwStage::Compute &&
+                        u32(stage.pgm_hash) == 0x900ef98d && buffer_index == 2 &&
+                        stage.buffers.size() == 3 && !stage.buffers[1].is_written) {
+                        const auto value = stage.buffers[1].GetSharp(stage);
+                        if (value.base_address && memory->IsValidGpuMapping(value.base_address, 4)) {
+                            fill = *reinterpret_cast<const u32*>(value.base_address);
+                        }
+                    }
+                    texture_cache.InvalidateMemoryFromGPU(vsharp.base_address, size, fill);
                 }
                 needs_barrier |= runtime.IsBufferAccessed(buffer, offset, size, desc.is_written);
             }

@@ -133,8 +133,17 @@ public:
     /// are marked CPU-dirty at the next UpdateImage or GC tick (ApplyBackingWrites).
     void NoteBackingWrite(VAddr address, u64 size);
 
-    /// Marks an image as dirty if it exists at the provided address.
-    void InvalidateMemoryFromGPU(VAddr address, size_t max_size);
+    /// gow3: the game freed a block of its GPU heap (heap frees never unmap, so UnmapMemory
+    /// never ran and every track's textures stayed cached: 1.3 -> 6.8 GB of images over a few
+    /// races in VR). Any thread, any lock: at the next GC tick, images that lie wholly inside
+    /// the block and existed before this call are freed (ApplyGuestFrees).
+    void NoteGuestFree(VAddr address, u64 size);
+
+    /// Marks an image as dirty if it exists at the provided address. With `fill` (gow3: every
+    /// dword of the range set to it), an image whose whole layers the range covers is cleared
+    /// on the GPU instead.
+    void InvalidateMemoryFromGPU(VAddr address, size_t max_size,
+                                 std::optional<u32> fill = std::nullopt);
 
     /// Evicts any images that overlap the unmapped range.
     void UnmapMemory(VAddr cpu_addr, size_t size);
@@ -573,6 +582,18 @@ private:
     std::mutex backing_writes_mutex;
     std::vector<std::pair<VAddr, u64>> backing_writes;
     std::atomic<bool> has_backing_writes{false};
+    struct GuestFree {
+        VAddr address;
+        u64 size;
+        u64 last_uid; ///< images created after the free hold the block's new contents
+    };
+    void ApplyGuestFrees();
+    std::mutex guest_frees_mutex;
+    std::vector<GuestFree> guest_frees;
+    std::atomic<bool> has_guest_frees{false};
+    u64 guest_free_images{}, guest_free_bytes{};
+    /// gow3: upload bytes in the current submission (RefreshImage submits early past a limit).
+    u64 upload_tick{}, upload_tick_bytes{}, early_submits{};
     /// gow3: images with the same guest address (guarded by `mutex`). `backing` holds the
     /// complete contents; `writer` is a newer write not yet copied into it.
     struct AliasState {
@@ -624,6 +645,7 @@ private:
         MetaType type;
         s32 clear_mask = -1;
         ImageId image{};              ///< gow3: CMask: its color target
+        u64 image_uid{};              ///< gow3: and that target's uid (MetaTarget checks it)
         vk::ClearValue clear_value{}; ///< gow3: CMask: the target's clear color
     };
     tsl::robin_map<VAddr, MetaDataInfo> surface_metas;

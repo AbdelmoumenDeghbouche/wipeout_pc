@@ -420,6 +420,12 @@ extern "C" void gow3gpu_request_screenshot(void) {
     VideoCore::RequestScreenshot(VideoCore::ScreenshotRequest::GameOnly);
 }
 
+extern "C" void gow3gpu_guest_heap_freed(uintptr_t address, uint64_t size) {
+    if (auto* r = Core::Memory::Instance()->GetRasterizer()) {
+        r->GetTextureCache().NoteGuestFree(address, size);
+    }
+}
+
 extern "C" void gow3gpu_notice(const char* utf8) {
     Gow3Overlay::ShowNotice(utf8, 5000);
 }

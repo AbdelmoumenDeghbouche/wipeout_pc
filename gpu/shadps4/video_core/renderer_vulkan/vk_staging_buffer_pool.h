@@ -4,6 +4,7 @@
 #pragma once
 
 #include <array>
+#include <chrono>
 #include <memory>
 #include <vector>
 
@@ -59,6 +60,7 @@ private:
     struct Block {
         std::unique_ptr<VideoCore::StreamBuffer> buffer;
         u64 last_used_frame;
+        std::chrono::steady_clock::time_point last_used_time; ///< gow3: TrimRing's quiet rule
     };
 
     struct Ring {
@@ -91,6 +93,8 @@ private:
     std::array<Ring, NUM_TYPES> rings;
     u64 keep_blocks = 0; ///< gow3: ring blocks never trimmed
     std::array<std::vector<LargeBuffer>, NUM_TYPES> large_caches;
+    /// gow3: the last large request of each type (TrimLarge frees idle ones after a quiet spell).
+    std::array<std::chrono::steady_clock::time_point, NUM_TYPES> last_large_request{};
     u64 frame = 0;
 };
 

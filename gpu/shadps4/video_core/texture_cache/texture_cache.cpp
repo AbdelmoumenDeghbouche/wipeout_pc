@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <bit>
+#include <cmath>
 #include <filesystem>
 #include <map>
 #include <xxhash.h>
@@ -717,6 +719,67 @@ void TextureCache::NoteBackingWrite(VAddr address, u64 size) {
     has_backing_writes.store(true, std::memory_order_release);
 }
 
+void TextureCache::NoteGuestFree(VAddr address, u64 size) {
+    if (size == 0) {
+        return;
+    }
+    std::scoped_lock lock{guest_frees_mutex};
+    guest_frees.push_back({address, size, Image::LastUid()});
+    has_guest_frees.store(true, std::memory_order_release);
+}
+
+void TextureCache::ApplyGuestFrees() {
+    if (!has_guest_frees.load(std::memory_order_acquire)) {
+        return;
+    }
+    std::vector<GuestFree> frees;
+    {
+        std::scoped_lock lock{guest_frees_mutex};
+        frees.swap(guest_frees);
+        has_guest_frees.store(false, std::memory_order_release);
+    }
+    ImageIds doomed;
+    for (const GuestFree& free : frees) {
+        const VAddr end = free.address + free.size;
+        ForEachImageInRegion(free.address, free.size, [&](ImageId image_id, Image& image) {
+            // Only images wholly inside the block: one reaching past it is another block's (or
+            // an alias over several). Newer ones were made from what the game put there since.
+            if (image.info.guest_address < free.address ||
+                image.info.guest_address + image.info.guest_size > end ||
+                image.image_uid > free.last_uid) {
+                return;
+            }
+            doomed.push_back(image_id);
+        });
+    }
+    for (const ImageId image_id : doomed) {
+        Image& image = slot_images[image_id];
+        // Listed twice (a block freed, given out again and freed within one tick): freed already.
+        if (False(image.flags & ImageFlagBits::Registered)) {
+            continue;
+        }
+        // The memory is the game's to reuse: a pending write-back of the old picture would land
+        // over the block's next contents. Drop it instead of resolving it (FreeImage would).
+        CancelReadbacks(image.info.guest_address, image.info.guest_size);
+        for (const auto& backing : image.backing_images) {
+            guest_free_bytes += backing.image.size_bytes;
+        }
+        ++guest_free_images;
+        FreeImage(image_id);
+    }
+    if (Gow3Stats::enabled && !doomed.empty()) {
+        static auto last = std::chrono::steady_clock::now();
+        const auto now = std::chrono::steady_clock::now();
+        if (now - last >= std::chrono::seconds(5)) {
+            last = now;
+            std::printf("Texture cache: %llu images (%llu MiB) over freed game heap released\n",
+                        (unsigned long long)guest_free_images,
+                        (unsigned long long)(guest_free_bytes >> 20));
+            guest_free_images = guest_free_bytes = 0;
+        }
+    }
+}
+
 void TextureCache::ApplyBackingWrites() {
     if (!has_backing_writes.load(std::memory_order_acquire)) {
         return;
@@ -742,20 +805,93 @@ void TextureCache::ApplyBackingWrites() {
     }
 }
 
-void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size) {
+// gow3: the colour a dword fill gives a 32-bit colour image, or nothing for other formats.
+static std::optional<vk::ClearColorValue> FillColor(vk::Format format, u32 value) {
+    const auto unorm = [&](u32 byte) { return float((value >> (byte * 8)) & 0xff) / 255.0f; };
+    const auto srgb = [&](u32 byte) {
+        const float c = unorm(byte);
+        return c <= 0.04045f ? c / 12.92f : std::pow((c + 0.055f) / 1.055f, 2.4f);
+    };
+    switch (format) {
+    case vk::Format::eR8G8B8A8Unorm:
+    case vk::Format::eA8B8G8R8UnormPack32:
+        return vk::ClearColorValue{std::array{unorm(0), unorm(1), unorm(2), unorm(3)}};
+    case vk::Format::eR8G8B8A8Srgb:
+    case vk::Format::eA8B8G8R8SrgbPack32:
+        return vk::ClearColorValue{std::array{srgb(0), srgb(1), srgb(2), unorm(3)}};
+    case vk::Format::eB8G8R8A8Unorm:
+        return vk::ClearColorValue{std::array{unorm(2), unorm(1), unorm(0), unorm(3)}};
+    case vk::Format::eB8G8R8A8Srgb:
+        return vk::ClearColorValue{std::array{srgb(2), srgb(1), srgb(0), unorm(3)}};
+    case vk::Format::eR32Uint:
+        return vk::ClearColorValue{}.setUint32({value, 0, 0, 0});
+    case vk::Format::eR32Sint:
+        return vk::ClearColorValue{}.setInt32({s32(value), 0, 0, 0});
+    case vk::Format::eR32Sfloat:
+        return vk::ClearColorValue{std::array{std::bit_cast<float>(value), 0.0f, 0.0f, 0.0f}};
+    default:
+        return std::nullopt;
+    }
+}
+
+void TextureCache::InvalidateMemoryFromGPU(VAddr address, size_t max_size,
+                                           std::optional<u32> fill) {
     // Partial buffer writes still need the image's untouched bytes in guest memory.
     ResolveReadbacks(address, max_size, true, ReadbackSource::GpuPartialWrite);
-    std::scoped_lock lock{mutex};
-    ForEachImageInRegion(address, max_size, [&](ImageId image_id, Image& image) {
-        // Only consider images that match base address.
-        // TODO: Maybe also consider subresources
-        if (image.info.guest_address != address) {
-            return;
+    struct FillClear {
+        ImageId image_id;
+        vk::ClearColorValue color;
+        u32 layers;
+    };
+    boost::container::small_vector<FillClear, 2> clears;
+    {
+        std::scoped_lock lock{mutex};
+        ForEachImageInRegion(address, max_size, [&](ImageId image_id, Image& image) {
+            // Only consider images that match base address.
+            // TODO: Maybe also consider subresources
+            if (image.info.guest_address != address) {
+                return;
+            }
+            // gow3: WipEout clears its VR eyes every frame with the Gnmx dword fill (a compute
+            // shader writing the eye's layer as a buffer). As a GPU write the 2-layer eye was
+            // uploaded again from guest memory, both eyes every frame: ~94 MiB each at 3400x3468,
+            // 11 GB/s. Whole layers of a plain 32-bit colour image are cleared in place instead.
+            const auto& info = image.info;
+            const u64 layer_size = info.resources.layers ? info.mips_layout[0].size /
+                                                               info.resources.layers
+                                                         : 0;
+            if (fill && info.resources.levels == 1 && info.num_samples == 1 &&
+                !info.props.is_depth && info.num_bits == 32 && layer_size != 0 &&
+                max_size % layer_size == 0 && max_size / layer_size <= info.resources.layers &&
+                False(image.flags & ImageFlagBits::Dirty)) {
+                if (const auto color = FillColor(info.pixel_format, *fill)) {
+                    clears.push_back({image_id, *color, u32(max_size / layer_size)});
+                    return;
+                }
+            }
+            // Ensure image is reuploaded when accessed again.
+            InvalidateAlias(image);
+            image.flags |= ImageFlagBits::GpuDirty;
+        });
+    }
+    for (const FillClear& clear : clears) {
+        Image& image = slot_images[clear.image_id];
+        scheduler.EndRendering();
+        const VideoCore::SubresourceRange range{.base = {0, 0}, .extent = {1, clear.layers}};
+        if (runtime.Transit(&image, vk::ImageLayout::eTransferDstOptimal,
+                            vk::PipelineStageFlagBits2::eClear,
+                            vk::AccessFlagBits2::eTransferWrite, range)) {
+            runtime.FlushBarriers();
         }
-        // Ensure image is reuploaded when accessed again.
-        InvalidateAlias(image);
-        image.flags |= ImageFlagBits::GpuDirty;
-    });
+        scheduler.Record([handle = image.GetImage(), color = clear.color,
+                          layers = clear.layers](vk::CommandBuffer cmdbuf) {
+            cmdbuf.clearColorImage(handle, vk::ImageLayout::eTransferDstOptimal, color,
+                                   vk::ImageSubresourceRange{vk::ImageAspectFlagBits::eColor, 0,
+                                                             1, 0, layers});
+        });
+        image.flags |= ImageFlagBits::GpuModified;
+        PublishAliasWrite(clear.image_id);
+    }
 }
 
 void TextureCache::UnmapMemory(VAddr cpu_addr, size_t size) {
@@ -1514,6 +1650,7 @@ ImageView& TextureCache::FindTexture(ImageId image_id, const ImageDesc& desc, Vi
 
 ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& desc) {
     Image& image = slot_images[image_id];
+    const bool never_drawn = False(image.flags & ImageFlagBits::GpuModified); // gow3: below
     image.flags |= ImageFlagBits::GpuModified;
     if (readback_linear_images && (!image.info.props.is_tiled || image.info.size.width <= 8)) {
         std::unique_lock lk{download_images_mutex};
@@ -1526,15 +1663,35 @@ ImageView& TextureCache::FindRenderTarget(ImageId image_id, const ImageDesc& des
 
     // Register meta data for this color buffer
     if (desc.info.meta_info.cmask_addr) {
-        auto [meta, _] = surface_metas.emplace(desc.info.meta_info.cmask_addr,
-                                               MetaDataInfo{.type = MetaType::CMask});
+        // gow3: a target moving to another CMask drops the entry it owned: DeleteImage removes
+        // only the address the image has last, and the old entry outlived the image.
+        const VAddr old_cmask = image.info.meta_info.cmask_addr;
+        if (old_cmask && old_cmask != desc.info.meta_info.cmask_addr) {
+            if (const auto old = surface_metas.find(old_cmask);
+                old != surface_metas.end() && old->second.image == image_id) {
+                surface_metas.erase(old);
+            }
+        }
+        auto [meta, inserted] = surface_metas.emplace(desc.info.meta_info.cmask_addr,
+                                                      MetaDataInfo{.type = MetaType::CMask});
+        // gow3: a target never drawn into that takes over another target's CMask starts
+        // cleared (this bind clears it to the game's clear color). The game fast-clears a new
+        // target through the CMask before binding it; that clear went to the entry's owner then,
+        // the old target, and the new one showed what the last track left in its memory: black
+        // patches over one eye's 3D view after some loads. Never drawn, it holds nothing to keep.
+        if (!inserted && meta->second.image != image_id && never_drawn) {
+            meta.value().clear_mask = -1;
+        }
         meta.value().image = image_id;
+        meta.value().image_uid = image.image_uid;
         image.info.meta_info.cmask_addr = desc.info.meta_info.cmask_addr;
     }
 
     if (desc.info.meta_info.fmask_addr) {
-        surface_metas.emplace(desc.info.meta_info.fmask_addr,
-                              MetaDataInfo{.type = MetaType::FMask});
+        auto [meta, _] = surface_metas.emplace(desc.info.meta_info.fmask_addr,
+                                               MetaDataInfo{.type = MetaType::FMask});
+        meta.value().image = image_id; // gow3: its owner (DeleteImage)
+        meta.value().image_uid = image.image_uid;
         image.info.meta_info.fmask_addr = desc.info.meta_info.fmask_addr;
     }
 
@@ -1550,9 +1707,12 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
 
     // Register meta data for this depth buffer
     if (desc.info.meta_info.htile_addr) {
-        surface_metas.emplace(desc.info.meta_info.htile_addr,
-                              MetaDataInfo{.type = MetaType::HTile,
-                                           .clear_mask = image.info.meta_info.htile_clear_mask});
+        auto [meta, _] = surface_metas.emplace(
+            desc.info.meta_info.htile_addr,
+            MetaDataInfo{.type = MetaType::HTile,
+                         .clear_mask = image.info.meta_info.htile_clear_mask});
+        meta.value().image = image_id; // gow3: its owner (DeleteImage)
+        meta.value().image_uid = image.image_uid;
         image.info.meta_info.htile_addr = desc.info.meta_info.htile_addr;
     }
 
@@ -1659,6 +1819,39 @@ void TextureCache::RefreshImage(Image& image) {
     }
 
     scheduler.EndRendering();
+
+    // gow3: a staging buffer is free again only once the GPU is done with the submission that
+    // read it. A track load put all its uploads in one submission: 2-7 GB of upload buffers
+    // at once. Past GOW3_UPLOAD_SUBMIT_MB (512) of uploads the work so far is submitted, so
+    // the buffers of the first part are done (and freed or reused) while the rest uploads.
+    // 0: off. (Tried once before and no help then: idle buffers of other sizes were kept;
+    // the staging pool frees those now.)
+    static const u64 submit_bytes = [] {
+        const char* env = std::getenv("GOW3_UPLOAD_SUBMIT_MB");
+        return (env ? std::strtoull(env, nullptr, 10) : 512) << 20;
+    }();
+    if (upload_tick != scheduler.CurrentTick()) {
+        upload_tick = scheduler.CurrentTick();
+        upload_tick_bytes = 0;
+    }
+    if (submit_bytes != 0 && upload_tick_bytes != 0 &&
+        upload_tick_bytes + image.info.guest_size > submit_bytes) {
+        scheduler.Flush();
+        ++early_submits;
+        if (Gow3Stats::enabled) {
+            static auto last = std::chrono::steady_clock::now();
+            const auto now = std::chrono::steady_clock::now();
+            if (now - last >= std::chrono::seconds(5)) {
+                last = now;
+                std::printf("Texture cache: %llu early submissions for uploads\n",
+                            (unsigned long long)early_submits);
+                early_submits = 0;
+            }
+        }
+        upload_tick = scheduler.CurrentTick();
+        upload_tick_bytes = 0;
+    }
+    upload_tick_bytes += image.info.guest_size;
 
     const auto [in_buffer, in_offset] =
         buffer_cache.ObtainBufferForImage(image.info.guest_address, image.info.guest_size);
@@ -2129,6 +2322,7 @@ void TextureCache::RunGarbageCollector() {
     {
         std::scoped_lock lock{mutex};
         ApplyBackingWrites();
+        ApplyGuestFrees();
     }
 
     GarbageCollectImages();
@@ -2171,15 +2365,30 @@ void TextureCache::DeleteImage(ImageId image_id) {
     }
 
     // Remove any registered meta areas.
+    // gow3: only those this image still owns. The game hands a metadata address on to its next
+    // target (a track load's new eye targets); the old target's delete then erased the new
+    // one's entry, its fast clears no longer matched, and it kept what the last track left in
+    // its memory: black patches over one eye's 3D view.
     const auto& meta_info = image.info.meta_info;
+    const auto erase_owned = [&](VAddr address) {
+        const auto it = surface_metas.find(address);
+        if (it == surface_metas.end()) {
+            return;
+        }
+        if (it->second.image && !(it->second.image == image_id &&
+                                  it->second.image_uid == image.image_uid)) {
+            return; // another target owns it now
+        }
+        surface_metas.erase(it);
+    };
     if (meta_info.cmask_addr) {
-        surface_metas.erase(meta_info.cmask_addr);
+        erase_owned(meta_info.cmask_addr);
     }
     if (meta_info.fmask_addr) {
-        surface_metas.erase(meta_info.fmask_addr);
+        erase_owned(meta_info.fmask_addr);
     }
     if (meta_info.htile_addr) {
-        surface_metas.erase(meta_info.htile_addr);
+        erase_owned(meta_info.htile_addr);
     }
 
     {

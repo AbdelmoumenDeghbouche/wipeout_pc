@@ -1,7 +1,10 @@
 // SPDX-FileCopyrightText: Copyright 2024 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <algorithm>
+#include <atomic>
 #include <cstdio>
+#include <ctime>
 #include <cstdlib>
 #include <boost/container/static_vector.hpp>
 #include <fmt/format.h>
@@ -393,6 +396,15 @@ bool Instance::CreateDevice() {
                     fragment_shader_barycentric ? "VK_KHR_fragment_shader_barycentric" : "none");
     }
     provoking_vertex = add_extension(VK_EXT_PROVOKING_VERTEX_EXTENSION_NAME);
+    // gow3: what the driver knows about a device loss (LogDeviceFault).
+    if (std::ranges::any_of(available_extensions, [](const auto& name) {
+            return name == VK_EXT_DEVICE_FAULT_EXTENSION_NAME;
+        })) {
+        const auto fault_chain = physical_device.getFeatures2<
+            vk::PhysicalDeviceFeatures2, vk::PhysicalDeviceFaultFeaturesEXT>();
+        device_fault = fault_chain.get<vk::PhysicalDeviceFaultFeaturesEXT>().deviceFault &&
+                       add_extension(VK_EXT_DEVICE_FAULT_EXTENSION_NAME);
+    }
     shader_stencil_export = add_extension(VK_EXT_SHADER_STENCIL_EXPORT_EXTENSION_NAME);
     image_load_store_lod = add_extension(VK_AMD_SHADER_IMAGE_LOAD_STORE_LOD_EXTENSION_NAME);
     amd_gcn_shader = !amd_paths_off.shaderext && add_extension(VK_AMD_GCN_SHADER_EXTENSION_NAME);
@@ -686,7 +698,13 @@ bool Instance::CreateDevice() {
         vk::PhysicalDevicePipelineExecutablePropertiesFeaturesKHR{
             .pipelineExecutableInfo = pipeline_executable_features.pipelineExecutableInfo,
         },
+        vk::PhysicalDeviceFaultFeaturesEXT{
+            .deviceFault = true,
+        },
     };
+    if (!device_fault) {
+        device_chain.unlink<vk::PhysicalDeviceFaultFeaturesEXT>();
+    }
     if (!pipeline_executable_properties) {
         device_chain.unlink<vk::PhysicalDevicePipelineExecutablePropertiesFeaturesKHR>();
     }
@@ -801,6 +819,71 @@ bool Instance::CreateDevice() {
 
     CreateAllocator();
     return true;
+}
+
+void Instance::LogDeviceFault() const {
+    static std::atomic_flag reported = ATOMIC_FLAG_INIT;
+    if (reported.test_and_set()) {
+        return;
+    }
+    if (!device_fault || !VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT) {
+        std::printf("Device fault: the driver does not report device losses (VK_EXT_device_fault)\n");
+        std::fflush(stdout);
+        return;
+    }
+    VkDeviceFaultCountsEXT counts{VK_STRUCTURE_TYPE_DEVICE_FAULT_COUNTS_EXT};
+    VkResult result = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT(*device, &counts, nullptr);
+    if (result != VK_SUCCESS && result != VK_INCOMPLETE) {
+        std::printf("Device fault: no report (%s)\n", vk::to_string(vk::Result(result)).c_str());
+        std::fflush(stdout);
+        return;
+    }
+    std::vector<VkDeviceFaultAddressInfoEXT> addresses(counts.addressInfoCount);
+    std::vector<VkDeviceFaultVendorInfoEXT> vendor(counts.vendorInfoCount);
+    std::vector<u8> binary(counts.vendorBinarySize);
+    VkDeviceFaultInfoEXT info{VK_STRUCTURE_TYPE_DEVICE_FAULT_INFO_EXT};
+    info.pAddressInfos = addresses.data();
+    info.pVendorInfos = vendor.data();
+    info.pVendorBinaryData = binary.empty() ? nullptr : binary.data();
+    result = VULKAN_HPP_DEFAULT_DISPATCHER.vkGetDeviceFaultInfoEXT(*device, &counts, &info);
+    std::printf("Device fault: %s (%u addresses, %u vendor records, %llu bytes of vendor data)\n",
+                info.description, counts.addressInfoCount, counts.vendorInfoCount,
+                (unsigned long long)counts.vendorBinarySize);
+    static constexpr const char* kinds[] = {"none", "read invalid", "write invalid",
+                                            "execute invalid", "instruction pointer unknown",
+                                            "instruction pointer invalid",
+                                            "instruction pointer fault"};
+    for (u32 i = 0; i < counts.addressInfoCount; ++i) {
+        const auto& a = addresses[i];
+        const u32 kind = static_cast<u32>(a.addressType);
+        // The address is known to within this power of two: the range it lies in.
+        const u64 precision = a.addressPrecision ? a.addressPrecision : 1;
+        const u64 low = a.reportedAddress & ~(precision - 1);
+        std::printf("  address %#llx (%s), somewhere in %#llx-%#llx\n",
+                    (unsigned long long)a.reportedAddress, kind < 7 ? kinds[kind] : "?",
+                    (unsigned long long)low,
+                    (unsigned long long)(low + precision - 1));
+    }
+    // The driver's own crash dump (on NVIDIA one that Nsight Graphics opens), kept beside the log.
+    if (!binary.empty() && result == VK_SUCCESS) {
+        const std::time_t now = std::time(nullptr);
+        char name[64];
+        std::strftime(name, sizeof(name), "user/device_fault_%Y%m%d_%H%M%S.nv-gpudmp",
+                      std::localtime(&now));
+        if (std::FILE* file = std::fopen(name, "wb")) {
+            std::fwrite(binary.data(), 1, binary.size(), file);
+            std::fclose(file);
+            std::printf("  driver crash dump saved to %s\n", name);
+        } else {
+            std::printf("  driver crash dump could not be saved to %s\n", name);
+        }
+    }
+    for (u32 i = 0; i < counts.vendorInfoCount; ++i) {
+        std::printf("  vendor: %s (code %#llx, data %#llx)\n", vendor[i].description,
+                    (unsigned long long)vendor[i].vendorFaultCode,
+                    (unsigned long long)vendor[i].vendorFaultData);
+    }
+    std::fflush(stdout);
 }
 
 void Instance::CreateAllocator() {
