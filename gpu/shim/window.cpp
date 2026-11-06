@@ -40,6 +40,10 @@ static bool StartSize(s32& width, s32& height) {
 
 WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}, height{height_} {
     // Gamepads are sampled by runtime_pad.c; their events are pumped here with the window's.
+    // gow3: Wayland with display scaling and no fractional-scale support in the compositor (#174:
+    // MangoWC at 125% gave pixel density 1.00, a 2048x1152 picture stretched to 2560x1440): the
+    // window is drawn 1:1 in pixels. Wayland only; other video drivers ignore it.
+    SDL_SetHint(SDL_HINT_VIDEO_WAYLAND_SCALE_TO_DISPLAY, "1");
     if (!SDL_InitSubSystem(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         UNREACHABLE_MSG("Failed to initialize SDL video: {}", SDL_GetError());
     }
