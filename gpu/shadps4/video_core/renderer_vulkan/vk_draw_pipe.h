@@ -17,6 +17,9 @@
 #ifdef _WIN32
 #include <windows.h>
 #endif
+#ifdef __linux__
+#include <sys/prctl.h>
+#endif
 
 #include <array>
 #include <atomic>
@@ -106,6 +109,23 @@ public:
     std::array<u64, NumReasons> cycles_by_reason{};
 
     /// Stage A: waits until stage B has run every committed packet.
+    /// gow3: how stage A waits in Drain once its pause spins are done. A yield loop keeps the core
+    /// busy at boost clock for the whole wait (about a millisecond per frame at a race start), and on a
+    /// power-limited APU that power is taken from the GPU. Short sleeps give it back. Windows keeps the
+    /// yield loop: its sleep granularity is a millisecond or more.
+    static void WaitAfterSpin() {
+#ifdef _WIN32
+        std::this_thread::yield();
+#else
+#ifdef __linux__
+        // Keep the sleeps short: the default 50 us timer slack would more than triple them.
+        static thread_local const bool slack_set = prctl(PR_SET_TIMERSLACK, 1000UL, 0, 0, 0) == 0;
+        (void)slack_set;
+#endif
+        std::this_thread::sleep_for(std::chrono::microseconds(20));
+#endif
+    }
+
     void Drain(u32 reason = ReasonRasterizer) {
         if (consumed.load(std::memory_order_acquire) == head) {
             return;
@@ -118,7 +138,7 @@ public:
             if (spins < 4096) {
                 __builtin_ia32_pause();
             } else {
-                std::this_thread::yield();
+                WaitAfterSpin();
             }
         }
         const u64 waited = __rdtsc() - start;
