@@ -679,6 +679,17 @@ void TextureCache::InvalidateMemory(VAddr addr, size_t size) {
             // Untrack the image, so that the range is unprotected and the guest can write freely.
             InvalidateAlias(image);
             image.flags |= ImageFlagBits::CpuDirty;
+            // gow3: a second fault in one flip means the guest is still writing after the
+            // re-upload. WipEout HD's grid intro streams ~42 MB into a bound 45 MB texture array:
+            // re-protecting it at every bind cost a fault and a whole re-upload each time (114 in
+            // two flips). Such an image stays unprotected until the next flip.
+            const u64 flip = Vulkan::FrameCapture::Flips();
+            if (image.cpu_dirty_flip == flip &&
+                False(image.flags & (ImageFlagBits::GpuModified | ImageFlagBits::Aliased)) &&
+                !Gow3Toggle::Disabled(Gow3Toggle::DeferStreamedImageTracking)) {
+                image.track_deferred = true;
+            }
+            image.cpu_dirty_flip = flip;
             UntrackImage(image_id);
         } else if (pages_end < image_end) {
             // This page access may or may not modify the image.
@@ -1382,7 +1393,7 @@ ImageId TextureCache::FindImage(ImageDesc& desc, bool exact_fmt) {
     // are applied first, as UpdateImage does.
     if (!unmerged_levels.empty()) {
         ApplyBackingWrites();
-        TrackImage(image_id);
+        TrackImageUnlessDeferred(image_id);
         RefreshImage(slot_images[image_id]);
         for (const auto level_id : unmerged_levels) {
             if (False(slot_images[level_id].flags & ImageFlagBits::Registered)) {
@@ -1738,6 +1749,25 @@ void TextureCache::UnregisterImage(ImageId image_id) {
         }
         image_ids.erase(vector_it);
     });
+}
+
+void TextureCache::TrackImageUnlessDeferred(ImageId image_id) {
+    auto& image = slot_images[image_id];
+    if (image.track_deferred) {
+        // Deferral starts only on images no GPU work writes, so GpuModified here means a GPU
+        // write bind (render target, depth or storage target, which set it before UpdateImage)
+        // or a GPU copy into the image: that ends the deferral at once.
+        if (image.cpu_dirty_flip == Vulkan::FrameCapture::Flips() &&
+            False(image.flags & ImageFlagBits::GpuModified) &&
+            !Gow3Toggle::Disabled(Gow3Toggle::DeferStreamedImageTracking)) {
+            return; // Still the flip of the last write: the guest may still be writing.
+        }
+        image.track_deferred = false;
+        // Writes made while unprotected took no fault: read the image again, before any GPU
+        // write, as when each of those writes faulted and dirtied it.
+        image.flags |= ImageFlagBits::CpuDirty;
+    }
+    TrackImage(image_id);
 }
 
 void TextureCache::TrackImage(ImageId image_id) {

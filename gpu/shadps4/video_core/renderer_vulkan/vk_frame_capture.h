@@ -33,6 +33,10 @@ public:
     static bool Active() {
         return state.load(std::memory_order_relaxed) != Idle;
     }
+    /// Flips so far (counted at every flip, recording or not).
+    static u64 Flips() {
+        return flips.load(std::memory_order_acquire);
+    }
     /// GPU thread: whether a frame is being recorded right now.
     static bool IsRecording() {
         return state.load(std::memory_order_relaxed) == Recording;

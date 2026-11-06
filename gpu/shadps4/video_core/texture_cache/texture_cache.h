@@ -208,7 +208,7 @@ public:
         std::scoped_lock lock{mutex};
         ApplyBackingWrites();
         Image& image = slot_images[image_id];
-        TrackImage(image_id);
+        TrackImageUnlessDeferred(image_id);
         TouchImage(image);
         RefreshImage(image);
         SynchronizeAlias(image_id);
@@ -443,6 +443,9 @@ private:
 
     /// Track CPU reads and writes for image
     void TrackImage(ImageId image_id);
+    /// gow3: TrackImage, except for an image left unprotected for the rest of the flip of its
+    /// last CPU write (DeferStreamedImageTracking); a flip later it is re-read and tracked again.
+    void TrackImageUnlessDeferred(ImageId image_id);
     void TrackImageHead(ImageId image_id);
     void TrackImageTail(ImageId image_id);
 

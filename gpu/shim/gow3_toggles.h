@@ -74,6 +74,10 @@ enum : std::uint64_t {
     /// A texture/storage request for the top rows of a cached image (same address and layout)
     /// uses that image, instead of creating and uploading a new one (texture_cache.cpp).
     PartialHeightViews = 1ull << 58,
+    /// An image only the CPU writes, written again in the flip it was re-uploaded in (a texture
+    /// the game streams into while draws bind it), stays unprotected until the next flip instead
+    /// of being re-protected and re-uploaded whole at every bind (TextureCache::InvalidateMemory).
+    DeferStreamedImageTracking = 1ull << 59,
     /// Up to 512 GPU readbacks pending instead of 64; when full, only the oldest is waited for
     /// instead of the whole GPU (TextureCache::ProcessDownloadImages).
     DeepReadbackQueue = 1ull << 60,
