@@ -16,6 +16,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#ifndef _WIN32
+/* ponytail: Windows only for now (VirtualAlloc/VirtualProtect/SRWLOCK). Linux keeps the v0.2.59
+ * behaviour until a port is tested on Linux (#150). */
+void runtime_heap_trace_install(unsigned char *image, uint64_t size) { (void)image; (void)size; }
+#else
 #include <windows.h>
 
 enum { GHIDRA_BASE = 0x1000000, VTABLE = 0x19977f0, HANDLE_A = 0x2212548, HEAP_A = 0x2212568,
@@ -591,3 +596,4 @@ void runtime_heap_trace_install(unsigned char *image, uint64_t size) {
         printf("Heap trace: allocations of the GPU heap are traced\n");
     }
 }
+#endif
