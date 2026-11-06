@@ -334,6 +334,7 @@ void TextureCache::ProcessDownloadImages() {
             if (auto copy = RecordImageDownload(image_id)) {
                 if (!pending_readbacks.CanFit(copy->size)) {
                     scheduler.Finish();
+                    RetireReadbacks();
                     copy->staging.Invalidate();
                     Core::Memory::Instance()->TryWriteBacking(
                         std::bit_cast<u8*>(copy->guest_address), copy->staging.mapped, copy->size);
