@@ -254,6 +254,15 @@ class SaveBackupTest(unittest.TestCase):
         self.assertEqual(self.save.read_text(), 'current')
         self.assertEqual(save_backup.list_backups(self.user), [old.name])
 
+    def test_oversized_savedata_is_not_copied(self):
+        write(self.save, 'v1')
+        big = self.save.parent / 'huge.bin'
+        write(big, 'x' * 64)
+        with mock.patch.object(save_backup, 'MAX_BYTES', 32):
+            with self.assertRaisesRegex(OSError, 'huge.bin'):
+                save_backup.backup(self.user, now=self.tick())
+        self.assertEqual(save_backup.list_backups(self.user), [])
+
     def test_legacy_backup_without_marker_is_restorable(self):
         write(self.save, 'current')
         legacy = save_backup.backups_dir(self.user) / '20251009-180000'

@@ -13,6 +13,7 @@ import shutil
 import tempfile
 
 KEEP = 10
+MAX_BYTES = 1 << 30
 STAMP = '%Y%m%d-%H%M%S'
 BACKUP_NAME = re.compile(r'([0-9]{8}-[0-9]{6})(?:-([0-9]+))?')
 PENDING_PREFIX = '.backup-pending-'
@@ -56,6 +57,13 @@ def _copy(user_dir, now, savedata=None):
         raise ValueError('Savedata and backup folders overlap')
     if not _has_saves(savedata):
         return None
+    # WipEout's saves are a few MB. A bigger folder holds something else (#160: 40 GB per
+    # backup), so no copy that could fill the disk.
+    files = [p for p in savedata.rglob('*') if p.is_file() and not p.is_symlink()]
+    if sum(p.stat().st_size for p in files) > MAX_BYTES:
+        biggest = max(files, key=lambda p: p.stat().st_size)
+        raise OSError(f'{savedata} is over {MAX_BYTES >> 20} MB, not copied '
+                      f'(biggest file: {biggest}, {biggest.stat().st_size >> 20} MB)')
     root.mkdir(parents=True, exist_ok=True)
     base = (now or datetime.datetime.now()).strftime(STAMP)
     # Pruning may have removed the unsuffixed folder or left gaps. Keep the
@@ -68,7 +76,7 @@ def _copy(user_dir, now, savedata=None):
     target = root / (base if n == 1 else f'{base}-{n}')
     staging = Path(tempfile.mkdtemp(prefix=PENDING_PREFIX, dir=root))
     try:
-        shutil.copytree(savedata, staging, dirs_exist_ok=True)
+        shutil.copytree(savedata, staging, symlinks=True, dirs_exist_ok=True)
         staging.rename(target)
     except BaseException:
         shutil.rmtree(staging, ignore_errors=True)
