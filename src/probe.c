@@ -47,6 +47,18 @@ static uint64_t import_count;
 static unsigned char *image;
 static uint64_t image_size;
 unsigned char *runtime_image_base(void) { return image; }
+/* WipEout (#118): the byte the game sets while a race is paused, in the pause menu and in photo
+ * mode (0x1012712; photo mode does nothing unless it is 1). Only when the game's store of it at
+ * 0x416300 is where expected, so another build reads 0. */
+int runtime_wipeout_paused(void) {
+    static const unsigned char store[]={0xc6,0x05,0x0b,0xc4,0xbf,0x00,0x01}; /* movb $1, 0x1012712 */
+    static int known=-1;
+    if (known<0) {
+        if (!image) return 0;
+        known=image_size>0x1012712 && !memcmp(image+0x416300,store,sizeof(store));
+    }
+    return known && ((volatile unsigned char *)image)[0x1012712]==1;
+}
 static size_t page_size;
 typedef struct { uint64_t base, size, init, tls_address, tls_memsz, tls_filesz, tls_module; } LinkedModule;
 static LinkedModule modules[16];

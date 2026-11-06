@@ -21,6 +21,7 @@
 #include "gow3_perf_stats.h"
 #include "gow3_settings.h"
 extern "C" int runtime_music_in_race(void); // src/runtime_music.c
+extern "C" int runtime_wipeout_paused(void); // src/probe.c
 #include "gow3_graphics.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
@@ -701,8 +702,9 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
     // and the uncapped presets keep their fixed limit.
     const bool fixed_limit = std::getenv("GOW3_FPS_LIMIT") || EmulatorSettings.GetVblankFrequency() == 480;
     // gow3 (#118): WipEout's menus step their animations once a frame (the medal, the blinking
-    // marker, the ship turning in ship select): above 60 FPS they ran fast. The menus stay at 60;
-    // races keep the limit. GOW3_MENU_FPS=0 turns it off.
+    // marker, the ship turning in ship select): above 60 FPS they ran fast. The menus stay at 60,
+    // and so does a paused race (pause menu, photo mode: its camera turns once a frame); races keep
+    // the limit. GOW3_MENU_FPS=0 turns it off.
     static const bool menu_cap = [] {
         const char* value = std::getenv("GOW3_MENU_FPS");
         return value && value[0] == '6';
@@ -711,7 +713,9 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
         const auto& s = Gow3Settings::Get();
         const u32 limit = fixed_limit ? EmulatorSettings.GetFrameLimit()
                                       : u32(Gow3Graphics::PresentLimit(s.fps_limit, s.applied_engine_fps));
-        return menu_cap && !runtime_music_in_race() && (limit == 0 || limit > 60) ? 60u : limit;
+        return menu_cap && (!runtime_music_in_race() || runtime_wipeout_paused()) && (limit == 0 || limit > 60)
+                   ? 60u
+                   : limit;
     };
     // gow3: a limit just above the display's rate (60 on a 59.94 Hz monitor, 120 on 119.88)
     // spaces the flips by the display's refresh: at an exact 60 FPS VSync fell a frame behind
