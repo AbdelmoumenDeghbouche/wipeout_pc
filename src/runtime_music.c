@@ -41,10 +41,16 @@ static volatile int skipping; /* the decoder drops what it decodes until it take
 static char notice[600];      /* "Now playing" once the ring reaches frame notice_at */
 static size_t notice_at;
 static long notice_file=-1, playing=-1;
-static unsigned char *menu_song; /* per file: in the "menu" subfolder */
+/* Song groups by subfolder (#130): menu/ plays in the menus, zone/, eliminator/ and detonator/ in
+ * those modes, the rest in the other races (and in a mode whose folder is empty). */
+enum { GROUP_RACE, GROUP_MENU, GROUP_ZONE, GROUP_ELIMINATOR, GROUP_DETONATOR, GROUPS };
+static const char *const group_folders[GROUPS]={"","menu","zone","eliminator","detonator"};
+static unsigned char *menu_song; /* per file: its group */
 static unsigned char *played;    /* per file: played in this round (music_played.txt, #124) */
 static char played_path[1100];
-static size_t menu_songs;
+static size_t menu_songs;        /* songs in any group's subfolder */
+static size_t group_songs[GROUPS];
+static volatile int mode;        /* GROUP_ZONE..GROUP_DETONATOR from the mode's sound banks, else 0 */
 static volatile int in_race;     /* the game loaded a race's sound banks, not the menus' */
 static volatile unsigned loads;  /* sound bank loads of a race or the menus: a loading screen */
 static int notice_pending;
@@ -96,9 +102,11 @@ static char *display_name(const char *path) {
     for (char *c=name; *c; ++c) if (*c=='_') *c=' ';
     return name;
 }
-/* Whether a song plays now: with menu songs, those in the menus and the others in races. */
+/* Whether a song plays now: the group of the scene (menus, the race's mode, other races); every
+ * song when that group has none. */
 static int fits(size_t file) {
-    return !menu_songs || menu_songs==file_count || menu_song[file]==!in_race;
+    const int group=!in_race ? GROUP_MENU : group_songs[mode] ? mode : GROUP_RACE;
+    return !group_songs[group] || menu_song[file]==group;
 }
 /* The play order from `first` on (under lock): shuffled, or the list's order. */
 static void arrange(int shuffle, size_t first) {
@@ -247,15 +255,21 @@ static void *decode(void *unused) {
         const size_t root=strlen(dir);
         for (size_t i=0;i<file_count;++i) {
             if (!(names[i]=display_name(files[i]))) names[i]=files[i];
-            const char *sub=files[i]+root;
-            menu_song[i]=sub[0]=='/' && !strncasecmp(sub+1,"menu/",5); /* scan() joins with '/' */
-            menu_songs+=menu_song[i];
+            const char *sub=files[i]+root; /* scan() joins with '/' */
+            for (int g=1;g<GROUPS;++g) {
+                const size_t n=strlen(group_folders[g]);
+                if (sub[0]=='/' && !strncasecmp(sub+1,group_folders[g],n) && sub[1+n]=='/') menu_song[i]=(unsigned char)g;
+            }
+            ++group_songs[menu_song[i]];
+            menu_songs+=menu_song[i]!=GROUP_RACE;
         }
     }
     scanned=1;
     if (!file_count) return NULL;
     printf("Music: %zu files in %s replace the game's music\n",file_count,dir);
-    if (menu_songs) printf("Music: %zu of them in menu/ play in the menus\n",menu_songs);
+    for (int g=1;g<GROUPS;++g)
+        if (group_songs[g]) printf("Music: %zu of them in %s/ play in the %s\n",group_songs[g],group_folders[g],
+                                   g==GROUP_MENU ? "menus" : group_folders[g]);
     srand((unsigned)time(NULL));
     pthread_mutex_lock(&lock);
     load_played();
@@ -331,10 +345,23 @@ int runtime_music_in_race(void) { return in_race; }
 
 void runtime_music_scene(const char *guest_path) {
     const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
-    const int was=in_race;
-    if (strstr(guest_path,"/frontend_fliers.bnk")) { in_race=0; ++loads; }
+    const int was=in_race, was_mode=mode;
+    if (strstr(guest_path,"/frontend_fliers.bnk")) { in_race=0; mode=0; ++loads; }
     else if (env && (env[4]=='_' || isdigit((unsigned char)env[4]))) { in_race=1; ++loads; } /* env_tower, env1_vinetak */
-    if (in_race!=was && menu_songs) printf("Music: %s songs from now on\n",in_race ? "race" : "menu");
+    /* The mode's sound banks (#130): env0_zone, speech_zone(_ngp), weapons_zone, ship_ngp_zone,
+     * speech_zbattle; speech_elim; env0_det, speech_det, weapons_det. */
+    const char *base=strrchr(guest_path,'/');
+    char name[40]; size_t n=0;
+    for (base=base ? base+1 : guest_path; base[n] && n<sizeof(name)-1; ++n) name[n]=(char)tolower((unsigned char)base[n]);
+    name[n]=0;
+    if ((strstr(name,"zone") || strstr(name,"zbattle")) && (!strncmp(name,"speech",6) || !strncmp(name,"weapons",7) || !strncmp(name,"ship",4) || !strncmp(name,"env",3)))
+        mode=GROUP_ZONE;
+    else if (!strcmp(name,"speech_elim.bnk")) mode=GROUP_ELIMINATOR;
+    else if (!strcmp(name,"speech_det.bnk") || !strcmp(name,"weapons_det.bnk") || !strcmp(name,"env0_det.bnk")) mode=GROUP_DETONATOR;
+    if ((in_race!=was || mode!=was_mode) && menu_songs) {
+        const int group=!in_race ? GROUP_MENU : group_songs[mode] ? mode : GROUP_RACE;
+        printf("Music: %s songs from now on\n",group==GROUP_RACE ? "race" : group_folders[group]);
+    }
 }
 
 int runtime_music_bgm(float *pcm, int frames, int channels) {

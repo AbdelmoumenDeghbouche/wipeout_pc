@@ -2397,6 +2397,8 @@ class Launcher:
                        "next one or turn shuffle off."), top=8)
         self.note(f, _("Menu songs: put the songs for the menus in a subfolder named menu. They play only in the "
                        "menus, and the other songs play in races."), top=8)
+        self.note(f, _("Mode songs: songs in subfolders named zone, eliminator or detonator play only in that "
+                       "mode. A mode without its own folder plays the race songs."), top=4)
         self.section(f, _('Settings'))
         self.folder(f, 'music_dir', _('Music folder'), _('Choose your music folder'),
                     _('Empty: the music folder next to your saves.'), on_change=self.refresh_music)
