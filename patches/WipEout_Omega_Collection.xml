@@ -807,6 +807,25 @@
             <Line Type="bytes" Address="0x00bb334d" Value="c5f8118b90000000c5f811b3a0000000c5f811bbb0000000c57a1095dcfeffff53534c89e3e8{rel:H:0}5b5b0f1f800000000090" Pattern="c5 f8 11 83 80 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 f8 11 8b 90 00 00 00 c5 f8 11 b3 a0 00 00 00 c5 f8 11 bb b0 00 00 00 49 8b 87 c8 75 00 00 c5 fa 10 88 b8 04 00 00 e8 ?? ?? ?? ?? 31 d2 4c 89 e7 4c 89 f6 e8 ?? ?? ?? ??" At="8"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Engine trail above 60 FPS" Note="After a boost pad, the engine flame and trail go back to normal at any frame rate. Without it, above 60 FPS they stay in the boosted state, even when the ship stops (#123). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <!-- The flare and trail update (0x7366c0) moves its values in whole 1/60 s steps: n = (int)(dt * 59.999996),
+             then n times x += (target - x) * rate. Above 60 FPS n is 0 every frame. "Bug Fix - Effects above 60 FPS"
+             fixes the first loop ([obj+0xf0]); these are the next two:
+             A (0x736db0): [obj+0x124] chases xmm1 at the tweak rate [tweaks+0x130] (kept in xmm0 and [obj+0x12c]);
+             B (0x736e1a): the afterburner [obj+0x13c] chases [obj+0x140] at [obj+0x144] (a boost pad sets them,
+             0x3191bf), and [obj+0x130] decays by xmm0 per step; both original branches set [obj+0x134] = 0 and
+             [obj+0x138] = xmm0.
+             Each loop becomes one step scaled by s = dt * 60 (dt saved at -0xc4(%rbp) at 0x7367ac):
+             x += (target - x) * rate * s, y -= y * k * s. The rates are 0.01-0.03, so rate * s stays far below 1;
+             at 60 FPS it is the original, at 30 FPS 2 * rate instead of 1 - (1 - rate)^2. xmm1 is kept for the
+             code after; xmm2-xmm7 are free there. In a patch of its own, so a game build where these sites
+             differ keeps "Effects above 60 FPS". C60 is the 59.999996 constant. -->
+        <Target Name="C60" Address="0x00c60c10" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="4" Ref="1"/>
+        <PatchList>
+            <Line Type="bytes" Address="0x00b36db0" Value="c4c17a108630010000c4c17a1184242c010000c5fa10a53cffffffc5da5925{rel:C60:0}c5da59e0c4c17a109c2424010000c5f25cd3c5ea59d4c5e258dac4c17a119c2424010000909090" Pattern="45 85 ed c4 c1 7a 10 86 30 01 00 00 c4 c1 7a 11 84 24 2c 01 00 00 7e 32 c4 c1 7a 10 9c 24 24 01 00 00 44 89 e8 66 66 2e" At="0"/>
+            <Line Type="bytes" Address="0x00b36e1a" Value="41c784243401000000000000c4c17a11842438010000c5fa10b53cffffffc5ca5935{rel:C60:0}c4c17a10ac243c010000c4c17a10942440010000c5ea5ce5c4c15a59a42444010000c5da59e6c5d258ecc4c17a11ac243c010000c5ca59f0c4c17a10bc2430010000c5c259e6c5c25cfcc4c17a11bc24300100009090909090909090909090909090909090909090909090909090" Pattern="45 85 ed 7e 79 c4 c1 7a 10 ac 24 3c 01 00 00 c4 c1 7a 10 94 24 40 01 00 00 c4 c1 7a 10 9c 24 44 01 00 00 44 89 e8 c5 ea" At="0"/>
+        </PatchList>
+    </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Zone crash above 60 FPS" Note="Fixes a crash in HD Zone events at high frame rates (the HUD was drawn from a list the game was refilling). Always on." Author="nero" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
         <!-- Four pairs of 2D draw lists (0xed5dd0, 0xed5df0; not used on 2048 tracks) form a ring
              between the game thread and the render thread. The game thread (0x5f2d30, 0x5f55e7) opens
