@@ -763,7 +763,9 @@ void *runtime_low_map(size_t size, int prot) {
  * 262144 with GOW3_ASYNC_FENCES=1: wait for guest copies at fences again,
  * 524288 small guest copies batched for the copy threads instead of the recording thread,
  * 1073741824 the lock-free UpdateImage path for clean, tracked images. */
-/* Bits 32 and up: the draw pipeline and related GPU thread work (gpu/shim/gow3_toggles.h). */
+/* Bits 32 and up: the draw pipeline and related GPU thread work (gpu/shim/gow3_toggles.h),
+ * e.g. 9223372036854775808 (bit 63): on-demand startup translates every shader again instead of
+ * reading the saved ones. */
 uint64_t runtime_disabled_optimizations;
 /* Speculative readers of guest memory (GPU draw-preparation workers) register a recovery
  * point: a fault on that thread jumps back to it instead of terminating (probe.c). */

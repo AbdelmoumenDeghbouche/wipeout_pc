@@ -87,6 +87,9 @@ enum : std::uint64_t {
     /// End-of-shader fences (EOS) on the draw recording thread are written by the Vulkan
     /// recording thread after the copies before them, as RecorderFences does for EOP.
     RecorderEos = 1ull << 62,
+    /// On-demand pipeline startup reads saved shader permutations from the store instead of
+    /// translating them again, and skips rewriting saved pipeline keys (vk_pipeline_cache.cpp).
+    DiskShaders = 1ull << 63,
     // Bits 20-29 are used as raw debug toggles by the camera/object motion and the upscaler.
 };
 inline bool Disabled(std::uint64_t bit) {

@@ -199,6 +199,25 @@ void LoadVector(BlobType type, std::filesystem::path& path, std::vector<T>& v) {
     }
 }
 
+void DataBase::Remove(BlobType type, const std::string& name) {
+    if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
+        return;
+    }
+    auto path = cache_path / name;
+    path.replace_extension(GetBlobFileExtension(type));
+    {
+        auto request = std::packaged_task<void()>{[path] {
+            std::error_code error;
+            std::filesystem::remove(path, error);
+        }};
+        std::scoped_lock lock{m_request};
+        req_queue.emplace(std::move(request));
+    }
+    std::scoped_lock lk{submit_mutex};
+    ++num_requests;
+    request_cv.notify_one();
+}
+
 bool DataBase::Save(BlobType type, const std::string& name, std::vector<u8>&& data) {
     if (!opened) {
         return false;
@@ -256,6 +275,21 @@ size_t DataBase::CountBlobs(BlobType type) {
         count += entry.path().extension().string().ends_with(ext);
     }
     return count;
+}
+
+std::vector<std::string> DataBase::ListBlobs(BlobType type) {
+    std::vector<std::string> names;
+    if (!opened || EmulatorSettings.IsPipelineCacheArchived()) {
+        return names;
+    }
+    const auto ext = "." + GetBlobFileExtension(type);
+    std::error_code error;
+    for (const auto& entry : std::filesystem::directory_iterator{cache_path, error}) {
+        if (entry.path().extension() == ext) {
+            names.push_back(entry.path().stem().string());
+        }
+    }
+    return names;
 }
 
 bool DataBase::ConcurrentReads() const {
