@@ -303,7 +303,12 @@ std::pair<const Buffer*, u64> BufferCache::ObtainBuffer(VAddr device_addr, u32 s
         NoteHotUse(device_addr, size);
     }
     // For read-only buffers use device local stream buffer to reduce renderpass breaks.
-    if (!is_written && size <= STREAM_THRESHOLD && !IsRegionGpuModified(device_addr, size)) {
+    // gow3: only while the arena has no memory for the range yet. Resident data binds from the
+    // arena, uploading only what the CPU changed: copying it on every bind cost about 1 GB/s at a
+    // race start, and giving every small range memory on first touch costs 60-170 ms frames.
+    // Texel buffers keep the stream path: in the arena they may be synchronized from an image.
+    if (!is_written && size <= STREAM_THRESHOLD && !IsRegionGpuModified(device_addr, size) &&
+        (is_texel_buffer || !IsResident(device_addr, size))) {
         if (stats) {
             auto& region = Stats().regions[RegionKey(device_addr)];
             ++region.stream_count;
@@ -455,6 +460,14 @@ const Buffer* BufferCache::GetArena(u64 first_block, u64 last_block) {
         address_space[base_page + page] = new_arena;
     }
     return new_arena;
+}
+
+bool BufferCache::IsResident(VAddr device_addr, u64 size) const {
+    bool gap = false;
+    resident_ranges.ForEachGap(device_addr >> block_shift,
+                               ((device_addr + size - 1) >> block_shift) + 1,
+                               [&gap](u64, u64) { gap = true; });
+    return !gap;
 }
 
 void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_block) {
