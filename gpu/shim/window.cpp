@@ -102,7 +102,15 @@ WindowSDL::WindowSDL(s32 width_, s32 height_, const char* title) : width{width_}
     SDL_GetWindowSizeInPixels(window, &w, &h);
     width = w;
     height = h;
-    LOG_INFO(Frontend, "Window {}x{} on {}", w, h, driver);
+    // gow3: in last_run.log for display-scaling reports (#174): the pixels the picture is drawn at,
+    // the window's size in points, and the scales SDL got from the system.
+    int points_w = 0, points_h = 0;
+    SDL_GetWindowSize(window, &points_w, &points_h);
+    const int sdl = SDL_GetVersion();
+    std::printf("Window: %dx%d pixels, %dx%d points, pixel density %.2f, display scale %.2f, video driver %s, SDL %d.%d.%d\n",
+                w, h, points_w, points_h, SDL_GetWindowPixelDensity(window), SDL_GetWindowDisplayScale(window),
+                driver ? driver : "?", SDL_VERSIONNUM_MAJOR(sdl), SDL_VERSIONNUM_MINOR(sdl), SDL_VERSIONNUM_MICRO(sdl));
+    std::fflush(stdout);
 }
 
 // Windowed, borderless (desktop-sized, no mode change) or exclusive fullscreen at the desktop
