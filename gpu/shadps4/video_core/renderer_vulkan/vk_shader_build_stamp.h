@@ -5,7 +5,8 @@
 #include <string_view>
 
 namespace Vulkan {
-/// Changes whenever the shader recompiler or the store format is rebuilt: gpu/CMakeLists.txt
-/// makes vk_shader_build_stamp.cpp depend on every shader_recompiler source and header.
+/// Changes exactly when a shader_recompiler source or header changes: a SHA-256 of their
+/// contents, made by gpu/CMakeLists.txt at configure time (so rebuilding an unchanged
+/// translator, as every CI release does, keeps the same stamp).
 std::string_view ShaderBuildStamp();
 } // namespace Vulkan

@@ -135,13 +135,26 @@ add_custom_target(host_shaders DEPENDS ${SHADER_HEADERS})
 
 file(GLOB_RECURSE VIDEO_CORE CONFIGURE_DEPENDS shadps4/video_core/*.cpp)
 file(GLOB_RECURSE RECOMPILER CONFIGURE_DEPENDS shadps4/shader_recompiler/*.cpp)
-# gow3: the shader build stamp (ShaderProfile/disk_shaders marker) is recompiled, with a new
-# __DATE__ __TIME__, whenever the recompiler or the shader store format changes, so saved SPIR-V
-# from an older translator is never read back (vk_pipeline_serialization.cpp StartOnDemand).
+# gow3: the shader build stamp (ShaderProfile/disk_shaders marker) is a SHA-256 of every shader
+# recompiler source and header, made at configure time: a build whose translator is unchanged
+# keeps the players' saved SPIR-V, one that changes it never reads the old SPIR-V back
+# (vk_pipeline_serialization.cpp StartOnDemand; the store format versions are added there).
+# Editing any of these files re-runs configure, so the stamp follows local edits too.
 file(GLOB_RECURSE RECOMPILER_HEADERS CONFIGURE_DEPENDS shadps4/shader_recompiler/*.h
     shadps4/shader_recompiler/*.inc)
+set(SHADER_STAMP_INPUTS ${RECOMPILER} ${RECOMPILER_HEADERS})
+list(SORT SHADER_STAMP_INPUTS)
+set(SHADER_STAMP_TEXT "")
+foreach(input IN LISTS SHADER_STAMP_INPUTS)
+    file(SHA256 "${input}" input_hash)
+    file(RELATIVE_PATH input_name "${CMAKE_CURRENT_SOURCE_DIR}" "${input}")
+    string(APPEND SHADER_STAMP_TEXT "${input_name} ${input_hash}\n")
+endforeach()
+string(SHA256 SHADER_SOURCE_HASH "${SHADER_STAMP_TEXT}")
+set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${SHADER_STAMP_INPUTS})
 set_source_files_properties(shadps4/video_core/renderer_vulkan/vk_shader_build_stamp.cpp PROPERTIES
-    OBJECT_DEPENDS "${RECOMPILER};${RECOMPILER_HEADERS};${CMAKE_CURRENT_SOURCE_DIR}/shadps4/video_core/renderer_vulkan/vk_pipeline_serialization.cpp")
+    COMPILE_DEFINITIONS "GOW3_SHADER_SOURCE_HASH=\"${SHADER_SOURCE_HASH}\"")
+message(STATUS "Shader recompiler source hash: ${SHADER_SOURCE_HASH}")
 list(FILTER VIDEO_CORE EXCLUDE REGEX "renderdoc\\.cpp$")
 set(COMMON
     shadps4/common/decoder.cpp shadps4/common/error.cpp

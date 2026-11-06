@@ -72,12 +72,16 @@ static constexpr u32 PipelineKeyVersion = 6u; // gow3: GraphicsPipelineKey::ps_i
 namespace Vulkan {
 
 namespace {
+u32 CurrentShaderBinaryVersion();
 /// gow3: ShaderProfile/disk_shaders holds this when the store's permutation files may be read
-/// at on-demand startup. The build stamp makes every recompiler rebuild clear the store once: the
-/// meta versions are bumped by hand, and a translator fix without a bump must not load stale SPIR-V.
+/// at on-demand startup: the hash of the recompiler's sources (ShaderBuildStamp) and the store's
+/// format versions. A translator change, or a format bump, drops the saved permutations once; a
+/// build that changes neither (most releases) keeps them.
 std::vector<u8> DiskShaderMarker() {
-    const auto stamp = ShaderBuildStamp();
-    return {stamp.begin(), stamp.end()};
+    const auto marker = fmt::format("{}, shader binary {}, meta {}", ShaderBuildStamp(),
+                                    CurrentShaderBinaryVersion(),
+                                    Serialization::ShaderMetaVersion);
+    return {marker.begin(), marker.end()};
 }
 /// gow3: this session may number permutations by first use: no on-demand reads at next start.
 void ForgetDiskShaders() {
@@ -1129,17 +1133,26 @@ void PipelineCache::StartOnDemand() {
         const auto expected = DiskShaderMarker();
         if (marker != expected) {
             // Sessions without the marker numbered permutations by first use and overwrote the
-            // files by name, so a name may hold another session's shader; another build may have
-            // translated it differently without a meta version bump. Rebuilt once.
-            db.Clear();
-            std::vector<u8> profile_data(sizeof(profile));
-            std::memcpy(profile_data.data(), &profile, sizeof(profile));
-            db.Save(Storage::BlobType::ShaderProfile, "profile", std::move(profile_data));
+            // files by name: a meta and its SPIR-V are separate writes, so an exit between them
+            // can pair one shader's meta with another's SPIR-V. Another translator may also have
+            // produced different SPIR-V. Only the numbered permutation files are dropped (once):
+            // pipeline keys and the profile stay. A kept key whose slot now holds another
+            // permutation only makes the warm-up build a pipeline no draw asks for, since draws
+            // look pipelines up by their own key; a key whose slot is gone is skipped.
+            size_t dropped = 0;
+            for (const auto type : {Storage::BlobType::ShaderMeta, Storage::BlobType::ShaderBinary}) {
+                for (const auto& name : db.ListBlobs(type)) {
+                    db.Remove(type, name);
+                    ++dropped;
+                }
+            }
             db.Save(Storage::BlobType::ShaderProfile, "disk_shaders", DiskShaderMarker());
-            std::printf("Pipeline startup: shader store rebuilt for on-demand reads (%s)\n",
+            std::printf("Pipeline startup: %zu saved shader files dropped for on-demand reads (%s), "
+                        "pipeline keys kept\n",
+                        dropped,
                         marker.empty()                            ? "no marker"
                         : marker == std::vector<u8>{0}            ? "disk shaders were off"
-                                                                  : "written by another build");
+                                                                  : "another translator");
         } else {
             IndexDiskShaders();
         }
