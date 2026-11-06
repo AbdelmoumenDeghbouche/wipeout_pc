@@ -572,14 +572,18 @@ bool TileManager::TileSmallImage(Image& in_image, std::span<vk::BufferImageCopy>
     if (tiling.is_macro) {
         const auto macro_tile_mode =
             AmdGpu::CalculateMacrotileMode(info.tile_mode, info.num_bits, info.num_samples);
-        tiling.pipe_config = u32(AmdGpu::GetPipeConfig(info.tile_mode));
+        tiling.pipe_config = u32(info.alt_tile ? AmdGpu::GetAltPipeConfig(info.tile_mode)
+                                             : AmdGpu::GetPipeConfig(info.tile_mode));
         tiling.bank_width = AmdGpu::GetBankWidth(macro_tile_mode);
-        tiling.bank_height = AmdGpu::GetBankHeight(macro_tile_mode);
-        tiling.num_banks = AmdGpu::GetNumBanks(macro_tile_mode);
+        tiling.bank_height = info.alt_tile ? AmdGpu::GetAltBankHeight(macro_tile_mode)
+                                           : AmdGpu::GetBankHeight(macro_tile_mode);
+        tiling.num_banks = info.alt_tile ? AmdGpu::GetAltNumBanks(macro_tile_mode)
+                                         : AmdGpu::GetNumBanks(macro_tile_mode);
         tiling.num_bank_bits = std::bit_width(tiling.num_banks) - 1;
         tiling.tile_split_bytes = AmdGpu::CalculateTileSplit(info.tile_mode, info.array_mode,
                                                              micro_tile_mode, info.num_bits);
-        tiling.macro_tile_aspect = AmdGpu::GetMacrotileAspect(macro_tile_mode);
+        tiling.macro_tile_aspect = info.alt_tile ? AmdGpu::GetAltMacrotileAspect(macro_tile_mode)
+                                                 : AmdGpu::GetMacrotileAspect(macro_tile_mode);
     }
 
     const auto& mip = info.mips_layout[0];
