@@ -89,12 +89,10 @@ static int valid_name(const char *name, size_t max);
  * save data folder, so one backup of the folder holds every profile. */
 static void root(int32_t user, const char *title, char *out, size_t size) {
     const char *own=getenv("GOW3_SAVEDATA_DIR"), *profile=getenv("GOW3_PROFILE");
-    char base[600];
-    if (own && *own) snprintf(base,sizeof(base),"%s",own);
-    else snprintf(base,sizeof(base),"%s/savedata",runtime_file_user_dir());
-    if (profile && valid_name(profile,64))
-        snprintf(out,size,"%s/profiles/%s/%d/%s",base,profile,user,title && *title ? title : title_id);
-    else snprintf(out,size,"%s/%d/%s",base,user,title && *title ? title : title_id);
+    const char *sub=profile && valid_name(profile,64) ? "/profiles/" : "", *name=*sub ? profile : "";
+    const char *game=title && *title ? title : title_id;
+    if (own && *own) snprintf(out,size,"%s%s%s/%d/%s",own,sub,name,user,game);
+    else snprintf(out,size,"%s/savedata%s%s/%d/%s",runtime_file_user_dir(),sub,name,user,game);
 }
 static int valid_name(const char *name, size_t max) {
     size_t n=strnlen(name,max);
