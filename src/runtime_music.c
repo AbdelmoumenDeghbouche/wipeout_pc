@@ -114,7 +114,7 @@ static void arrange(int shuffle, size_t first) {
 
 /* #124: the songs of this round already played are kept in the user folder, so the next start
  * plays the others first: every song plays once before any plays again, however short the
- * sessions. A round ends when all have played. */
+ * sessions. A round ends when all the songs of the menus, or of the races, have played. */
 static void load_played(void) {
     snprintf(played_path,sizeof(played_path),"%s/music_played.txt",runtime_file_user_dir());
     FILE *f=fopen(played_path,"r");
@@ -127,23 +127,37 @@ static void load_played(void) {
     }
     fclose(f);
 }
-static void mark_played(size_t file) { /* under lock */
-    size_t left=0;
-    played[file]=1;
-    for (size_t i=0;i<file_count;++i) left+=!played[i];
-    FILE *f=fopen(played_path,left ? "a" : "w");
-    if (!left) memset(played,0,file_count);
-    else if (f) fprintf(f,"%s\n",files[file]+strlen(dir));
-    if (f) fclose(f);
+static void save_played(void) { /* under lock */
+    FILE *f=fopen(played_path,"w");
+    if (!f) return;
+    for (size_t i=0;i<file_count;++i) if (played[i]) fprintf(f,"%s\n",files[i]+strlen(dir));
+    fclose(f);
 }
-/* The shuffled order with the songs not played yet in this round first (under lock). */
-static void unplayed_first(void) {
-    for (size_t i=0, k=0;i<file_count;++i) if (!played[order[i]]) {
-        const size_t song=order[i];
-        memmove(order+k+1,order+k,(i-k)*sizeof(*order));
-        order[k++]=song;
+/* Under lock: the first place in `order` from `from` on (wrapping) with a song that fits the
+ * menus or the race and, in shuffle, has not played in this round; -1 if there is none. */
+static long find_song(size_t from, int shuffle) {
+    for (size_t step=0;step<file_count;++step) {
+        const size_t i=(from+step)%file_count;
+        if (fits(order[i]) && !(shuffle && played[order[i]])) return (long)i;
     }
-    pos=0;
+    return -1;
+}
+/* Under lock: pos moves to the next song to play. In shuffle, once every song that fits now (the
+ * menu songs, or the race songs) has played, those start a new round in a new order; the song
+ * just played does not open it, so it never plays twice in a row (#124: the search used to wrap
+ * past the end without a new order, so the same chain came round). */
+static void next_song(size_t from, int shuffle, long last) {
+    long i=find_song(from,shuffle);
+    if (i<0 && shuffle) {
+        for (size_t f=0;f<file_count;++f) if (fits(f)) played[f]=0;
+        arrange(1,(size_t)rand()%file_count);
+        i=find_song(0,1);
+        if (i>=0 && (long)order[i]==last) { /* it plays last in this round instead */
+            const long other=find_song((size_t)i+1,1);
+            if (other>=0 && other!=i) i=other;
+        }
+    }
+    if (i>=0) pos=(size_t)i;
 }
 
 static void push(const float *pcm, int frames) {
@@ -246,28 +260,28 @@ static void *decode(void *unused) {
     pthread_mutex_lock(&lock);
     load_played();
     arrange(gow3gpu_music_shuffle(),(size_t)rand()%file_count);
-    if (order_shuffled) unplayed_first();
-    for (size_t tries=0; tries<file_count && !fits(order[pos]); ++tries) pos=(pos+1)%file_count;
+    next_song(pos,order_shuffled,-1);
     pthread_mutex_unlock(&lock);
     for (size_t failures=0; failures<file_count;) {
         pthread_mutex_lock(&lock);
         const size_t file=order[pos];
-        mark_played(file);
+        played[file]=1;
+        save_played();
         pthread_mutex_unlock(&lock);
         failures=play(file) ? 0 : failures+1;
         pthread_mutex_lock(&lock);
         const int shuffle=gow3gpu_music_shuffle();
-        if (jump>=0) {
+        if (jump>=0) { /* the song the menu asked for plays next */
             const size_t song=(size_t)jump;
             jump=-1; skipping=0; failures=0;
             if (shuffle!=order_shuffled) arrange(shuffle,song);
             else for (size_t i=0;i<file_count;++i) if (order[i]==song) pos=i;
         } else if (shuffle!=order_shuffled) {
             arrange(shuffle,shuffle ? (size_t)rand()%file_count : (file+1)%file_count);
-        } else if (++pos==file_count) {
-            arrange(shuffle,shuffle ? (size_t)rand()%file_count : 0); /* the next round */
+            next_song(pos,shuffle,(long)file);
+        } else {
+            next_song(pos+1,shuffle,(long)file);
         }
-        for (size_t tries=0; jump<0 && tries<file_count && !fits(order[pos]); ++tries) pos=(pos+1)%file_count;
         pthread_mutex_unlock(&lock);
     }
     printf("Music: none of the files plays; the game's music is back\n");
@@ -363,8 +377,9 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
         const unsigned now_loads=loads;
         /* After a loading screen: the game's music comes back after its silence, or it came back
          * just before the sound banks loaded (Quit in the pause menu, whose silence came first),
-         * or it never stopped (10 s). */
-        if (now_loads!=loads_seen && (silent_frames>=12000 || since_silence<3*48000 || since_load>=10*48000)) {
+         * or it never stopped: 10 s, or 2 s when the song is of the other scene (#130: after a
+         * finished race the game's music goes on, and the race song played on for 10 s). */
+        if (now_loads!=loads_seen && (silent_frames>=12000 || since_silence<3*48000 || since_load>=(switch_song ? 2 : 10)*48000)) {
             loads_seen=now_loads; since_load=0;
             if (heard && (switch_song || !gow3gpu_music_continue())) { runtime_music_step(1); heard=0; }
             switch_song=0;
