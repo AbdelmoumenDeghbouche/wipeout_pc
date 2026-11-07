@@ -88,6 +88,7 @@ void runtime_report(void) {
     runtime_json_report();
     runtime_net_report();
     runtime_matching_report();
+    runtime_presence_report();
     printf("Runtime: memory operations=%zu\n", (size_t)memory_calls);
     if (report_hook) report_hook();
 }

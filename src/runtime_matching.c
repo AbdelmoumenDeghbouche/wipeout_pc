@@ -498,12 +498,14 @@ static void store_room(Context *c, const WireRoom *room) {
         }
     }
     pthread_mutex_unlock(&lock);
+    runtime_presence_room(room->room_id, room->member_count, room->max_slot);
 }
 static void forget_room(Context *c, uint64_t room_id) {
     pthread_mutex_lock(&lock);
     LocalRoom *r = room_of(c, room_id);
     if (r) r->used = 0;
     pthread_mutex_unlock(&lock);
+    runtime_presence_room(room_id, 0, 0);
 }
 static void handle_response(Context *c, uint16_t type, uint32_t token, WireBuf *in) {
     int found; Pending p = take_pending(c, token, &found);
@@ -630,7 +632,9 @@ static void handle_event(Context *c, uint16_t type, WireBuf *in) {
                 --r->room.member_count;
             }
         }
+        const unsigned members = r ? r->room.member_count : 0, slots = r ? r->room.max_slot : 0;
         pthread_mutex_unlock(&lock);
+        if (r) runtime_presence_room(room_id, members, slots);
         if (info) { info->member = build_member(a, &m, owner); info->cause = cause; opt_data(&info->opt, in); }
         printf("Matching: %s %s room %llu\n", m.online_id, type == WIRE_EV_JOINED ? "joined" : "left", (unsigned long long)room_id);
         deliver_room_event(c, room_id, type == WIRE_EV_JOINED ? EV_ROOM_MEMBER_JOINED : EV_ROOM_MEMBER_LEFT, info);
@@ -867,6 +871,7 @@ static void stop_context(Context *c, int destroy) {
     for (int i = 0; i < MAX_PENDING; ++i) c->pending[i].used = 0;
     if (destroy) { if (c->reader_running) c->destroy_when_done = 1; else c->used = 0; }
     pthread_mutex_unlock(&lock);
+    runtime_presence_room(0, 0, 0);
     if (s != INVALID_SOCKET) { shutdown(s, 2); closesocket(s); }
 }
 static ABI int32_t m2_destroy_context(uint16_t ctx_id) {

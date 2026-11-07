@@ -751,7 +751,8 @@ WINDOWS_LANGUAGES = {0x19: 'ru', 0x01: 'ar', 0x0a: 'es', 0x16: 'pt', 0x0c: 'fr',
 EXTRA = {
     'pt': {
         'Show Discord Rich Presence': 'Mostrar Discord Rich Presence',
-        'Shows only the game name and the time played on your Discord profile.': 'Mostra no seu perfil do Discord apenas o nome do jogo e o tempo jogado.',
+        'Shows the game, the track and mode you play, your online lobby and the time played on your Discord profile, as "Playing WipEout: Omega Collection" with its game page.':
+            'Mostra no seu perfil do Discord o jogo, a pista e o modo em que você joga, o seu lobby online e o tempo jogado, como "Playing WipEout: Omega Collection" com a página do jogo.',
         'Game multisampling': 'Multisampling do jogo',
         'Automatic ({}: off)': 'Automático ({}: desligado)',
         'Automatic ({}: on)': 'Automático ({}: ligado)',
@@ -1092,7 +1093,8 @@ EXTRA = {
     },
     'es': {
         'Show Discord Rich Presence': 'Mostrar Discord Rich Presence',
-        'Shows only the game name and the time played on your Discord profile.': 'Muestra en tu perfil de Discord solo el nombre del juego y el tiempo jugado.',
+        'Shows the game, the track and mode you play, your online lobby and the time played on your Discord profile, as "Playing WipEout: Omega Collection" with its game page.':
+            'Muestra en tu perfil de Discord el juego, la pista y el modo que juegas, tu sala online y el tiempo jugado, como "Playing WipEout: Omega Collection" con la página del juego.',
         'Game multisampling': 'Multisampling del juego',
         'Automatic ({}: off)': 'Automático ({}: desactivado)',
         'Automatic ({}: on)': 'Automático ({}: activado)',

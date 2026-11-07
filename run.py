@@ -377,12 +377,21 @@ def main():
                    '--patches', str(out / 'patches.bin'), '--app0', str(game),
                    '--user', str(user_dir),
                    '--timeout', env.get('GOW3_TIMEOUT', '0'), *isa_args, *mount_args, *args]
+        # Discord Rich Presence: the runtime writes the game's state (menus, race, track, mode, online
+        # room, song) to this file, and the client beside the game publishes it (scripts/discord_presence.py).
+        presence_file = None
+        env.pop('GOW3_PRESENCE_FILE', None)
+        if discord_presence and env.get('GOW3_DISCORD') != '0':
+            presence_file = out / 'presence.json'
+            for stale in (presence_file, out / 'presence.json.tmp'):
+                stale.unlink(missing_ok=True)
+            env['GOW3_PRESENCE_FILE'] = str(presence_file)
         # No stdin: an inherited pipe (shells such as Git Bash) cost the game its console output.
         process = subprocess.Popen(command, stdin=subprocess.DEVNULL, creationflags=no_console())
         presence = None
         try:
             try:
-                presence = discord_presence.Presence(pid=process.pid) if discord_presence else None
+                presence = discord_presence.Presence(pid=process.pid, state_file=presence_file) if discord_presence else None
             except (OSError, RuntimeError):
                 print('Discord presence unavailable; the game will continue', flush=True)
             status = process.wait()
