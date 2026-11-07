@@ -4,9 +4,13 @@
  * menus, env1_vinetak.bnk or env_altima.bnk with a race on that track, speech_zone.bnk,
  * speech_elim.bnk or weapons_det.bnk with the mode. The matching layer tells the online room
  * (runtime_matching.c) and the custom soundtrack the song (runtime_music.c).
- * Every change is written as one JSON object to GOW3_PRESENCE_FILE (run.py sets it while the
- * presence is on), through a temporary file and a rename, so the client, which polls the file
- * once a second, never reads half of it. Without a file every call returns at once. */
+ * The calls from the game's threads (the file-open path, the audio mix, the matching reader)
+ * only update the state under a short lock and mark it dirty: one small thread, started by
+ * runtime_presence_configure, writes the state as one JSON object to GOW3_PRESENCE_FILE (run.py
+ * sets it while the presence is on) whenever it is dirty, at most every 250 ms, through a
+ * temporary file and a rename, so the client, which polls the file once a second, never reads
+ * half of it and no game or audio thread ever waits on the file. Without a file every call
+ * returns at once. */
 #include "runtime.h"
 #include <ctype.h>
 #include <pthread.h>
@@ -16,20 +20,30 @@
 #ifdef _WIN32
 #include <windows.h>
 #else
+#include <time.h>
 #include <unistd.h>
 #endif
 
-static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
-static char file[1024], temp[1040];
-static struct {
+#define PUBLISH_MS 250
+
+typedef struct {
     char scene[8];   /* "" (starting), "menu", "race" */
     char track[32];  /* the race's environment bank key: vinetak, altima, zone, ... */
     char mode[16];   /* "", zone, zbattle, elim, det */
     uint64_t room_id; unsigned members, slots; /* the online room; members 0: none */
     char song[192];  /* the custom soundtrack's song; "" while the game's music plays */
-} state;
+} State;
+
+/* The state, under `lock`, which the game's threads hold only to copy a few bytes. */
+static pthread_mutex_t lock=PTHREAD_MUTEX_INITIALIZER;
+static pthread_cond_t dirty_cond=PTHREAD_COND_INITIALIZER;
+static State state;
+static int dirty;
+static char file[1024], temp[1040];
+/* The file, under `file_lock`: only the publisher thread and runtime_presence_flush take it. */
+static pthread_mutex_t file_lock=PTHREAD_MUTEX_INITIALIZER;
 static char last[2048]; /* what the file holds: nothing is rewritten unchanged */
-static unsigned writes, failures;
+static volatile unsigned writes, failures;
 
 /* JSON string content: quotes and backslashes escaped, control characters as \u00XX. */
 static void escape(const char *in, char *out, size_t size) {
@@ -42,34 +56,68 @@ static void escape(const char *in, char *out, size_t size) {
     }
     out[n]=0;
 }
-static int render(char *out, size_t size) {
-    char song[sizeof(state.song)*6+1];
-    escape(state.song,song,sizeof(song));
+static int render(const State *s, char *out, size_t size) {
+    char song[sizeof(s->song)*6+1];
+    escape(s->song,song,sizeof(song));
     return snprintf(out,size,"{\"scene\":\"%s\",\"track\":\"%s\",\"mode\":\"%s\",\"room\":[%u,%u,\"%llu\"],\"song\":\"%s\"}",
-                    state.scene,state.track,state.mode,state.members,state.slots,(unsigned long long)state.room_id,song);
+                    s->scene,s->track,s->mode,s->members,s->slots,(unsigned long long)s->room_id,song);
 }
-/* Under lock. The client reads the file for a moment at a time: the rename is retried. */
-static void publish(void) {
+static void sleep_ms(unsigned ms) {
+#ifdef _WIN32
+    Sleep(ms);
+#else
+    struct timespec t={ms/1000,(long)(ms%1000)*1000000L};
+    nanosleep(&t,NULL);
+#endif
+}
+/* Writes the file when the state differs from what it holds (under file_lock). The client reads
+ * the file for a moment at a time: the rename is retried. */
+static void write_state(const State *s) {
     char json[sizeof(last)];
-    if (!file[0] || render(json,sizeof(json))<0 || !strcmp(json,last)) return;
+    pthread_mutex_lock(&file_lock);
+    if (render(s,json,sizeof(json))<0 || !strcmp(json,last)) { pthread_mutex_unlock(&file_lock); return; }
     FILE *f=fopen(temp,"wb");
-    if (!f) { ++failures; return; }
+    if (!f) { ++failures; pthread_mutex_unlock(&file_lock); return; }
     const size_t n=strlen(json);
     const int ok=fwrite(json,1,n,f)==n && fputc('\n',f)!=EOF;
-    if (fclose(f) || !ok) { ++failures; remove(temp); return; }
+    if (fclose(f) || !ok) { ++failures; remove(temp); pthread_mutex_unlock(&file_lock); return; }
     int moved=0;
     for (int attempt=0;attempt<5 && !moved;++attempt) {
 #ifdef _WIN32
         moved=MoveFileExA(temp,file,MOVEFILE_REPLACE_EXISTING)!=0;
-        if (!moved) Sleep(10);
 #else
         moved=rename(temp,file)==0;
-        if (!moved) usleep(10000);
 #endif
+        if (!moved) sleep_ms(10);
     }
-    if (!moved) { ++failures; remove(temp); return; }
-    memcpy(last,json,n+1);
-    ++writes;
+    if (!moved) { ++failures; remove(temp); }
+    else { memcpy(last,json,n+1); ++writes; }
+    pthread_mutex_unlock(&file_lock);
+}
+/* Takes the dirty state (a copy, under the short lock); 0 when nothing changed. */
+static int take(State *out) {
+    pthread_mutex_lock(&lock);
+    const int was=dirty;
+    if (was) { *out=state; dirty=0; }
+    pthread_mutex_unlock(&lock);
+    return was;
+}
+static void *publisher(void *arg) {
+    (void)arg;
+    State copy;
+    for (;;) {
+        pthread_mutex_lock(&lock);
+        while (!dirty) pthread_cond_wait(&dirty_cond,&lock);
+        copy=state; dirty=0;
+        pthread_mutex_unlock(&lock);
+        write_state(&copy);
+        sleep_ms(PUBLISH_MS); /* at most one write per interval: the changes meanwhile merge into the next */
+    }
+    return NULL;
+}
+static void touch(void) { /* under lock: wakes the publisher */
+    dirty=1;
+    pthread_cond_signal(&dirty_cond);
 }
 
 void runtime_presence_configure(const char *path) {
@@ -77,10 +125,20 @@ void runtime_presence_configure(const char *path) {
     pthread_mutex_lock(&lock);
     snprintf(file,sizeof(file),"%s",path);
     snprintf(temp,sizeof(temp),"%s.tmp",path);
-    last[0]=0;
-    publish();
+    const State initial=state;
+    dirty=0;
     pthread_mutex_unlock(&lock);
+    last[0]=0;
+    write_state(&initial); /* before the game starts: the client finds the file at once */
+    pthread_t thread;
+    if (pthread_create(&thread,NULL,publisher,NULL)) { fprintf(stderr,"Discord presence: cannot start its thread; state not published\n"); file[0]=0; return; }
+    pthread_detach(thread);
     printf("Discord presence: game state in %s\n",path);
+}
+
+void runtime_presence_flush(void) {
+    State copy;
+    if (file[0] && take(&copy)) write_state(&copy);
 }
 
 static int bank_key(const char *key) { /* letters, digits and underscores only: it goes into the JSON as is */
@@ -116,7 +174,7 @@ void runtime_presence_file(const char *guest_path) {
     else if (!strcmp(name,"speech_elim")) set(state.mode,sizeof(state.mode),"elim");
     else if (!strcmp(name,"speech_det") || !strcmp(name,"weapons_det")) set(state.mode,sizeof(state.mode),"det");
     else { pthread_mutex_unlock(&lock); return; }
-    publish();
+    touch();
     pthread_mutex_unlock(&lock);
 }
 
@@ -124,7 +182,7 @@ void runtime_presence_room(uint64_t room_id, unsigned members, unsigned slots) {
     if (!file[0]) return;
     pthread_mutex_lock(&lock);
     state.room_id=members ? room_id : 0; state.members=members; state.slots=members ? slots : 0;
-    publish();
+    touch();
     pthread_mutex_unlock(&lock);
 }
 
@@ -132,15 +190,15 @@ void runtime_presence_song(const char *text) {
     if (!file[0]) return;
     pthread_mutex_lock(&lock);
     set(state.song,sizeof(state.song),text ? text : "");
-    publish();
+    touch();
     pthread_mutex_unlock(&lock);
 }
 
 int runtime_presence_json(char *out, size_t size) {
     pthread_mutex_lock(&lock);
-    const int n=render(out,size);
+    const State copy=state;
     pthread_mutex_unlock(&lock);
-    return n;
+    return render(&copy,out,size);
 }
 unsigned runtime_presence_writes(void) { return writes; }
 void runtime_presence_report(void) {

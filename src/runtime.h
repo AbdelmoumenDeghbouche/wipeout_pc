@@ -129,7 +129,8 @@ void runtime_presence_configure(const char *path);
 void runtime_presence_file(const char *guest_path); /* a game file the game opened */
 void runtime_presence_room(uint64_t room_id, unsigned members, unsigned slots); /* members 0: no room */
 void runtime_presence_song(const char *text); /* the custom soundtrack's song; "" or NULL: none */
-int runtime_presence_json(char *out, size_t size); /* the state as the file holds it (tests) */
+void runtime_presence_flush(void); /* writes a dirty state now, on this thread (tests) */
+int runtime_presence_json(char *out, size_t size); /* the state as JSON (tests) */
 unsigned runtime_presence_writes(void);
 void runtime_presence_report(void);
 #endif
