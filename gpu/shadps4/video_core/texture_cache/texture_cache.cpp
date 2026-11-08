@@ -2331,6 +2331,13 @@ void TextureCache::RunGarbageCollector() {
 
 void TextureCache::TouchImageSlow(const Image& image) {
     image.lru_touched_tick = gc_tick;
+    // gow3: a freed image's LRU item is free as well (UnregisterImage); a touch through an id
+    // freed since it was looked up (UpdateImage, GetImage) linked that item back into the list.
+    // The collector then found the freed image every pass ("freed twice, skipped" ~150 times
+    // in 30 s at a 3.7 GB budget), and the next image given the item linked it in twice.
+    if (False(image.flags & ImageFlagBits::Registered)) {
+        return;
+    }
     lru_cache.Touch(image.lru_id, gc_tick);
 }
 
