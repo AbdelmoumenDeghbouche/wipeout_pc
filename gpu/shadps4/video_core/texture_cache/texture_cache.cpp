@@ -2081,32 +2081,25 @@ void TextureCache::GarbageCollectImages() {
         // ~1 GB after its 8 GB system reserve: usage stayed above the critical mark, so the
         // collector evicted images used two or three frames ago on every submission and wrote
         // GPU-written ones back. Compare with the driver's current budget instead.
-        // GOW3_GC_BUDGET_MB=N: this rule with a fixed budget on any GPU (tests on a desktop).
+        // gow3 (#116): on discrete cards too: other programs' video memory shrinks the budget.
+        // The limits set at start (pressure at 19 GB of a 24 GB card) were never reached while
+        // the budget ran out: out of memory loading the 8th race at 4K.
+        // gow3 (#27, #103): the start limits also evicted far too early: ~90,000 images in one
+        // 1080p 2048 race on 8 GB. On 4 GB cards they start the collector at 0 bytes and put
+        // pressure at its 1.5 GB floor: a GTX 1650 evicted textures unused for 16 submissions
+        // on every submission and ~200 more every 5 s under "pressure" with 2 GB of the card
+        // free, and they popped in as they came back. Every card follows its budget now.
+        // GOW3_GC_BUDGET_MB=N: a fixed budget in place of the driver's (tests on a desktop).
         static const u64 forced_budget = [] {
             const char* env = std::getenv("GOW3_GC_BUDGET_MB");
             return env ? std::strtoull(env, nullptr, 10) << 20 : 0;
         }();
-        if (instance.IsIntegrated() || forced_budget) {
+        if (forced_budget || instance.IsIntegrated() || gc_tick % 64 == 0) {
             const u64 budget = forced_budget ? forced_budget : instance.GetDeviceMemoryBudgetNow();
             if (budget != 0) {
                 trigger_gc_memory = budget / 10 * 7;
                 pressure_gc_memory = budget / 100 * 85;
                 critical_gc_memory = budget / 100 * 95;
-            }
-        } else if (gc_tick % 64 == 0) {
-            // gow3 (#116): other programs' video memory shrinks the driver's budget. The limits
-            // set at start (pressure at 19 GB of a 24 GB card) were never reached while the
-            // budget ran out: out of memory loading the 8th race at 4K. They follow it now.
-            // gow3 (#27, #103): with 6 GB or more the start limits (pressure at ~40% of the card)
-            // evicted ~90,000 images in one 1080p 2048 race on 8 GB: re-uploads, and render targets
-            // back from stale guest memory. Those cards use the budget as integrated GPUs do;
-            // smaller cards keep the start limits, they ran out of memory with less room left.
-            static const u64 start[3] = {trigger_gc_memory, pressure_gc_memory, critical_gc_memory};
-            if (const u64 budget = instance.GetDeviceMemoryBudgetNow(); budget != 0) {
-                const bool roomy = budget >= 6_GB;
-                trigger_gc_memory = roomy ? budget / 10 * 7 : std::min(start[0], budget / 10 * 7);
-                pressure_gc_memory = roomy ? budget / 100 * 85 : std::min(start[1], budget / 100 * 85);
-                critical_gc_memory = roomy ? budget / 100 * 95 : std::min(start[2], budget / 100 * 95);
             }
         }
     }
