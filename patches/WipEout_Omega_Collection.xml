@@ -695,10 +695,18 @@
             <Line Type="bytes" Address="0x00bfbe0c" Value="4189c6904189cf90" Pattern="41 be 00 0f 00 00 41 bf 70 08 00 00 bf 30 00 00 00 44 0f 44 f0 44 0f 44 f9" At="17"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Native 4K rendering (no checkerboard)" Note="From 3840 pixels wide the game switches to its 4K mode, which renders the scene at half width with checkerboard reconstruction (the Pro path). This keeps the 1080p mode at any size: the scene renders at full resolution with 4-sample depth, sharper and heavier on the GPU (over 100 FPS at 5120x2160 on an RTX 4090). Untick it for checkerboard. It changes nothing below 3840 pixels wide." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+    <Metadata Title="WipEout Omega Collection" Name="Native 4K rendering (no checkerboard)" Note="From 3840 pixels wide the game switches to its 4K mode, which renders the scene at half width with checkerboard reconstruction (the Pro path). This keeps the 1080p mode at any size: the scene renders at full resolution with 4-sample depth, sharper and heavier on the GPU (over 100 FPS at 5120x2160 on an RTX 4090). Untick it for checkerboard. It changes nothing below 3840 pixels wide. In PS4 Pro mode the game also gets 512 MB more of its own video memory for the full-resolution scene (DMEM to 1024 MB in PS4 Pro mode), so 2048 races with many different ships load (#184)." Author="d4g" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
         <PatchList>
             <!-- 4K mode flag 0x1212c39 = ((field & 0xff00) > 0xeff): 0xeff -> 0xff00 keeps it false -->
             <Line Type="bytes" Address="0x00bfb659" Value="00ff0000" Pattern="8b 05 49 ef a1 00 b9 00 ff 00 00 23 48 3c 81 f9" At="16"/>
+            <!-- The game's video memory pool in Pro mode (Pro mode always outputs 3840x2160, so this
+                 patch always renders the scene at full size there): 0x643180 takes it from 0x86bb80,
+                 4736 MB -> 5248 MB. At 4736 a restart of 2048 Unity Square ran out (#184): heap A had
+                 4458 MiB in use and 277 MiB free in ~6000 gaps (the largest 68 MiB), a ship livery
+                 (one 4096x4096 GNF, 85.3 MiB, from the texture loader at 0x17cce8a) failed, the model
+                 was not loaded and 0x7b87d1 wrote through it. Base PS4 mode reads 0x86bb60 and is
+                 untouched. The pool grows by the same 512 MiB only in Pro mode (patch_requirements). -->
+            <Line Type="bytes" Address="0x00c6bb80" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="32"/>
         </PatchList>
     </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Startup Hang" Note="Fixes a random hang at start (black screen after 'NEW THREAD'). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">

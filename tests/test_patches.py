@@ -270,6 +270,16 @@ class SignatureTests(unittest.TestCase):
         self.assertEqual(patch_requirements(GOW3, ['Frame Rate Patch - 120 FPS'], '01.02'), (None, 120))
         self.assertEqual(patch_requirements(GOW3, [], '01.02'), (None, None))
 
+    def test_native_4k_grows_the_pro_heap_only_in_pro_mode(self):
+        # #184: the Pro heap table (0x86bb80) goes 4736 -> 5248 MB; the pool follows only in Pro mode.
+        native = ['Native 4K rendering (no checkerboard)']
+        self.assertEqual(patch_requirements(WIPEOUT, native, '01.00'), (None, None))
+        self.assertEqual(patch_requirements(WIPEOUT, native, '01.00', neo=True), (5056 + 1024, None))
+        self.assertEqual(patch_requirements(WIPEOUT, native + ['Resolution Patch - 4K'], '01.00'),
+                         (5056 + 1024, None))
+        writes = dict(compile_patches(WIPEOUT, native + ['Resolution Patch - 4K'], '01.00', SEGMENTS))
+        self.assertEqual(writes[0x86bb80], bytes.fromhex('0000004801000000'))  # Pro: 5248 MB
+        self.assertEqual(writes[0x86bb60], bytes.fromhex('0000004801000000'))  # PS4: 5248 MB (4K patch)
 
 
 class ModPatchTests(unittest.TestCase):
@@ -507,7 +517,8 @@ class HalfResolutionTests(unittest.TestCase):
     def test_wipeout_native_4k_keeps_the_4k_mode_flag_false(self):
         # (field & 0xff00) > imm: 0xff00 can never be exceeded, the original 0xeff is from 3840 wide.
         self.assertEqual(compile_patches(WIPEOUT, ['Native 4K rendering (no checkerboard)'], '01.00', SEGMENTS),
-                         [(0x7fb659, (0xff00).to_bytes(4, 'little'))])
+                         [(0x7fb659, (0xff00).to_bytes(4, 'little')),
+                          (0x86bb80, (5248 << 20).to_bytes(8, 'little'))])  # Pro heap (#184)
 
     def test_wipeout_resolution_patches_size_output_half_buffers_and_aspect(self):
         size = lambda value: int.from_bytes(bytes.fromhex(value), 'little')

@@ -321,7 +321,8 @@ def main():
             # leaves the engine at 60 FPS, and the notes' memory and VBlank needs follow the same list.
             applied = (patch_status(out) or {}).get('applied', [])
             engine_fps = graphics_options.applied_engine_fps(applied)
-            dmem, vblank = patch_requirements(patch_xml, applied, profile[2])
+            dmem, vblank = patch_requirements(patch_xml, applied, profile[2],
+                                              neo=env.get('GOW3_NEO', '').startswith('1'))
             for key, value in (('GOW3_DMEM_MB', dmem), ('GOW3_VBLANK_HZ', vblank)):
                 if value and key not in env:
                     env[key] = str(value)

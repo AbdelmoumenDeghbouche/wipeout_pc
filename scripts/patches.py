@@ -342,14 +342,16 @@ def default_enabled(xmls, app_version):
     return names
 
 
-def patch_requirements(xml, names, app_version):
+def patch_requirements(xml, names, app_version, neo=False):
     """(direct memory MiB, VBlank Hz) the selected patches' notes ask for, None when not needed.
-    shadPS4 notes say "Requires setting DMEM to N MB": N is on top of the retail pool."""
+    shadPS4 notes say "Requires setting DMEM to N MB": N is on top of the retail pool.
+    "DMEM to N MB in PS4 Pro mode" counts only in Pro mode (neo), whose heap table the patch grows."""
     dmem=vblank=None
     for meta in ET.parse(xml).getroot().iter('Metadata'):
         if meta.get('Name') not in names or meta.get('AppVer')!=app_version: continue
         note=meta.get('Note','')
-        if m:=re.search(r'DMEM to (\d+) MB',note): dmem=max(dmem or 0,DMEM_RETAIL_MB+int(m.group(1)))
+        for m in re.finditer(r'DMEM to (\d+) MB( in PS4 Pro mode)?',note):
+            if neo or not m.group(2): dmem=max(dmem or 0,DMEM_RETAIL_MB+int(m.group(1)))
         if m:=re.search(r'VBlank to (\d+) FPS',note): vblank=max(vblank or 0,int(m.group(1)))
     return dmem,vblank
 
