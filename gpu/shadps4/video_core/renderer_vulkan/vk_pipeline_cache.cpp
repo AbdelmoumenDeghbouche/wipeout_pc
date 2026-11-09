@@ -231,6 +231,11 @@ const Shader::RuntimeInfo& PipelineCache::BuildRuntimeInfo(PipelineSelection& se
                 : 1;
         info.hw.fs.z_export_format = regs.z_export_format;
         info.hw.fs.motion_vectors = sel.motion;
+        // As sampleShadingEnable (vk_graphics_pipeline.cpp; ps_iter_samples is 0 there
+        // without multisampling, where shading per sample changes nothing).
+        info.hw.fs.per_sample_shading =
+            !LightingTest::Current().shading && regs.eqaa.ps_iter_samples != 0 &&
+            (regs.ps_input_addr.persp_sample_ena || regs.ps_input_addr.linear_sample_ena);
         u8 stencil_ref_export_enable = regs.depth_shader_control.stencil_op_val_export_enable |
                                        regs.depth_shader_control.stencil_test_val_export_enable;
         info.hw.fs.mrtz_mask = regs.depth_shader_control.z_export_enable |
@@ -1045,8 +1050,23 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
     // Force all color samples to match depth samples to avoid unsupported MSAA configuration
     if (color_samples != 0) {
         const bool depth_mismatch = db_enabled && color_samples != key.depth_samples;
+        // gow3: VK_NV_framebuffer_mixed_samples (fewer colour than raster samples) does not
+        // allow sample shading. A shader run per sample there made NVIDIA's GPU write to
+        // address 0 (device lost): WipEout's menu ship in PS4 Pro mode with checkerboard, a
+        // pixel shader that interpolates at sample positions (SampleId on NVIDIA) into a
+        // 1-sample colour target over a 4-sample depth target. Without per-sample shading the
+        // recompiler now reads those per pixel (HwFragmentRuntimeInfo::per_sample_shading);
+        // pipelines that do shade per sample get the colour samples of the depth target, as
+        // without a mixed-sample extension.
+        const auto* fs = sel.infos[static_cast<u32>(Shader::SwStage::Fragment)];
+        const bool nv_mixed = all_color_samples_same && depth_mismatch &&
+                              color_samples < key.depth_samples &&
+                              instance.IsMixedDepthSamplesSupported() &&
+                              !instance.IsMixedAnySamplesSupported();
+        const bool per_sample = fs && FragmentShadesPerSample(regs, fs, profile);
         if (!all_color_samples_same && !instance.IsMixedAnySamplesSupported() ||
-            all_color_samples_same && depth_mismatch && !instance.IsMixedDepthSamplesSupported()) {
+            all_color_samples_same && depth_mismatch && !instance.IsMixedDepthSamplesSupported() ||
+            nv_mixed && per_sample) {
             key.color_samples.fill(key.depth_samples);
             key.num_samples = key.depth_samples;
         }
@@ -1054,6 +1074,20 @@ bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
     key.ps_iter_samples = key.num_samples > 1 ? regs.eqaa.ps_iter_samples : 0;
 
     return true;
+}
+
+bool FragmentShadesPerSample(const AmdGpu::Regs& regs, const Shader::Info* fs,
+                             const Shader::Profile& profile) {
+    // Per-sample shading the pipeline asks for (HwFragmentRuntimeInfo::per_sample_shading,
+    // sampleShadingEnable): sample barycentrics and Sample-qualified inputs use SampleId and
+    // the Sample decoration only then (spirv_emit_context.cpp).
+    if (!LightingTest::Current().shading && regs.eqaa.ps_iter_samples != 0 &&
+        (regs.ps_input_addr.persp_sample_ena || regs.ps_input_addr.linear_sample_ena)) {
+        return true;
+    }
+    // A shader that reads the sample ID itself (known only for one translated in this
+    // session: `loads` is not kept in the disk cache).
+    return fs && fs->loads.Get(Shader::IR::Attribute::SampleIndex);
 }
 
 bool PipelineCache::RefreshGraphicsStages(PipelineSelection& sel) {

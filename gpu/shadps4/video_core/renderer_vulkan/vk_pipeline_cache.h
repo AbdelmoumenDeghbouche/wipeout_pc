@@ -93,6 +93,14 @@ union Regs;
 
 namespace Vulkan {
 
+/// gow3: whether the pixel shader runs once per sample: the pipeline asks for it (DB_EQAA
+/// ps_iter_samples with sample inputs: sampleShadingEnable, and only then do sample
+/// barycentrics and Sample-qualified inputs use SampleId or the Sample decoration), or the
+/// shader reads the sample ID (SampleId). VK_NV_framebuffer_mixed_samples allows neither with
+/// fewer colour than raster samples. `fs->loads` is empty for a shader from the disk cache.
+bool FragmentShadesPerSample(const AmdGpu::Regs& regs, const Shader::Info* fs,
+                             const Shader::Profile& profile);
+
 /// gow3: state of one graphics/compute pipeline selection. The GPU thread owns one
 /// (PipelineCache::sel); draw-preparation workers use their own with their register copies.
 struct PipelineSelection {

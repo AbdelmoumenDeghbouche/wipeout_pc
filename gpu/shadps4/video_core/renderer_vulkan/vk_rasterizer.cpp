@@ -3283,9 +3283,13 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         const auto* depth =
             db_desc.first ? &texture_cache.GetImage(db_desc.first).info : nullptr;
         census.raster_samples = u8(key.num_samples);
+        const auto* fs_info = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+        const bool per_sample =
+            fs_info && FragmentShadesPerSample(regs, fs_info, pipeline_cache.GetProfile());
         census.path = PassCensus::ResolveSamplePath(
             census.color_samples, census.depth_samples, depth != nullptr,
-            instance.IsMixedAnySamplesSupported(), instance.IsMixedDepthSamplesSupported());
+            instance.IsMixedAnySamplesSupported(), instance.IsMixedDepthSamplesSupported(),
+            per_sample);
         census.sample_shading =
             regs.ps_input_addr.persp_sample_ena || regs.ps_input_addr.linear_sample_ena;
         census.feedback_loop = attachment_feedback_loop;

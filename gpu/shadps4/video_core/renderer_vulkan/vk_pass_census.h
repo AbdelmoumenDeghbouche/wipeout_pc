@@ -42,10 +42,11 @@ inline const char* Name(SamplePath path) {
 /// What vk_pipeline_cache.cpp does with the guest sample counts: `color_samples` are the bound
 /// colour targets' counts in order, `depth_samples` the depth target's (used only when
 /// `db_enabled`), `mixed_any` whether VK_AMD_mixed_attachment_samples is enabled and
-/// `mixed_depth` whether it or VK_NV_framebuffer_mixed_samples is.
+/// `mixed_depth` whether it or VK_NV_framebuffer_mixed_samples is. `per_sample`: the fragment
+/// shader runs per sample, which the NV path does not allow with fewer colour than depth samples.
 inline SamplePath ResolveSamplePath(const std::vector<std::uint8_t>& color_samples,
                                     std::uint8_t depth_samples, bool db_enabled, bool mixed_any,
-                                    bool mixed_depth) {
+                                    bool mixed_depth, bool per_sample = false) {
     if (color_samples.empty()) {
         return SamplePath::Equal;
     }
@@ -56,6 +57,9 @@ inline SamplePath ResolveSamplePath(const std::vector<std::uint8_t>& color_sampl
     const std::uint8_t depth = db_enabled ? depth_samples : 1;
     const bool depth_mismatch = db_enabled && color_samples.front() != depth;
     if ((!all_same && !mixed_any) || (all_same && depth_mismatch && !mixed_depth)) {
+        return SamplePath::ForcedEqual;
+    }
+    if (all_same && depth_mismatch && !mixed_any && per_sample && color_samples.front() < depth) {
         return SamplePath::ForcedEqual;
     }
     if (!all_same || depth_mismatch) {
