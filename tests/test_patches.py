@@ -462,6 +462,20 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS),
                          [(0x665e66, bytes.fromhex('8b0558ff8600 ffc8 83e003 890535223400'))])
 
+    def test_wipeout_fades_take_the_exact_factor(self):
+        # The fades step once by 1 - (1 - rate)^(dt * 60) at any frame rate: F (x87: fyl2x, f2xm1, fscale
+        # in X) lives in the underwater sound's old loop, X in the shield block, and the shield's first call
+        # lands on F. The engine trail is one line (A, the check between, B) with its own F and X.
+        writes = dict(compile_patches(WIPEOUT, ['Bug Fix - Effects above 60 FPS'], '01.00', SEGMENTS))
+        shield, f_at = writes[0x39ce99], 0x789b21 + 20
+        self.assertEqual(shield[37], 0xe8)
+        self.assertEqual(0x39ce99 + 42 + struct.unpack_from('<i', shield, 38)[0], f_at)
+        self.assertEqual(writes[0x789b21][20:24], bytes.fromhex('4883ec08'))  # F: sub rsp, 8
+        self.assertIn(bytes.fromhex('d9f1'), shield)  # fyl2x
+        trail = compile_patches(WIPEOUT, ['Bug Fix - Engine trail above 60 FPS'], '01.00', SEGMENTS)
+        self.assertEqual([(at, len(data)) for at, data in trail], [(0x736db0, 254)])
+        self.assertIn(bytes.fromhex('d9f0'), trail[0][1])  # f2xm1
+
     def test_wipeout_model_slots_move_to_the_reserve(self):
         # #96: the model table (1396 slots of 0x360) moves to 4096 slots in the linked image's
         # reserve: every lea to it (base, slot 0's in-use byte, the init loop's end) and the limit.

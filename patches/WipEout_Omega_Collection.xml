@@ -715,17 +715,24 @@
             <Line Type="bytes" Address="0x00a7a514" Pattern="48 89 df 48 8d 05 ?? ?? ?? ?? c7 43 08 03 00 00 00 c6 43 0c 00 c7 43 18 00 00 00 00 48 c7 43 10 00 00 00 00 48 89 03 e8 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 c6 05 ?? ?? ?? ?? 01 75 24" At="36" Value="48 89 03 c6 05 {rel:FLAG:1} 01 e8 {rel:START:0} 80 3d {rel:DONE:1} 00"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Effects above 60 FPS" Note="The shield, the weapon-absorb effect, the Detonator bomb's explosion and smoke ring, the boost flare and the underwater sound fade in and out at any frame rate, the ship's idle hover (and the camera following it) moves smoothly, the outside cameras lean with acceleration as much as at 60 FPS, wall hits and landings shake the camera as long as at 60 FPS. Without it, above 60 FPS they stay where they started: the shield shows only after a hit and then stays on screen; the hover moves in 1/60 s jumps. Always on." Author="nero" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Effects above 60 FPS" Note="The shield, the weapon-absorb effect, the Detonator bomb's explosion and smoke ring, the boost flare and the underwater sound fade in and out at any frame rate, the ship's idle hover (and the camera following it) moves smoothly, the outside cameras lean with acceleration as much as at 60 FPS, wall hits and landings shake the camera as long as at 60 FPS, and other players' ships online settle onto their network positions as at 60 FPS. All of them move with the timing of the 60 FPS game at any frame rate. Without it, above 60 FPS they stay where they started: the shield shows only after a hit and then stays on screen; the hover moves in 1/60 s jumps. Always on." Author="nero" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
         <!-- Seven per-frame updates move a value x towards a target in whole 1/60 s steps:
              n = (int)(dt * 59.999996), then n times x += (target - x) * rate. Above 60 FPS dt * 60 < 1,
-             n is 0 every frame and x never moves. Each loop now also takes the remaining fraction of a
-             step: n full steps as before, then one step with rate * fraction.
+             n is 0 every frame and x never moves. Each now takes one step of the exact factor for its frame
+             time, x += (target - x) * (1 - (1 - rate)^s) with s = dt * 59.999996: one stock step at 60 FPS,
+             the curve of the 60 FPS game at any frame rate (a linear rate * s fell 5-8 % behind it on the
+             absorb fade's 0.1 and 0.15). F computes the factor on the x87 unit (X: fyl2x, f2xm1, fscale;
+             1 - rate <= 0 gives 1): s in xmm3 (kept), rate in xmm2, the factor back in xmm2; nothing else
+             changes but the flags, where powf (SysV) could change every vector register. BLEND does a step
+             for rdx -> {x, target, rate} with s in xmm3, and changes xmm2 and xmm3.
              Shield.cpp (0x39ce60) moves the shield's colour [obj+0x80] towards [obj+0x90] and its size
-             [obj+0xa4] towards [obj+0xa8]; its block is rewritten in place. C60 is the 59.999996
-             constant, read only there.
-             At the six other sites the target and rate follow x. Each loop is rewritten in place: rdx
-             (saved on the stack; none of these functions uses its red zone) points at x. Only registers
-             the old loop wrote are changed. -->
+             [obj+0xa4] towards [obj+0xa8]; its block is rewritten in place, with CAVE, X and BLEND after
+             it. C60 is the 59.999996 constant.
+             At the six other sites the target and rate follow x: rdx (saved on the stack; none of these
+             functions uses its red zone) points at x, and BLEND does the step. Only registers the old loop
+             wrote are changed. The rest of each old loop holds a helper (VBLEND, HOVERK, GO, GA, LEANC, F),
+             the same for the two online sites (GC, LEAN2, LEANC2). Helpers are called with rsp = 8 mod 16
+             or 0 mod 16 alike: they need no alignment. -->
         <!-- The ship's idle hover (0x329620: a random cubic B-spline with a new control point each second,
              faded out above speed 80 by a 0.99/0.01 low-pass of the speed at [state+0x20]) runs in fixed
              1/60 s steps from a shared accumulator in the ship update (0x304ab0); 0x329920 then turns
@@ -739,26 +746,35 @@
              differ. H adds dt to t [state+0x80] itself and steps 0, and the step takes its angles
              from this step's sample: the tilt is the hover at this frame's time. t only moves while the
              hover was on (flag [state+0x454]): it is not wrapped while off. The speed passed in is
-             s + (v - s) * dt * 60, so the low-pass keeps its 60 Hz time constant. The offset [state+0x0]
+             s + (v - s) * F(s60, 0.01) / 0.01 (HOVERK; C001 is the step's 0.01, s60 = dt * 59.999996),
+             so the step's 0.99/0.01 low-pass moves as at 60 FPS. The offset [state+0x0]
              (read by 0x323880, x/y/z only), the difference of this sample and the last, is scaled by
              (1/60) / dt, only when the step wrote it (above speed 80 it leaves it and the flag alone;
              the resets zero it). The step itself already takes any dt: the menu ship previews
              (0x4b8f60, 0x5a1d10) pass theirs.
              H: rbx = state (ship+0x7810), xmm10 = dt; rsp = 8 mod 16 on entry, as after a call from
-             the first site (the second pushes rbx twice). CAVE (xmm1 = speed - s) is in the dead tail
-             of the shield block above. K is 1/60, STEP is 0x329620. -->
+             the first site (the second pushes rbx twice). CAVE (xmm1 = speed - s) is in the shield block
+             above. K is 1/60, STEP is 0x329620. -->
         <Target Name="K" Address="0x00c5fcbc" Pattern="c5 aa 58 05 ?? ?? ?? ?? 49 8b 86 c8 75 00 00 c5 f8 2e 05 ?? ?? ?? ?? c5 fa 10 88 b8 04 00 00 c5 fa 11 05 ?? ?? ?? ?? 72 47 c5 fa 11 4d 90 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 fa 10 4d 90 48 89 df e8 ?? ?? ?? ?? c5 fa 10 05 ?? ?? ?? ?? c5 fa 58 05 ?? ?? ?? ?? c5 f8 2e 05 ?? ?? ?? ?? c5 fa 11 05 ?? ?? ?? ?? 73 c9 31 d2 48 89 df 4c 89 fe e8 ?? ?? ?? ??" At="19" Ref="1"/>
         <Target Name="STEP" Address="0x00729620" Pattern="c5 aa 58 05 ?? ?? ?? ?? 49 8b 86 c8 75 00 00 c5 f8 2e 05 ?? ?? ?? ?? c5 fa 10 88 b8 04 00 00 c5 fa 11 05 ?? ?? ?? ?? 72 47 c5 fa 11 4d 90 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 fa 10 4d 90 48 89 df e8 ?? ?? ?? ?? c5 fa 10 05 ?? ?? ?? ?? c5 fa 58 05 ?? ?? ?? ?? c5 f8 2e 05 ?? ?? ?? ?? c5 fa 11 05 ?? ?? ?? ?? 73 c9 31 d2 48 89 df 4c 89 fe e8 ?? ?? ?? ??" At="74" Ref="1"/>
-        <!-- The external cameras' lean with acceleration (0x322fd0): A [ship+0x7670] gathers each frame's
-             velocity change and decays by 10 * dt; the camera offset O [ship+0x7680] (0x323880 adds it to
-             the camera) is pushed every frame by up * (0.1 * (A . up') - 0.05 * (A . forward)) and
-             decays by 15 * dt. The push has no dt, so O settles at push / (15 * dt): above 60 FPS the
-             camera moves further when speeding up and slowing down (4.9x the 60 FPS travel measured at
-             240 FPS), and with uneven frame times it bounces at the end of it. The push now takes A * dt
-             (dt clamped to 0.1, in xmm0) with 6 and -3 in place of 0.1 and -0.05: the same at 60 FPS. To
-             make room for the multiply, vpermilpd xmm7,xmm5,1 is vmovhlps (only lane 0 is used) and two
-             vpermilps are vshufps with both sources the same. CAMK05 and CAMK10 are those two constant
-             vectors, read only here. -->
+        <!-- The external cameras' lean with acceleration (0x322fd0): A [ship+0x7670] gathers 0.2 times each
+             frame's velocity change and decays by 10 * dt; the camera offset O [ship+0x7680] (0x323880 adds
+             it to the camera) is pushed every frame by up * (0.1 * (A . up') - 0.05 * (A . forward)) and
+             decays by 15 * dt. The push has no dt, so O settled at push / (15 * dt): above 60 FPS the
+             camera moved further when speeding up and slowing down (4.9x the 60 FPS travel measured at
+             240 FPS), and with uneven frame times it bounced at the end of it. Each frame is now the exact
+             step of the 60 FPS game for its frame time (the input held over the frame), s = dt * 60 with
+             dt clamped to 0.1: with gA = 1 - (5/6)^s and gO = 1 - 0.75^s, A takes 0.2 * gA / (10 dt) of
+             the velocity change and keeps 1 - gA of itself; O takes 4 * gO of the stock push and keeps
+             1 - gO. At 60 FPS both are the stock steps; the steady lean is the same at any frame rate and so
+             is how fast it settles (a linear 10 dt and 15 dt were 9 % and 15 % slow above 60 FPS).
+             LEANC, in place of A's multiply by 0.2 (C02), scales the velocity change and leaves
+             xmm0 = (gO/15, gO/15, gO/15, dt): the push multiplies by lanes 0-2, with 6 and -3 in place of
+             0.1 and -0.05 (4 * gO times the stock push), and the decay at 0x32330d multiplies [rbp-0x70] by
+             15 (C15): gO. The jolt and A's decay (LEAN2) read dt from lane 3, [rbp-0x64]; nothing else reads
+             [rbp-0x70]. To make room for the push's multiply, vpermilpd xmm7,xmm5,1 is vmovhlps (only lane 0
+             is used) and two vpermilps are vshufps with both sources the same. CAMK05 and CAMK10 are those
+             two constant vectors, read only here. -->
         <Target Name="CAMK05" Address="0x00c48390" Pattern="c5 f8 10 30 48 8b 82 c8 00 00 00 c4 e2 79 18 50 0c c4 c1 48 59 f9 c5 e8 59 d1 c5 c0 58 d2 c4 e3 79 05 fd 01 c5 d8 58 d2 c5 f8 29 95 70 ff ff ff c5 fa 16 d5 c4 e3 51 21 ef 1c c5 d0 14 d2 c4 e3 79 04 ee 64 c5 e8 59 ed c4 e3 79 04 f5 00 c4 e3 79 04 fd 55 c4 e3 79 04 ed aa c5 c0 58 f6 c5 c8 58 ed c5 f0 59 35 ?? ?? ?? ?? c4 e3 79 04 ed 00 c5 c8 59 ed c4 e3 79 04 f1 64 c5 f0 59 0d ?? ?? ?? ??" At="102" Ref="1"/>
         <Target Name="CAMK10" Address="0x00c483a0" Pattern="c5 f8 10 30 48 8b 82 c8 00 00 00 c4 e2 79 18 50 0c c4 c1 48 59 f9 c5 e8 59 d1 c5 c0 58 d2 c4 e3 79 05 fd 01 c5 d8 58 d2 c5 f8 29 95 70 ff ff ff c5 fa 16 d5 c4 e3 51 21 ef 1c c5 d0 14 d2 c4 e3 79 04 ee 64 c5 e8 59 ed c4 e3 79 04 f5 00 c4 e3 79 04 fd 55 c4 e3 79 04 ed aa c5 c0 58 f6 c5 c8 58 ed c5 f0 59 35 ?? ?? ?? ?? c4 e3 79 04 ed 00 c5 c8 59 ed c4 e3 79 04 f1 64 c5 f0 59 0d ?? ?? ?? ??" At="126" Ref="1"/>
         <!-- The camera jolt on wall hits and landings (0x322fd0): each frame the shake strength S
@@ -767,32 +783,58 @@
              1/60 s while scraping; above 60 FPS each shake lasts one short frame and a scrape buzzes. The
              block now holds each offset for 1/60 s (timer T at [ship+0x7838], in a gap of the hover state
              that nothing reads; the race resets write it): T -= dt; while T > 0 the offset stays; else no
-             contact clears it, a contact rolls a new one and sets T = 1/60. At 60 FPS that is the original.
+             contact clears it, a contact rolls a new one and adds 1/60 to T, or sets T = 1/60 when T had
+             already run out the frame before: while scraping the offsets change every 1/60 s on average at
+             any frame rate (with T = 1/60 each time, every 2 or 3 frames at 144 FPS: 48 a second). dt is
+             lane 3 of [rbp-0x70] ([rbp-0x64], see the lean). At 60 FPS that is the original.
              One rand() gives the three signs (bits 5, 6 and 7) where the game called it three times, in a
              loop over the three axes. RAND is rand (0x7febe0), K2 the 0.0002 the game reads here.
-             The 42 bytes this frees (after the jmp to HOLD) are unreachable nops. -->
+             The 22 bytes this frees (after the jmp to HOLD) are unreachable nops. -->
+        <!-- Other players' ships online (0x3203b0, inlined again in 0x7b1850): each frame the ship's
+             velocity [body+0xa0] is blended with the one its network records give, (1 - f) * target +
+             f * velocity, with f = 0.8 (0.64 in the copy) squared once for each 1/60 s past the first:
+             0.8^(2^n) where 60 FPS steps give 0.8^(n+1), and 0.8 every frame above 60 FPS, so the ships
+             snapped to their targets faster. VBLEND (xmm2 = dt, xmm4 = f) makes f = f^(dt * 59.999996) in
+             place of the loop: the stock value at 60 FPS, the 60 FPS curve at any frame rate; it changes
+             only xmm4. The code after overwrites xmm0, xmm3, xmm5 and xmm6 (which the loop wrote) before
+             reading them, on both paths. -->
         <Target Name="RAND" Address="0x00bfebe0" Pattern="e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c3 79 0c 87 90 76 00 00 0e c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c4 c1 78 10 97 90 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 e3 69 21 c0 10 c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c5 f8 28 7d 80 31 c9 49 8d b7 20 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c1 78 10 8f 90 76 00 00 c4 e3 71 21 c0 20 c4 c1 78 11 87 90 76 00 00" At="1" Ref="1"/>
         <Target Name="K2" Address="0x00c5ff74" Pattern="e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c3 79 0c 87 90 76 00 00 0e c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c4 c1 78 10 97 90 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 e3 69 21 c0 10 c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c5 f8 28 7d 80 31 c9 49 8d b7 20 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c1 78 10 8f 90 76 00 00 c4 e3 71 21 c0 20 c4 c1 78 11 87 90 76 00 00" At="9" Ref="1"/>
-        <Target Name="CAVE" Address="0x0079cf61" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="200"/>
+        <Target Name="CAVE" Address="0x0079cf14" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="123"/>
         <Target Name="H" Address="0x0070640e" Pattern="c5 aa 58 05 ?? ?? ?? ?? 49 8b 86 c8 75 00 00 c5 f8 2e 05 ?? ?? ?? ?? c5 fa 10 88 b8 04 00 00 c5 fa 11 05 ?? ?? ?? ?? 72 47 c5 fa 11 4d 90 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 fa 10 4d 90 48 89 df e8 ?? ?? ?? ?? c5 fa 10 05 ?? ?? ?? ?? c5 fa 58 05 ?? ?? ?? ?? c5 f8 2e 05 ?? ?? ?? ?? c5 fa 11 05 ?? ?? ?? ?? 73 c9 31 d2 48 89 df 4c 89 fe e8 ?? ?? ?? ??" At="7"/>
         <Target Name="C60" Address="0x00c60c10" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="4" Ref="1"/>
+        <Target Name="X" Address="0x0079cf29" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="144"/>
+        <Target Name="F" Address="0x00b89b35" Pattern="c5 fa 59 05 ?? ?? ?? ?? 48 89 fb c5 fa 2c c0 85 c0 7e 3f c5 fa 10 83 80 00 00 00 c5 fa 10 8b 84 00 00 00 c5 fa 10 93 88 00 00 00 66 66 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 80 00 00 00" At="31"/>
+        <Target Name="BLEND" Address="0x0079cf4b" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="178"/>
+        <Target Name="VBLEND" Address="0x007078dc" Pattern="c5 da 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 38 c5 fa 10 83 c0 87 00 00 c5 fa 10 8b c4 87 00 00 c5 fa 10 93 c8 87 00 00 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 c0 87 00 00" At="28"/>
+        <Target Name="HOVERK" Address="0x00bb55fb" Pattern="c5 da 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 39 c5 fa 10 83 c0 87 00 00 c5 fa 10 8b c4 87 00 00 c5 fa 10 93 c8 87 00 00 66 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 c0 87 00 00" At="28"/>
+        <Target Name="GA" Address="0x00786dac" Pattern="c5 fa 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 39 c4 c1 7a 10 87 fc 03 00 00 c4 c1 7a 10 8f 00 04 00 00 c4 c1 7a 10 97 04 04 00 00 0f 1f 44 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c4 c1 7a 11 87 fc 03 00 00" At="28"/>
+        <Target Name="GO" Address="0x0075e983" Pattern="c5 f2 59 0d ?? ?? ?? ?? c5 fa 2c c1 85 c0 7e 42 c4 c1 7a 10 8e 14 02 00 00 c4 c1 7a 10 96 18 02 00 00 c4 c1 7a 10 9e 1c 02 00 00 66 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 ea 5c e1 ff c8 c5 da 59 e3 c5 da 58 c9 75 f0 c4 c1 7a 11 8e 14 02 00 00" At="28"/>
+        <Target Name="GC" Address="0x007218f2" Pattern="c5 fa 10 25 ?? ?? ?? ?? c4 c1 7a 11 81 28 77 00 00 c5 f8 28 c2 c5 f8 2e 05 ?? ?? ?? ?? 76 29 c5 fa 10 2d ?? ?? ?? ?? c5 fa 10 35 ?? ?? ?? ?? 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 58 c5 c5 da 59 e4 c5 f8 2e c6 77 f2" At="28"/>
+        <Target Name="GC_bcast" Address="0x007218f7" Pattern="c5 fa 10 25 ?? ?? ?? ?? c4 c1 7a 11 81 28 77 00 00 c5 f8 28 c2 c5 f8 2e 05 ?? ?? ?? ?? 76 29 c5 fa 10 2d ?? ?? ?? ?? c5 fa 10 35 ?? ?? ?? ?? 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 58 c5 c5 da 59 e4 c5 f8 2e c6 77 f2" At="33"/>
+        <Target Name="LEANC" Address="0x00b36775" Pattern="c5 da 59 0d ?? ?? ?? ?? 48 89 8d 88 fe ff ff 48 89 c1 48 c1 e9 20 c5 f9 6e c1 c5 7a 2c e9 c5 fa 58 c4 45 85 ed c4 c1 7a 11 84 24 dc 00 00 00 7e 48 c4 c1 7a 10 84 24 f0 00 00 00 c4 c1 7a 10 8c 24 f4 00 00 00 c4 c1 7a 10 94 24 f8 00 00 00 44 89 e9 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c9 c5 e2 59 da c5 e2 58 c0 75 f0 c4 c1 7a 11 84 24 f0 00 00 00" At="68"/>
+        <Target Name="LEANC2" Address="0x00bb6260" Pattern="c5 fa 10 25 ?? ?? ?? ?? c5 78 55 f9 c5 ea 58 83 28 77 00 00 c5 fa 11 83 28 77 00 00 76 22 c5 fa 10 1d ?? ?? ?? ?? c5 fa 10 2d ?? ?? ?? ?? c5 f8 28 f2 c5 ca 58 f3 c5 da 59 e4 c5 f8 2e f5 77 f2" At="35"/>
+        <Target Name="LEAN2" Address="0x00721906" Pattern="c5 fa 10 25 ?? ?? ?? ?? c4 c1 7a 11 81 28 77 00 00 c5 f8 28 c2 c5 f8 2e 05 ?? ?? ?? ?? 76 29 c5 fa 10 2d ?? ?? ?? ?? c5 fa 10 35 ?? ?? ?? ?? 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 58 c5 c5 da 59 e4 c5 f8 2e c6 77 f2" At="48"/>
+        <Target Name="C001" Address="0x00c60050" Pattern="c5 f2 59 0d ?? ?? ?? ?? c5 fa 10 53 20 c5 ea 59 15 ?? ?? ?? ?? c5 ea 58 c9" At="4" Ref="1"/>
+        <Target Name="C02" Address="0x00c48370" Pattern="c5 e0 59 15 ?? ?? ?? ?? c4 c1 68 58 af 70 76 00 00 c4 c3 51 0c d8 08 c4 c1 78 11 9f 70 76 00 00" At="4" Ref="1"/>
+        <Target Name="C15" Address="0x00c483b0" Pattern="c5 f8 28 55 90 c5 e8 59 15 ?? ?? ?? ?? c5 f8 58 45 a0" At="9" Ref="1"/>
         <PatchList>
             <!-- Shield.cpp (0x39ce60): colour and size -->
-            <Line Type="bytes" Address="0x0079ce99" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="0" Value="c5ea590d {rel:C60:0} 48c1e820c5fa119500ffffffc5f96ec0c5fa2cc1c5e22ad8c5f25cfbc4c17810a680000000c4c178108e90000000c4c2791896a0000000c4c17a10aea4000000c4c17a10b6a8000000c4c17a109eac00000085c07e1cc5705cc4c53859c2c5b858e4c54a5cc5c53a59c3c5ba58edffc875e4c5e259dfc5c0c6ff00c5e859d7c5705cc4c53859c2c5b858e4c54a5cc5c53a59c3c5ba58edc4c17811a680000000c4c17a11aea4000000c5f829a5f0feffffc5e973dc08c5f82995e0feffffeb19488b83b8fdffffc5fa1088b8040000c5f25c4b20c390909090"/>
+            <Line Type="bytes" Address="0x0079ce99" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="0" Value="c5ea590d{rel:C60:0}48c1e820c5fa119500ffffffc5f96ec0c5f828d9c4c17a1096a0000000e8{rel:F:0}c5e8c6d200c4c17810a680000000c4c178108e90000000c5f05cccc5f059cac5d858e1c4c17811a68000000052498d96a4000000e84f0000005ac5f829a5f0feffffc5e973dc08c5f82995e0feffffeb66488b83b8fdffffc5fa1088b8040000c5f25c4b20c3d9eedff17315d9f1d9c0d9fcdce9d9c9d9f0d9e8dec1d9fdddd9c3ddd8ddd8d9eec3c5fa105208e8{rel:F:0}c5fa105a04c5e25c1ac5e259dac5e2581ac5fa111ac3909090909090909090909090909090"/>
             <!-- Ship update (0x304ab0): the weapon-absorb effect's fade [ship+0x87c0], the material value of AbsorbEffect.vex and vr_absorbinternal_cockpit.vex -->
-            <Line Type="bytes" Address="0x007078c8" Value="52488d93c0870000c5fa2cc0c5ea2ad0c5fa5cc2c5fa105a08c5fa100a85c07f04c5e259d8c5fa105204c5ea5cd1c5ea59d3c5f258caffc87de3c5fa110a5a90" Pattern="c5 da 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 38 c5 fa 10 83 c0 87 00 00 c5 fa 10 8b c4 87 00 00 c5 fa 10 93 c8 87 00 00 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 c0 87 00 00" At="8"/>
+            <Line Type="bytes" Address="0x007078c8" Value="52488d93c0870000c5f828d8e8{rel:BLEND:0}5aeb2c4883ec08c5fa111424d90424d80d{rel:C60:0}c5fa112424d90424e8{rel:X:0}d91c24c5fa1024244883c408c3" Pattern="c5 da 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 38 c5 fa 10 83 c0 87 00 00 c5 fa 10 8b c4 87 00 00 c5 fa 10 93 c8 87 00 00 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 c0 87 00 00" At="8"/>
             <!-- The same in the second copy of the ship update (0x7b1850) -->
-            <Line Type="bytes" Address="0x00bb55e7" Value="52488d93c0870000c5fa2cc0c5ea2ad0c5fa5cc2c5fa105a08c5fa100a85c07f04c5e259d8c5fa105204c5ea5cd1c5ea59d3c5f258caffc87de3c5fa110a5a9090" Pattern="c5 da 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 39 c5 fa 10 83 c0 87 00 00 c5 fa 10 8b c4 87 00 00 c5 fa 10 93 c8 87 00 00 66 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 c0 87 00 00" At="8"/>
+            <Line Type="bytes" Address="0x00bb55e7" Value="52488d93c0870000c5f828d8e8{rel:BLEND:0}5aeb2dc5aa591d{rel:C60:0}c5fa1015{rel:C001:0}e8{rel:F:0}c5ea5e15{rel:C001:0}c5f259cac5f2584b20c3909090909090" Pattern="c5 da 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 39 c5 fa 10 83 c0 87 00 00 c5 fa 10 8b c4 87 00 00 c5 fa 10 93 c8 87 00 00 66 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 c0 87 00 00" At="8"/>
             <!-- Detonator bomb explosion (0x35cff0): [obj+0x214] -->
-            <Line Type="bytes" Address="0x0075e96f" Value="52498d9614020000c5fa2cc1c5e22ad8c5f25ccbc5fa106208c5fa101285c07f04c5da59e1c5fa105a04c5e25cdac5e259dcc5ea58d3ffc87de3c5fa11125a9090909090909090909090" Pattern="c5 f2 59 0d ?? ?? ?? ?? c5 fa 2c c1 85 c0 7e 42 c4 c1 7a 10 8e 14 02 00 00 c4 c1 7a 10 96 18 02 00 00 c4 c1 7a 10 9e 1c 02 00 00 66 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 ea 5c e1 ff c8 c5 da 59 e3 c5 da 58 c9 75 f0 c4 c1 7a 11 8e 14 02 00 00" At="8"/>
+            <Line Type="bytes" Address="0x0075e96f" Value="52498d9614020000c5f828d9e8{rel:BLEND:0}5aeb364883ec18c5f8111c24c5ea591d{rel:C60:0}c5fa1015{rel:K:0}c5ea5915{rel:C15:0}e8{rel:F:0}c5ea5e15{rel:C15:0}e9{rel:GC_bcast:0}909090" Pattern="c5 f2 59 0d ?? ?? ?? ?? c5 fa 2c c1 85 c0 7e 42 c4 c1 7a 10 8e 14 02 00 00 c4 c1 7a 10 96 18 02 00 00 c4 c1 7a 10 9e 1c 02 00 00 66 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 ea 5c e1 ff c8 c5 da 59 e3 c5 da 58 c9 75 f0 c4 c1 7a 11 8e 14 02 00 00" At="8"/>
             <!-- Bomb smoke ring (0x385830): [obj+0x3fc] -->
-            <Line Type="bytes" Address="0x00786d98" Value="52498d97fc030000c5fa2cc0c5ea2ad0c5fa5cc2c5fa105a08c5fa100a85c07f04c5e259d8c5fa105204c5ea5cd1c5ea59d3c5f258caffc87de3c5fa110a5a9090" Pattern="c5 fa 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 39 c4 c1 7a 10 87 fc 03 00 00 c4 c1 7a 10 8f 00 04 00 00 c4 c1 7a 10 97 04 04 00 00 0f 1f 44 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c4 c1 7a 11 87 fc 03 00 00" At="8"/>
+            <Line Type="bytes" Address="0x00786d98" Value="52498d97fc030000c5f828d8e8{rel:BLEND:0}5aeb2d4883ec18c5f8111c24c5ea591d{rel:C60:0}c5fa1015{rel:K:0}c4c16a59d1e9{rel:GC:0}90909090909090909090" Pattern="c5 fa 59 05 ?? ?? ?? ?? c5 fa 2c c0 85 c0 7e 39 c4 c1 7a 10 87 fc 03 00 00 c4 c1 7a 10 8f 00 04 00 00 c4 c1 7a 10 97 04 04 00 00 0f 1f 44 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c4 c1 7a 11 87 fc 03 00 00" At="8"/>
             <!-- Boost and flare shapes (0x7366c0): [obj+0xf0]; the step count stays in r13d, and the jle before the loop is covered too -->
-            <Line Type="bytes" Address="0x00b36760" Value="52498d9424f00000004489e9c5e22ad9c5f25ccbc5fa105208c5fa100285c97f04c5ea59d1c5fa105a04c5e25cd8c5e259dac5fa58c3ffc97de3c5fa11025a9090909090909090909090" Pattern="c5 da 59 0d ?? ?? ?? ?? 48 89 8d 88 fe ff ff 48 89 c1 48 c1 e9 20 c5 f9 6e c1 c5 7a 2c e9 c5 fa 58 c4 45 85 ed c4 c1 7a 11 84 24 dc 00 00 00 7e 48 c4 c1 7a 10 84 24 f0 00 00 00 c4 c1 7a 10 8c 24 f4 00 00 00 c4 c1 7a 10 94 24 f8 00 00 00 44 89 e9 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c9 c5 e2 59 da c5 e2 58 c0 75 f0 c4 c1 7a 11 84 24 f0 00 00 00" At="47"/>
+            <Line Type="bytes" Address="0x00b36760" Value="52498d9424f0000000c5f828d9e8{rel:BLEND:0}5aeb35c5f828d0e8{rel:GA:0}c5e85ed0c4c1685ed1c4c1685fd0c5e85915{rel:C02:0}c5e059eae9{rel:LEANC2:0}90909090909090909090909090" Pattern="c5 da 59 0d ?? ?? ?? ?? 48 89 8d 88 fe ff ff 48 89 c1 48 c1 e9 20 c5 f9 6e c1 c5 7a 2c e9 c5 fa 58 c4 45 85 ed c4 c1 7a 11 84 24 dc 00 00 00 7e 48 c4 c1 7a 10 84 24 f0 00 00 00 c4 c1 7a 10 8c 24 f4 00 00 00 c4 c1 7a 10 94 24 f8 00 00 00 44 89 e9 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c9 c5 e2 59 da c5 e2 58 c0 75 f0 c4 c1 7a 11 84 24 f0 00 00 00" At="47"/>
             <!-- _UNDERWATER sound effect (0x789b10): [obj+0x80] -->
-            <Line Type="bytes" Address="0x00b89b21" Value="52488d9380000000c5fa2cc0c5ea2ad0c5fa5cc2c5fa105a08c5fa100a85c07f04c5e259d8c5fa105204c5ea5cd1c5ea59d3c5f258caffc87de3c5fa110a5a9090909090909090" Pattern="c5 fa 59 05 ?? ?? ?? ?? 48 89 fb c5 fa 2c c0 85 c0 7e 3f c5 fa 10 83 80 00 00 00 c5 fa 10 8b 84 00 00 00 c5 fa 10 93 88 00 00 00 66 66 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 80 00 00 00" At="11"/>
+            <Line Type="bytes" Address="0x00b89b21" Value="52488d9380000000c5f828d8e8{rel:BLEND:0}5aeb334883ec08c5fa111c24d90424c5fa111424d9e8d82424e8{rel:X:0}d9e8dee1d91c24c5fa1014244883c408c390909090909090" Pattern="c5 fa 59 05 ?? ?? ?? ?? 48 89 fb c5 fa 2c c0 85 c0 7e 3f c5 fa 10 83 80 00 00 00 c5 fa 10 8b 84 00 00 00 c5 fa 10 93 88 00 00 00 66 66 66 66 66 66 2e 0f 1f 84 00 00 00 00 00 c5 f2 5c d8 ff c8 c5 e2 59 da c5 e2 58 c0 75 f0 c5 fa 11 83 80 00 00 00" At="11"/>
             <!-- Ship update (0x304ab0): idle hover, the accumulator loop replaced by a call to H (rbx is the state), then H -->
-            <Line Type="bytes" Address="0x00706407" Value="e802000000eb69c5f857c0c5782ed0765880bb54040000007410c5aa589380000000c5fa119380000000c5fa101d{rel:K:0}c4c1625edac5f97ed850e8{rel:CAVE:0}c5f25ecbc5f2584b20535fe8{rel:STEP:0}80bb5404000000740ec4e279180424c5f85903c5f8110359c3909090909090" Pattern="c5 aa 58 05 ?? ?? ?? ?? 49 8b 86 c8 75 00 00 c5 f8 2e 05 ?? ?? ?? ?? c5 fa 10 88 b8 04 00 00 c5 fa 11 05 ?? ?? ?? ?? 72 47 c5 fa 11 4d 90 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 fa 10 4d 90 48 89 df e8 ?? ?? ?? ?? c5 fa 10 05 ?? ?? ?? ?? c5 fa 58 05 ?? ?? ?? ?? c5 f8 2e 05 ?? ?? ?? ?? c5 fa 11 05 ?? ?? ?? ?? 73 c9 31 d2 48 89 df 4c 89 fe e8 ?? ?? ?? ??" At="0"/>
+            <Line Type="bytes" Address="0x00706407" Value="e802000000eb69c5f857c0c5782ed0765880bb54040000007410c5aa589380000000c5fa119380000000c5fa101d{rel:K:0}c4c1625edac5f97ed850e8{rel:CAVE:0}e8{rel:HOVERK:0}0f1f4000535fe8{rel:STEP:0}80bb5404000000740ec4e279180424c5f85903c5f8110359c3909090909090" Pattern="c5 aa 58 05 ?? ?? ?? ?? 49 8b 86 c8 75 00 00 c5 f8 2e 05 ?? ?? ?? ?? c5 fa 10 88 b8 04 00 00 c5 fa 11 05 ?? ?? ?? ?? 72 47 c5 fa 11 4d 90 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 fa 10 4d 90 48 89 df e8 ?? ?? ?? ?? c5 fa 10 05 ?? ?? ?? ?? c5 fa 58 05 ?? ?? ?? ?? c5 f8 2e 05 ?? ?? ?? ?? c5 fa 11 05 ?? ?? ?? ?? 73 c9 31 d2 48 89 df 4c 89 fe e8 ?? ?? ?? ??" At="0"/>
             <!-- The hover step (0x329620): its angles from this step's sample, not the last one (xmm1 = this, xmm0 = last, xmm0 = xmm1 - xmm0) -->
             <Line Type="bytes" Address="0x00729882" Value="8c" Pattern="c5 f8 10 84 03 90 00 00 00 89 d0 c1 fa 05 c1 e8 1f 01 c2 6b c2 3c 29 c1 48 63 c1 48 c1 e0 04 c5 f8 10 8c 03 90 00 00 00 c5 f2 59 25 ?? ?? ?? ?? c5 fa 16 d1 c4 e3 79 05 d9 01 c5 f8 5c c1" At="3"/>
             <Line Type="bytes" Address="0x007298a1" Value="84" Pattern="c5 f8 10 84 03 90 00 00 00 89 d0 c1 fa 05 c1 e8 1f 01 c2 6b c2 3c 29 c1 48 63 c1 48 c1 e0 04 c5 f8 10 8c 03 90 00 00 00 c5 f2 59 25 ?? ?? ?? ?? c5 fa 16 d1 c4 e3 79 05 d9 01 c5 f8 5c c1" At="34"/>
@@ -802,12 +844,20 @@
             <Line Type="bytes" Address="0x00c48390" Target="CAMK05" Value="000040c0000040c0000040c0000040c0"/>
             <Line Type="bytes" Address="0x00c483a0" Target="CAMK10" Value="0000c0400000c0400000c0400000c040"/>
             <!-- Camera jolt (0x322fd0): each random offset held for 1/60 s -->
-            <Line Type="bytes" Address="0x0072323c" Value="c4c17a108f38780000c5f25c4d90c4c17a118f38780000c5f857c0c5f82ec8771dc4c1782e87d4690000753ec4c178138790760000c4c17a118798760000eb7290909090909090909090909090909090909090909090909090909090909090909090909090909090909041c787387800008988883ce8{rel:RAND:0}89c2c5fa1005{rel:K2:0}c4c17a5987d4690000b90200000089d083e02083c0f0c5f22ac8c5f259c8c4c17a118c8f90760000d1eaffc979e0c4c178108790760000c5f8287d8031c9498db720760000" Pattern="e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c3 79 0c 87 90 76 00 00 0e c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c4 c1 78 10 97 90 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 e3 69 21 c0 10 c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c5 f8 28 7d 80 31 c9 49 8d b7 20 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c1 78 10 8f 90 76 00 00 c4 e3 71 21 c0 20 c4 c1 78 11 87 90 76 00 00" At="0"/>
+            <Line Type="bytes" Address="0x0072323c" Value="c4c17a108f38780000c5f25c4d9cc4c17a118f38780000c5f857c0c5f82ec8771dc4c1782e87d4690000752ac4c178138790760000c4c17a118798760000eb7290909090909090909090909090909090909090909090c5f258559cc5fac2d201c5f054cac5f2580d{rel:K:0}c4c17a118f38780000e8{rel:RAND:0}89c2c5fa1005{rel:K2:0}c4c17a5987d4690000b90200000089d083e02083c0f0c5f22ac8c5f259c8c4c17a118c8f90760000d1eaffc979e0c4c178108790760000c5f8287d8031c9498db720760000" Pattern="e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c3 79 0c 87 90 76 00 00 0e c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c4 c1 78 10 97 90 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 e3 69 21 c0 10 c4 c1 78 11 87 90 76 00 00 e8 ?? ?? ?? ?? c5 fa 10 0d ?? ?? ?? ?? 83 e0 20 c5 f8 28 7d 80 31 c9 49 8d b7 20 76 00 00 83 c0 f0 c4 c1 72 59 8f d4 69 00 00 c5 f8 57 c0 c5 fa 2a c0 c5 f2 59 c0 c4 c1 78 10 8f 90 76 00 00 c4 e3 71 21 c0 20 c4 c1 78 11 87 90 76 00 00" At="0"/>
+            <!-- Online ships (0x3203b0): the velocity blend's factor 0.8^(dt * 60), then GC and LEAN2 -->
+            <Line Type="bytes" Address="0x007218eb" Value="e8{rel:VBLEND:0}eb2ce8{rel:F:0}c5e8c6d200c5f8101c244883c418c3c5f8c6d0ffe8{rel:GA:0}c5e859d3c5e05cc2c39090909090" Pattern="c5 fa 10 25 ?? ?? ?? ?? c4 c1 7a 11 81 28 77 00 00 c5 f8 28 c2 c5 f8 2e 05 ?? ?? ?? ?? 76 29 c5 fa 10 2d ?? ?? ?? ?? c5 fa 10 35 ?? ?? ?? ?? 66 66 2e 0f 1f 84 00 00 00 00 00 c5 fa 58 c5 c5 da 59 e4 c5 f8 2e c6 77 f2" At="21"/>
+            <!-- The same in the second copy of the ship update (0x7b1850): 0.64^(dt * 60), then LEANC2 -->
+            <Line Type="bytes" Address="0x00bb6259" Value="e8{rel:VBLEND:0}eb1dc5f828d0e8{rel:GO:0}c4e3690cc008c5f828d5c3909090909090909090" Pattern="c5 fa 10 25 ?? ?? ?? ?? c5 78 55 f9 c5 ea 58 83 28 77 00 00 c5 fa 11 83 28 77 00 00 76 22 c5 fa 10 1d ?? ?? ?? ?? c5 fa 10 2d ?? ?? ?? ?? c5 f8 28 f2 c5 ca 58 f3 c5 da 59 e4 c5 f8 2e f5 77 f2" At="28"/>
+            <!-- Camera lean (0x322fd0): A's share of the velocity change, and xmm0 = (gO/15, gO/15, gO/15, dt) -->
+            <Line Type="bytes" Address="0x00723136" Value="e8{rel:LEANC:0}909090" Pattern="c5 e0 59 15 ?? ?? ?? ?? c4 c1 68 58 af 70 76 00 00 c4 c3 51 0c d8 08 c4 c1 78 11 9f 70 76 00 00" At="0"/>
+            <!-- Camera lean: A's decay by gA -->
+            <Line Type="bytes" Address="0x00723220" Value="e8{rel:LEAN2:0}9090909090909090" Pattern="c4 c1 78 59 c1 c5 f8 59 c3 c5 e0 5c c0 c4 c3 79 0c c0 08 c4 c1 78 11 87 70 76 00 00" At="0"/>
             <!-- Second copy of the ship update (0x7b1850): idle hover, dt from [rbp-0x124], the state from r12 in rbx -->
             <Line Type="bytes" Address="0x00bb334d" Value="c5f8118b90000000c5f811b3a0000000c5f811bbb0000000c57a1095dcfeffff53534c89e3e8{rel:H:0}5b5b0f1f800000000090" Pattern="c5 f8 11 83 80 00 00 00 c5 fa 10 05 ?? ?? ?? ?? c5 f8 11 8b 90 00 00 00 c5 f8 11 b3 a0 00 00 00 c5 f8 11 bb b0 00 00 00 49 8b 87 c8 75 00 00 c5 fa 10 88 b8 04 00 00 e8 ?? ?? ?? ?? 31 d2 4c 89 e7 4c 89 f6 e8 ?? ?? ?? ??" At="8"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Engine trail above 60 FPS" Note="After a boost pad, the engine flame and trail go back to normal at any frame rate. Without it, above 60 FPS they stay in the boosted state, even when the ship stops (#123). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Engine trail above 60 FPS" Note="After a boost pad, the engine flame and trail go back to normal at any frame rate. They fade with the timing of the 60 FPS game at any frame rate. Without it, above 60 FPS they stay in the boosted state, even when the ship stops (#123). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
         <!-- The flare and trail update (0x7366c0) moves its values in whole 1/60 s steps: n = (int)(dt * 59.999996),
              then n times x += (target - x) * rate. Above 60 FPS n is 0 every frame. "Bug Fix - Effects above 60 FPS"
              fixes the first loop ([obj+0xf0]); these are the next two:
@@ -815,15 +865,18 @@
              B (0x736e1a): the afterburner [obj+0x13c] chases [obj+0x140] at [obj+0x144] (a boost pad sets them,
              0x3191bf), and [obj+0x130] decays by xmm0 per step; both original branches set [obj+0x134] = 0 and
              [obj+0x138] = xmm0.
-             Each loop becomes one step scaled by s = dt * 60 (dt saved at -0xc4(%rbp) at 0x7367ac):
-             x += (target - x) * rate * s, y -= y * k * s. The rates are 0.01-0.03, so rate * s stays far below 1;
-             at 60 FPS it is the original, at 30 FPS 2 * rate instead of 1 - (1 - rate)^2. xmm1 is kept for the
-             code after; xmm2-xmm7 are free there. In a patch of its own, so a game build where these sites
-             differ keeps "Effects above 60 FPS". C60 is the 59.999996 constant. -->
+             Each loop becomes one step of the exact factor F = 1 - (1 - rate)^s, s = dt * 60 (dt saved at
+             -0xc4(%rbp) at 0x7367ac): x += (target - x) * F(rate), y -= y * F(k). At 60 FPS it is the
+             original, at any frame rate the curve of the 60 FPS game. F (s in xmm6, rate in xmm2, the factor
+             back in xmm2) and X are this patch's own copy of the x87 factor of "Effects above 60 FPS".
+             One line covers A, the game's check between them (y = 1 when [obj+0x10c] is below 0.2, C1) and
+             B: rax = obj + 0x124 (the old loops counted in eax). xmm0 and xmm1 are kept for the code after;
+             xmm2-xmm7 are free there. In a patch of its own, so a game build where these sites differ keeps
+             "Effects above 60 FPS". C60 is the 59.999996 constant. -->
         <Target Name="C60" Address="0x00c60c10" Pattern="c5 ea 59 0d ?? ?? ?? ?? 48 c1 e8 20 c5 fa 11 95 00 ff ff ff c5 f9 6e c0 c5 fa 2c c1 85 c0 0f 8e 9b 00 00 00 c4 c1 78 10 a6 80 00 00 00 c4 c1 78 10 8e 90 00 00 00 c4 c2 79 18 96 a0 00 00 00" At="4" Ref="1"/>
+        <Target Name="C1" Address="0x00c639c8" Pattern="c5 fa 10 15 ?? ?? ?? ?? c4 c1 78 2e 94 24 0c 01 00 00 73 0c" At="4" Ref="1"/>
         <PatchList>
-            <Line Type="bytes" Address="0x00b36db0" Value="c4c17a108630010000c4c17a1184242c010000c5fa10a53cffffffc5da5925{rel:C60:0}c5da59e0c4c17a109c2424010000c5f25cd3c5ea59d4c5e258dac4c17a119c2424010000909090" Pattern="45 85 ed c4 c1 7a 10 86 30 01 00 00 c4 c1 7a 11 84 24 2c 01 00 00 7e 32 c4 c1 7a 10 9c 24 24 01 00 00 44 89 e8 66 66 2e" At="0"/>
-            <Line Type="bytes" Address="0x00b36e1a" Value="41c784243401000000000000c4c17a11842438010000c5fa10b53cffffffc5ca5935{rel:C60:0}c4c17a10ac243c010000c4c17a10942440010000c5ea5ce5c4c15a59a42444010000c5da59e6c5d258ecc4c17a11ac243c010000c5ca59f0c4c17a10bc2430010000c5c259e6c5c25cfcc4c17a11bc24300100009090909090909090909090909090909090909090909090909090" Pattern="45 85 ed 7e 79 c4 c1 7a 10 ac 24 3c 01 00 00 c4 c1 7a 10 94 24 40 01 00 00 c4 c1 7a 10 9c 24 44 01 00 00 44 89 e8 c5 ea" At="0"/>
+            <Line Type="bytes" Address="0x00b36db0" Value="c4c17a108630010000498d842424010000c5fa114008c5fa10b53cffffffc5ca5935{rel:C60:0}c5f828d0e878000000c5fa1020c5f25cdcc5e259dac5da58e3c5fa1120c5fa1015{rel:C1:0}c5f82e50e87307c7400c0000803fc7401000000000c5fa114014c5fa105020e838000000c5fa106818c5fa10601cc5da5ce5c5da59e2c5d258ecc5fa116818c5f828d0e814000000c5fa10780cc5c259e2c5c25cfcc5fa11780ceb574883ec08c5fa113424d90424c5fa111424d9e8d82424e811000000d9e8dee1d91c24c5fa1014244883c408c3d9eedff17315d9f1d9c0d9fcdce9d9c9d9f0d9e8dec1d9fdddd9c3ddd8ddd8d9eec3909090909090909090" Pattern="45 85 ed c4 c1 7a 10 86 30 01 00 00 c4 c1 7a 11 84 24 2c 01 00 00 7e 32 c4 c1 7a 10 9c 24 24 01 00 00 44 89 e8 66 66 2e" At="0"/>
         </PatchList>
     </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Zone crash above 60 FPS" Note="Fixes a crash in HD Zone events at high frame rates (the HUD was drawn from a list the game was refilling). Always on." Author="nero" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
