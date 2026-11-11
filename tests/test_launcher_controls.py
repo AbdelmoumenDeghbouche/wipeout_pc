@@ -853,8 +853,8 @@ class TextureQualityTest(unittest.TestCase):
 
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
-        self.assertEqual(launcher.VERSION, '0.2.67')
-        self.assertGreater(launcher.version_tuple('windows-v0.2.68'), launcher.version_tuple(launcher.VERSION))
+        self.assertEqual(launcher.VERSION, '0.2.68')
+        self.assertGreater(launcher.version_tuple('windows-v0.2.69'), launcher.version_tuple(launcher.VERSION))
         self.assertGreater(launcher.version_tuple(launcher.VERSION), launcher.version_tuple('windows-v0.2.55'))
 
     def test_update_check_is_on_by_default(self):
