@@ -407,11 +407,16 @@ void EmitContext::DefineInputs() {
             if (profile.supports_amd_shader_explicit_vertex_parameter) {
                 bary_coord_smooth_sample = DefineVariable(
                     F32[2], spv::BuiltIn::BaryCoordSmoothSampleAMD, spv::StorageClass::Input);
-            } else if (profile.supports_fragment_shader_barycentric && !ValidId(bary_coord)) {
-                bary_coord =
-                    DefineVariable(F32[3], spv::BuiltIn::BaryCoordKHR, spv::StorageClass::Input);
+            } else if (profile.supports_fragment_shader_barycentric) {
+                if (!ValidId(bary_coord)) {
+                    bary_coord = DefineVariable(F32[3], spv::BuiltIn::BaryCoordKHR,
+                                                spv::StorageClass::Input);
+                }
                 // we would need sample_index to interpolate the bary_coord later
-                if (!ValidId(sample_index)) {
+                // gow3: only when the pipeline shades per sample (reading SampleId makes Vulkan
+                // run the shader per sample); otherwise the barycentrics are the pixel's. Also
+                // when bary_coord came from another barycentric input first.
+                if (runtime_info.hw.fs.per_sample_shading && !ValidId(sample_index)) {
                     sample_index =
                         DefineVariable(U32[1], spv::BuiltIn::SampleId, spv::StorageClass::Input);
                     Decorate(sample_index, spv::Decoration::Flat);
@@ -468,9 +473,12 @@ void EmitContext::DefineInputs() {
                 Decorate(attr_id, primary == Qualifier::Flat ? spv::Decoration::Flat
                                                              : spv::Decoration::NoPerspective);
             }
-            if (auxiliary != Qualifier::None) {
-                Decorate(attr_id, auxiliary == Qualifier::Centroid ? spv::Decoration::Centroid
-                                                                   : spv::Decoration::Sample);
+            // gow3: Sample makes Vulkan run the shader per sample; without per-sample shading
+            // the PS4 interpolates such an input once per pixel.
+            if (auxiliary == Qualifier::Centroid) {
+                Decorate(attr_id, spv::Decoration::Centroid);
+            } else if (auxiliary == Qualifier::Sample && runtime_info.hw.fs.per_sample_shading) {
+                Decorate(attr_id, spv::Decoration::Sample);
             }
             input_params[i] = GetAttributeInfo(AmdGpu::NumberFormat::Float, attr_id, num_components,
                                                false, false, primary == Qualifier::PerVertex);

@@ -163,6 +163,10 @@ Id EmitGetAttribute(EmitContext& ctx, IR::Attribute attr, u32 comp, u32 index) {
             return ctx.OpLoad(
                 ctx.F32[1],
                 ctx.OpAccessChain(ctx.input_f32, ctx.bary_coord_smooth_sample, ctx.ConstU32(comp)));
+        } else if (!ctx.runtime_info.hw.fs.per_sample_shading) {
+            // gow3: shaded per pixel, as on the PS4 without ps_iter_samples: the pixel's
+            // barycentrics (SampleId would make Vulkan shade per sample).
+            return ctx.OpCompositeExtract(ctx.F32[1], ctx.OpLoad(ctx.F32[3], ctx.bary_coord), comp);
         } else {
             return ctx.OpCompositeExtract(
                 ctx.F32[1],

@@ -64,8 +64,10 @@ bool LowOnCommit() {
 
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
-static constexpr u32 ShaderBinaryVersion = 13u; // gow3: SDWA VOPC writes its SGPR destination (SD)
-static constexpr u32 ShaderMetaVersion = 7u; // gow3: ImageResource::needs_native
+// gow3: sample barycentrics and Sample inputs per pixel without per-sample shading
+static constexpr u32 ShaderBinaryVersion = 14u;
+// gow3: HwFragmentRuntimeInfo::per_sample_shading
+static constexpr u32 ShaderMetaVersion = 8u;
 static constexpr u32 PipelineKeyVersion = 6u; // gow3: GraphicsPipelineKey::ps_iter_samples
 } // namespace Serialization
 

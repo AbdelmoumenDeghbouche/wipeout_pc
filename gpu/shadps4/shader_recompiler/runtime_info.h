@@ -229,6 +229,12 @@ struct HwFragmentRuntimeInfo {
     bool clip_distance_emulation{false};
     /// gow3: writes the object motion vector to MotionVectors::Output.
     bool motion_vectors{false};
+    /// gow3: the pipeline shades once per sample (DB_EQAA ps_iter_samples with sample inputs,
+    /// sampleShadingEnable). Without it sample-position barycentrics and sample-qualified
+    /// inputs are read per pixel, as on the PS4: through SampleId or the Sample decoration
+    /// Vulkan would run the shader per sample, which VK_NV_framebuffer_mixed_samples does not
+    /// allow with fewer colour than raster samples (a GPU fault on NVIDIA, WipEout Pro mode).
+    bool per_sample_shading{false};
 
     bool operator==(const HwFragmentRuntimeInfo& other) const noexcept {
         return std::ranges::equal(color_buffers, other.color_buffers) &&
@@ -239,6 +245,7 @@ struct HwFragmentRuntimeInfo {
                dual_source_blending == other.dual_source_blending &&
                clip_distance_emulation == other.clip_distance_emulation &&
                motion_vectors == other.motion_vectors &&
+               per_sample_shading == other.per_sample_shading &&
                std::ranges::equal(inputs.begin(), inputs.begin() + num_inputs, other.inputs.begin(),
                                   other.inputs.begin() + num_inputs);
     }

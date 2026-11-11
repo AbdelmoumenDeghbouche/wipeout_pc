@@ -31,6 +31,14 @@ int main() {
     assert(PassCensus::ResolveSamplePath({4}, 4, false, false, false) == SamplePath::Equal);
     // No colour target at all (depth-only pass).
     assert(PassCensus::ResolveSamplePath({}, 2, true, false, false) == SamplePath::Equal);
+    // A fragment shader that runs per sample: the NV path does not allow sample shading with
+    // fewer colour than raster samples (WipEout's Pro-mode menu ship faulted the GPU), so the
+    // colour samples are forced to the depth samples. The AMD path allows it.
+    assert(PassCensus::ResolveSamplePath({1}, 4, true, false, true, true) ==
+           SamplePath::ForcedEqual);
+    assert(PassCensus::ResolveSamplePath({1}, 4, true, true, true, true) == SamplePath::MixedAmd);
+    assert(PassCensus::ResolveSamplePath({4}, 4, true, false, true, true) == SamplePath::Equal);
+    assert(PassCensus::ResolveSamplePath({1}, 4, true, false, true, false) == SamplePath::MixedNv);
 
     assert(std::string(PassCensus::Name(SamplePath::Equal)) == "equal");
     assert(std::string(PassCensus::Name(SamplePath::MixedAmd)) == "mixed-amd");
