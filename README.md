@@ -5,8 +5,11 @@ style of [bbport](https://github.com/deadinside28/bloodborne_pc): the game's ori
 code runs directly on the PC's processor, a runtime replaces the PS4 system libraries, and the
 graphics are translated to Vulkan by the shadPS4 video core. There is no CPU emulator.
 
-> **Status: playable, in active development. Menus and races (HD and 2048) play above 60 FPS.**
-> See [Progress](#progress).
+> **Status: playable. Menus and races (HD and 2048) play above 60 FPS.** See [Progress](#progress).
+> The project is now community-maintained: pull requests are reviewed by trusted contributors and
+> merged by a bot, and a new release comes out every Sunday. See [CONTRIBUTING.md](CONTRIBUTING.md).
+
+> 💙 **Like the port? You can donate with PayPal to `a.deghbouche@esi-sba.dz`.** See [Donate](#donate).
 
 For contributors: [build and debug on Windows](docs/windows-debug.md), or optionally [edit from WSL2](docs/windows-debug-wsl.md). Debugging scripts and tests are versioned; GDB and the compiler are installed as development dependencies.
 
@@ -24,6 +27,16 @@ Requirements: Windows 10 or 11 (64-bit), a CPU with AVX, a GPU with Vulkan 1.3. 
 > This project is not affiliated with Sony Interactive Entertainment, XDev, Clever Beans or EPOS
 > Game Studios. WipEout is a trademark of Sony Interactive Entertainment.
 
+## Donate
+
+The port is free and I made it in my free time. If you want to thank me or help it go on, you can
+send a donation with **PayPal** to:
+
+**a.deghbouche@esi-sba.dz**
+
+In the PayPal app or on [paypal.com](https://www.paypal.com): **Send**, enter the
+email above, then the amount. Thank you!
+
 ## Help make it better
 
 - ⭐ **Star the repo** if you like it. It helps other players find the port.
@@ -33,7 +46,7 @@ Requirements: Windows 10 or 11 (64-bit), a CPU with AVX, a GPU with Vulkan 1.3. 
 - 💡 **Want something?** Feature requests are welcome too. Open an issue and tell me what you
   would like.
 - 🛠️ **Can test or code?** Reports from AMD, Intel, Linux and Steam Deck players help a lot, and
-  pull requests are welcome.
+  pull requests are welcome. How they get merged: [CONTRIBUTING.md](CONTRIBUTING.md).
 
 Known problems are in the [open issues](https://github.com/AbdelmoumenDeghbouche/wipeout_pc/issues).
 Thanks to everyone who has played, tested and reported so far!
