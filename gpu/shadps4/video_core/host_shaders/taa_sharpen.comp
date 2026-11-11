@@ -2,12 +2,18 @@
 // RCAS on the resolved scene only. The unsharpened history and HUD are untouched.
 // Strength 0..2: above 1 the RCAS change is extrapolated (stronger than AMD's maximum). The
 // same pass sharpens FSR 3/4 output beyond their own RCAS (LDR_OUTPUT: the 8-bit UI image).
+// SCENE_R11G11B10 (wipeout): the result goes into the game's scene color itself, in place of the
+// RGBA16F image upscale_merge.comp then copied into it (RGB only: the format has no alpha). The
+// value is rounded to the scene format once instead of through half floats first: the same bits
+// where conversions truncate (Lavapipe), at most the last bit where they round to nearest.
 #version 450
 #extension GL_GOOGLE_include_directive : require
 layout(local_size_x = 8, local_size_y = 8) in;
 layout(binding = 0, rgba32f) uniform readonly image2D resolved_img;
 #ifdef LDR_OUTPUT
 layout(binding = 1, rgba8) uniform writeonly image2D result_img;
+#elif defined(SCENE_R11G11B10)
+layout(binding = 1) uniform writeonly image2D result_img;
 #else
 layout(binding = 1, rgba16f) uniform writeonly image2D result_img;
 #endif

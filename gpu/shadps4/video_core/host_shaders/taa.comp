@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 // Native-resolution TAA: unjitter, motion reprojection, depth rejection and neighborhood
 // clipping. History contains scene RGB and depth in alpha; HUD never enters the history.
+// TAA_DEFAULT_SWITCHES: the build for normal use, chosen while every switch below is at its
+// default (RecordTaa): read from push constants, the off-by-default switches cost their work in
+// every pixel even when they are off.
 #version 450
 layout(local_size_x = 8, local_size_y = 8) in;
 layout(binding = 0) uniform sampler2D color_tex;
@@ -13,7 +16,8 @@ layout(binding = 6, rgba16f) uniform writeonly image2D diagnostic_img;
 layout(push_constant) uniform Params {
     vec2 jitter;
     uint reset_history;
-    uint pad; // bits 0-7: diagnostic output (GOW3_TAA_DIAGNOSTICS); 8-12: A/B switches
+    uint pad; // bits 0-7: diagnostic output (GOW3_TAA_DIAGNOSTICS); 8-12: A/B switches;
+              // 31: no result_img (the sharpen pass makes the result from the history)
     vec4 proj;
     vec4 prev_proj;
     vec4 previous_z;
@@ -76,7 +80,11 @@ void main() {
     ivec2 p = ivec2(gl_GlobalInvocationID.xy);
     ivec2 size = imageSize(result_img);
     if (any(greaterThanEqual(p, size))) return;
+#ifdef TAA_DEFAULT_SWITCHES
+    const uint diag = 0u, variant = 0u;
+#else
     const uint diag = pad & 0xffu, variant = pad >> 8;
+#endif
     vec2 current_pos = vec2(p) + jitter;
     ivec2 color_source = clamp(ivec2(floor(current_pos + 0.5)), ivec2(0), size - 1);
     ivec2 source = color_source;
@@ -212,7 +220,8 @@ void main() {
     }
     // Optional diagnostic alpha; normal output remains opaque.
     vec3 output_color = diag == 2 ? current : diag == 3 ? diagnostic_history : result;
-    imageStore(result_img, p, vec4(output_color, diag != 0 ? history_weight : 1.0));
+    if ((pad & 0x80000000u) == 0u)
+        imageStore(result_img, p, vec4(output_color, diag != 0 ? history_weight : 1.0));
     imageStore(next_history, p, vec4(result, depth));
     if (diag != 0) imageStore(diagnostic_img,p,
         vec4(diag == 2 ? diagnostic_direct : diagnostic_history,

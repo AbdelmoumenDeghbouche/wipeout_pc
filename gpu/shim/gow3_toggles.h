@@ -60,6 +60,11 @@ enum : std::uint64_t {
     OrderedGuestWrites = 1ull << 49,
     SceneHalfRes = 1ull << 50, ///< live scaling also reduces the 960x540 post targets
     UpdateImageFastPath = 1u << 30,
+    /// TAA shortcuts that keep the image (vk_temporal_upscaler.cpp RecordTaa): the resolve built
+    /// without the A/B switches below while all of them are at their default, and the sharpen pass
+    /// writing the scene color itself instead of an image a third pass copies into it. Bit set:
+    /// both off (the old passes).
+    TaaFastPaths = 1ull << 31,
     // TAA A/B in one run: optional techniques, off by default (no measured gain, 2026-10-02).
     TaaTonemapBlend = 1ull << 51,
     TaaClip = 1ull << 52,
