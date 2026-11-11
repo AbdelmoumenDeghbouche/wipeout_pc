@@ -35,6 +35,7 @@ struct Entry {
     std::string state; ///< census line of the first pipeline (vk_pass_census.h)
     std::string note;
     std::vector<std::string> buffers; ///< dumped constants, per draw
+    std::vector<std::string> ordered_draws;
 };
 
 // GPU thread only.
@@ -147,6 +148,7 @@ void Write(VAddr presented) {
         for (const auto& [t, storage] : e.sampled) {
             std::fprintf(f, "  %s %s\n", storage ? "writes " : "samples", Describe(t).c_str());
         }
+        for (const auto& draw : e.ordered_draws) std::fprintf(f, "%s\n", draw.c_str());
         if (!e.note.empty()) {
             std::fprintf(f, "  note: %s\n", e.note.c_str());
         }
@@ -271,6 +273,16 @@ void FrameCapture::Draw(u64 vs_hash, u64 ps_hash, u32 num_indices, u32 num_insta
         return;
     }
     auto& e = entries.back();
+    if (e.ordered_draws.size() < 512 &&
+        std::ranges::any_of(e.colors, [](const Target& t) {
+            return FrameCapture::IsDisplayBuffer(t.address);
+        })) {
+        auto text = std::format("  ordered draw {} vs {:016x} ps {:016x} indices {} instances {}",
+                                e.draws, vs_hash, ps_hash, num_indices, num_instances);
+        for (const auto& [target, storage] : pending_sampled)
+            text += std::format("\n    {} {}", storage ? "writes" : "samples", Describe(target));
+        e.ordered_draws.push_back(std::move(text));
+    }
     ++e.draws;
     e.indices += u64(num_indices) * std::max(num_instances, 1u);
     AddShader(e, vs_hash);
