@@ -44,7 +44,11 @@ __attribute__((naked)) static ABI void free_trampoline(__attribute__((unused)) v
             "push %r14\n\t"
             "push %r13\n\t"
             "push %r12\n\t"
+#ifdef __APPLE__
+            "jmp *_gow3_heap_free_resume(%rip)");
+#else
             "jmp *gow3_heap_free_resume(%rip)");
+#endif
 }
 static uint64_t image_base;
 static void *heap_a;      /* the handle */
