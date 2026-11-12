@@ -551,7 +551,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'launcher_gamepad': True, 'menu_fps_cap': True, 'photo_flare': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
+                'update_popup': True, 'launcher_gamepad': True, 'menu_fps_cap': True, 'photo_flare': True, 'adaptive_reflections': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
                 'controls_layout': 2,
                 'glyph_style': 'off', 'eliminator_limit': '2000'}
 
@@ -1333,6 +1333,8 @@ def game_environment(s):
         env['GOW3_MENU_FPS'] = '0'
     if not s.get('photo_flare', True):  # #199: the photo mode's lens flare left out
         env['GOW3_PHOTO_FLARE'] = '0'
+    if not s.get('adaptive_reflections', True):  # the camera ship's reflection always at its full rate
+        env['GOW3_CUBE_BUDGET'] = 'off'
     if s.get('update_dir'):
         env['GOW3_PATCH_DIR'] = s['update_dir']
     if not WINDOWS:
@@ -2221,6 +2223,9 @@ class Launcher:
         self.check(f, 'menu_fps_cap', 'app', _('Menus at 60 FPS'),
                    _('On: the menus and the pause menu run at 60 FPS like on PS4. Off: at the frame rate limit '
                      '(some menu animations then run faster).'))
+        self.check(f, 'adaptive_reflections', 'app', _('Adaptive ship reflections'),
+                   _("On: while the game runs below its frame rate, your ship's reflection of the track updates "
+                     'half as often, as it does with two players. Off: always at the full rate.'))
         self.row(f, _('Frames queued'), self.choice(f, 'frames_queued', 'ini', FRAMES_QUEUED),
                  _('1 is the lowest input latency; more can raise FPS when the graphics card is the limit.'))
         self.section(f, _('Shaders'))

@@ -105,6 +105,8 @@ extern volatile int runtime_pad_opened; /* the game opened a pad (start watch, #
 int runtime_pad_describe(void);
 int runtime_pad_second_user(void);
 void runtime_user_events(void);
+void runtime_cube_budget_poll(void); /* WipEout: reflection cube faces follow the frame rate */
+void runtime_set_target_fps(double fps); /* the frame rate the present thread aims at */
 uintptr_t runtime_rtc_resolve(const char *name);
 const char *runtime_file_user_dir(void);
 void runtime_savedata_configure(const char *title);
@@ -126,6 +128,7 @@ void runtime_json_report(void);
 const char *runtime_thread_name(void *handle);
 uint64_t runtime_memory_flexible_available(void);
 unsigned char *runtime_image_base(void);
+uint64_t runtime_image_size(void);
 /* Discord Rich Presence (runtime_presence.c): the game's state for scripts/discord_presence.py,
  * written to GOW3_PRESENCE_FILE as JSON whenever it changes. Without a file every call is a no-op. */
 void runtime_presence_configure(const char *path);

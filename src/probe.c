@@ -47,6 +47,7 @@ static uint64_t import_count;
 static unsigned char *image;
 static uint64_t image_size;
 unsigned char *runtime_image_base(void) { return image; }
+uint64_t runtime_image_size(void) { return image_size; }
 /* WipEout (#118): the byte the game sets while a race is paused, in the pause menu and in photo
  * mode (0x1012712; photo mode does nothing unless it is 1). Only when the game's store of it at
  * 0x416300 is where expected, so another build reads 0. */

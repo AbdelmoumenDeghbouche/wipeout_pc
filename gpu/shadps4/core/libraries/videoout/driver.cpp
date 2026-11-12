@@ -23,6 +23,7 @@
 extern "C" int runtime_music_in_race(void); // src/runtime_music.c
 extern "C" int runtime_music_in_zone(void); // src/runtime_music.c
 extern "C" int runtime_wipeout_paused(void); // src/probe.c
+extern "C" void runtime_set_target_fps(double fps); // src/runtime_extra.c
 #include "gow3_graphics.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
@@ -739,7 +740,17 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
         const double hz = limit > display_hz && limit - display_hz < 0.5 ? display_hz : limit;
         return std::chrono::nanoseconds(u64(1e9 / hz + 0.5));
     };
+    // gow3: the rate the frames aim at, for what follows the frame rate (WipEout's reflection
+    // cubes): the limit, or the vblank rate without one, and the display's rate with VSync.
+    const auto report_target = [&](u32 limit) {
+        double target = limit ? double(limit) : 1e9 / double(vblank_period.count());
+        if (Gow3Settings::Get().vsync && display_hz > 0.0 && display_hz < target) {
+            target = display_hz;
+        }
+        runtime_set_target_fps(target);
+    };
     u32 frame_limit = current_limit();
+    report_target(frame_limit);
     auto frame_period = limit_period(frame_limit);
     auto next_flip = std::chrono::steady_clock::now();
     std::printf("VideoOut: vblank %.3f Hz, frame limit %u FPS (flips %.3f ms apart)\n",
@@ -766,6 +777,7 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
             immediate_flips = limit != 0;
             next_flip = std::chrono::steady_clock::now();
             std::printf("VideoOut: frame limit %u FPS\n", limit);
+            report_target(limit);
         }
         timer.Start();
         const auto tick_deadline = std::chrono::steady_clock::now() + vblank_period;
