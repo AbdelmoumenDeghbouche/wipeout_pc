@@ -1,3 +1,4 @@
+import json
 import os
 from pathlib import Path
 import queue
@@ -873,7 +874,8 @@ class LauncherGamepadSwitchTest(unittest.TestCase):
         # #179: players who move the mouse with the stick turn the launcher's controller off.
         for on, calls in ((True, 1), (False, 0)):
             app = types.SimpleNamespace(var=lambda key, store, on=on: types.SimpleNamespace(get=lambda: on),
-                                        root=mock.Mock(), gamepad_action=mock.Mock(), poll_gamepad=None)
+                                        root=mock.Mock(), gamepad_action=mock.Mock(), poll_gamepad=None,
+                                        in_front=lambda: True)
             app.root.wm_frame.return_value = '0x10'
             with mock.patch.object(launcher, 'xinput_buttons', return_value=0x1000), \
                     mock.patch.object(launcher, 'ctypes', create=True) as fake_ctypes:
@@ -908,6 +910,39 @@ class MenuFpsCapTest(unittest.TestCase):
             os.environ.pop('GOW3_MENU_FPS', None)
             self.assertNotIn('GOW3_MENU_FPS', launcher.game_environment(base))
             self.assertEqual(launcher.game_environment(dict(base, menu_fps_cap=False))['GOW3_MENU_FPS'], '0')
+
+
+class LinuxLauncherTest(unittest.TestCase):
+    def test_joystick_events_give_the_launcher_buttons(self):
+        # Knack #28: /dev/input/js* events (time, value, type, number), keys by kernel code.
+        pad = launcher.LinuxPad()
+        pad.keys, pad.axes = (0x130, 0x131, 0x133, 0x134, 0x136, 0x137, 0x13a, 0x13b), (0x00, 0x01, 0x10, 0x11)
+        event = lambda value, kind, number: struct.pack('<IhBB', 0, value, kind, number)
+        pad.feed(event(0, 0x81, 0) + event(0, 0x82, 1))  # the starting state: nothing held
+        self.assertEqual(pad.buttons(), 0)
+        pad.feed(event(1, 1, 0) + event(-32767, 2, 1) + event(1, 1, 7))  # A, stick up, Start
+        self.assertEqual(pad.buttons(), 0x1000 | 0x1 | 0x10)
+        pad.feed(event(0, 1, 0) + event(0, 2, 1) + event(32767, 2, 2))  # released; hat right
+        self.assertEqual(pad.buttons(), 0x10 | 0x8)
+
+    def test_linux_offers_the_appimage_and_swaps_it_in(self):
+        import io
+        release = {'tag_name': 'windows-v9.9.9', 'html_url': 'p', 'body': '', 'assets': [
+            {'name': 'wipeout-windows.zip', 'browser_download_url': 'z'},
+            {'name': 'wipeout-x86_64.AppImage', 'browser_download_url': 'a'}]}
+        response = lambda *_a, **_k: io.BytesIO(json.dumps(release).encode())
+        for windows, url in ((True, 'z'), (False, 'a')):
+            with mock.patch.object(launcher, 'WINDOWS', windows),                     mock.patch.object(launcher.urllib.request, 'urlopen', response):
+                self.assertEqual(launcher.latest_release()[1], url)
+        with tempfile.TemporaryDirectory() as folder:
+            running, new = Path(folder) / 'w.AppImage', Path(folder) / 'w.AppImage.part'
+            running.write_bytes(b'old')
+            new.write_bytes(b'new')
+            with mock.patch.object(launcher.subprocess, 'Popen') as started:
+                launcher.install_appimage(new, running)
+            self.assertEqual(running.read_bytes(), b'new')
+            self.assertFalse(new.exists())
+            self.assertEqual(started.call_args[0][0], [str(running)])
 
 
 class UpdateDownloadTest(unittest.TestCase):
