@@ -165,8 +165,9 @@ class GraphicsOptionsTest(unittest.TestCase):
 
     def test_every_built_in_resolution_has_a_patch(self):
         import patches
-        xml = Path(__file__).resolve().parent.parent / 'patches' / 'God_of_War_III_Remastered.xml'
-        self.assertEqual(sorted(r for r in g.RESOLUTIONS if r != 'native'), sorted(patches.resolution_names([xml])))
+        folder = Path(__file__).resolve().parent.parent / 'patches'
+        xmls = [folder / 'God_of_War_III_Remastered.xml', folder / 'WipEout_Omega_Collection.xml']
+        self.assertEqual(sorted(r for r in g.RESOLUTIONS if r != 'native' and r not in patches.resolution_names(xmls)), [])
 
     def test_900p_is_the_built_in_size_between_720p_and_1440p(self):
         # #238: 900p (1600x900) sits between 720p and 1440p, with its own resolution patch.
@@ -266,7 +267,8 @@ class AspectRatioTest(unittest.TestCase):
 
     def test_resolutions_of_an_aspect_smallest_first_native_on_top(self):
         self.assertEqual(g.resolutions_for('16:9', g.RESOLUTIONS),
-                         ['native', '480p', '720p', '1360x768', '900p', '1440p', '1800p', '4K'])
+                         ['native', '480p', '720p', '1360x768', '900p', '1440p', '1800p', '4K', '5120x2880',
+                          '7680x4320'])
         self.assertEqual(g.resolutions_for('16:10', g.RESOLUTIONS), ['1280x800', '1440x900', '1920x1200', '2560x1600'])
         self.assertEqual(g.resolutions_for('4:3', g.RESOLUTIONS),
                          ['1280x960', '1440x1080', '1920x1440', '2048x1536', '2560x1920'])

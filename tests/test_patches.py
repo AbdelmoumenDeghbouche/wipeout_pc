@@ -429,7 +429,8 @@ class HalfResolutionTests(unittest.TestCase):
         names = [m.get('Name') for m in ET.parse(WIPEOUT).getroot().iter('Metadata')]
         self.assertEqual(names, ['Resolution Patch - 2560x1080', 'Resolution Patch - 5120x2160',
                                  'Resolution Patch - 720p', 'Resolution Patch - 900p',
-                                 'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 3440x1440',
+                                 'Resolution Patch - 1440p', 'Resolution Patch - 4K', 'Resolution Patch - 5120x2880',
+                                 'Resolution Patch - 7680x4320', 'Resolution Patch - 3440x1440',
                                  'Resolution Patch - 1920x1200', 'Resolution Patch - 2560x1600', 'Resolution Patch - 2880x1800',
                                  'Resolution Patch - 1920x1440',
                                  'Resolution Patch - 3840x1600', 'Resolution Patch - 5120x1440',

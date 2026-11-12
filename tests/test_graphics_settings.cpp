@@ -91,18 +91,18 @@ int main() {
         // ones and keep their names through a load and a save; repeated or built-in names are not added twice.
         _putenv_s("GOW3_EXTRA_RESOLUTIONS", "3840x1080;2880x1200;;2880x1200;4K;3440x1440");
         const auto names = G::ResolutionNames();
-        assert(names.size() == 24 && names[22] == "3840x1080" && names[23] == "2880x1200");
+        assert(names.size() == 26 && names[24] == "3840x1080" && names[25] == "2880x1200");
         {
             std::ofstream out(path);
             out << "render_resolution=2880x1200\n";
         }
         Gow3Settings::Load();
-        assert(v.render_resolution == 23);
+        assert(v.render_resolution == 25);
         Gow3Settings::Save();
         assert(Read(path).find("render_resolution=2880x1200\n") != std::string::npos);
         _putenv_s("GOW3_EXTRA_RESOLUTIONS", "");  // the mod is off: its resolution is unknown, so native
         Gow3Settings::Load();
-        assert(v.render_resolution == 0 && G::ResolutionNames().size() == 22);
+        assert(v.render_resolution == 0 && G::ResolutionNames().size() == 24);
     }
 
     {
