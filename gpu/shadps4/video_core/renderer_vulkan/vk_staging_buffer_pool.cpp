@@ -50,7 +50,11 @@ StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& sched
     const char* env = std::getenv("GOW3_STAGING_KEEP_MB");
     keep_blocks = (env ? std::strtoull(env, nullptr, 10) : 512) * 1_MB / BLOCK_SIZE;
     Ring& ring = rings[u32(MemoryType::HostUncached)];
-    for (u64 i = 0; i < PREWARM_BLOCKS; ++i) {
+    // gow3: every block the ring may keep is made and written here. Only PREWARM_BLOCKS were,
+    // so the first race made the rest in its first frame, where the kernel populated them
+    // under the texture uploads (a longer freeze). With memory low TrimRing still takes the
+    // ring back to PREWARM_BLOCKS.
+    for (u64 i = 0; i < std::max(keep_blocks, PREWARM_BLOCKS); ++i) {
         auto& block = ring.blocks.emplace_back(Block{
             .buffer = std::make_unique<VideoCore::StreamBuffer>(
                 instance, scheduler, MemoryType::HostUncached, BLOCK_SIZE),
