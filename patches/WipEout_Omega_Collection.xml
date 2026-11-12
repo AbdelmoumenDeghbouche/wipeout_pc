@@ -371,16 +371,18 @@
             <Line Type="bytes" Address="0x00bfbe0c" Value="4189c6904189cf90" Pattern="41 be 00 0f 00 00 41 bf 70 08 00 00 bf 30 00 00 00 44 0f 44 f0 44 0f 44 f9" At="17"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1920x1200" Note="Renders at 1920x1200 (16:10): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the taller picture shows a little less at the sides. HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1920x1200" Note="Renders at 1920x1200 (16:10): output and half-resolution buffers at that size and the camera aspect ratio set to match. The view is as wide as at 16:9 and a little taller (#125): the field of view grows with the height. HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <Line Type="bytes" Address="0x00c60d00" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
             <Line Type="bytes" Address="0x00c60d04" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
+            <Line Type="bytes" Address="0x00c60d0c" Value="b5a61a3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="16"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
             <Line Type="bytes" Address="0x00c60d40" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
             <Line Type="bytes" Address="0x00c60d44" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
+            <Line Type="bytes" Address="0x00c60d4c" Value="b5a61a3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="16"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="80070000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -422,16 +424,18 @@
             <Line Type="bytes" Address="0x00bfbe0c" Value="4189c6904189cf90" Pattern="41 be 00 0f 00 00 41 bf 70 08 00 00 bf 30 00 00 00 44 0f 44 f0 44 0f 44 f9" At="17"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 2560x1600" Note="Renders at 2560x1600 (16:10): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the taller picture shows a little less at the sides. HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 2560x1600" Note="Renders at 2560x1600 (16:10): output and half-resolution buffers at that size and the camera aspect ratio set to match. The view is as wide as at 16:9 and a little taller (#125): the field of view grows with the height. HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <Line Type="bytes" Address="0x00c60d00" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
             <Line Type="bytes" Address="0x00c60d04" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
+            <Line Type="bytes" Address="0x00c60d0c" Value="b5a61a3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="16"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
             <Line Type="bytes" Address="0x00c60d40" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
             <Line Type="bytes" Address="0x00c60d44" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
+            <Line Type="bytes" Address="0x00c60d4c" Value="b5a61a3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="16"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="000a0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -473,7 +477,7 @@
             <Line Type="bytes" Address="0x00bfbe0c" Value="4189c6904189cf90" Pattern="41 be 00 0f 00 00 41 bf 70 08 00 00 bf 30 00 00 00 44 0f 44 f0 44 0f 44 f9" At="17"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 2880x1800" Note="Renders at 2880x1800 (16:10): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the taller picture shows a little less at the sides. HUD and menus stay 16:9 in the middle of the screen. Outside PS4 Pro mode the game gets 1 GB more of its own video memory for the bigger picture (DMEM to 1024 MB), so big races load." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 2880x1800" Note="Renders at 2880x1800 (16:10): output and half-resolution buffers at that size and the camera aspect ratio set to match. The view is as wide as at 16:9 and a little taller (#125): the field of view grows with the height. HUD and menus stay 16:9 in the middle of the screen. Outside PS4 Pro mode the game gets 1 GB more of its own video memory for the bigger picture (DMEM to 1024 MB), so big races load." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- The game's video memory pool: 0x643180 takes {size, 256 MB, ...} at 0x86bb60 (PS4) or
                  0x86bb80 (PS4 Pro, 4736 MB, left as it is: on an 8 GB card Pro mode at 4K then ran out
@@ -485,10 +489,12 @@
             <Line Type="bytes" Address="0x00c60d08" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <Line Type="bytes" Address="0x00c60d00" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
             <Line Type="bytes" Address="0x00c60d04" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
+            <Line Type="bytes" Address="0x00c60d0c" Value="b5a61a3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="16"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="cdcccc3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
             <Line Type="bytes" Address="0x00c60d40" Value="cdcc4c3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
             <Line Type="bytes" Address="0x00c60d44" Value="cdcc4c40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
+            <Line Type="bytes" Address="0x00c60d4c" Value="b5a61a3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="16"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="400b0000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
@@ -530,16 +536,18 @@
             <Line Type="bytes" Address="0x00bfbe0c" Value="4189c6904189cf90" Pattern="41 be 00 0f 00 00 41 bf 70 08 00 00 bf 30 00 00 00 44 0f 44 f0 44 0f 44 f9" At="17"/>
         </PatchList>
     </Metadata>
-    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1920x1440" Note="Renders at 1920x1440 (4:3): output and half-resolution buffers at that size and the camera aspect ratio set to match. The camera keeps its vertical field of view, so the taller picture shows less at the sides. HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+    <Metadata Title="WipEout Omega Collection" Name="Resolution Patch - 1920x1440" Note="Renders at 1920x1440 (4:3): output and half-resolution buffers at that size and the camera aspect ratio set to match. The view is as wide as at 16:9 and taller (#125): the field of view grows with the height. HUD and menus stay 16:9 in the middle of the screen." Author="AbdelmoumenDeghbouche (sites by d4g)" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
         <PatchList>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d08" Value="abaaaa3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="12"/>
             <Line Type="bytes" Address="0x00c60d00" Value="abaa2a3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="4"/>
             <Line Type="bytes" Address="0x00c60d04" Value="abaa2a40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="8"/>
+            <Line Type="bytes" Address="0x00c60d0c" Value="94732f3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 9a 99" At="16"/>
             <!-- camera aspect ratio (16/9) -->
             <Line Type="bytes" Address="0x00c60d48" Value="abaaaa3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="12"/>
             <Line Type="bytes" Address="0x00c60d40" Value="abaa2a3f" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="4"/>
             <Line Type="bytes" Address="0x00c60d44" Value="abaa2a40" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="8"/>
+            <Line Type="bytes" Address="0x00c60d4c" Value="94732f3c" Pattern="00 00 00 bf f3 8e 63 3f f3 8e 63 40 39 8e e3 3f 35 fa 0e 3c 00 00 80 bf 00 00" At="16"/>
             <!-- output size: minimum width -->
             <Line Type="bytes" Address="0x00bfa2e8" Value="80070000" Pattern="7a 00 00 8a 45 a0 b9 80 07 00 00 66 bf 80 07 bb" At="7"/>
             <!-- output size: width cap -->
