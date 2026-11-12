@@ -8,6 +8,8 @@
 #                                      `bench-run.sh N A B <name>` replays it), else
 #                                      ~/diag/route-shifted.pad.
 #   route-record.sh list               the saved routes: length and whether the marks are written.
+# A route whose first input comes earlier than 18 s after the start is moved later as a whole on "stop"
+# (ROUTE_MIN_FIRST_MS, 0 to keep it as recorded): earlier inputs are not taken reliably on a replay.
 set -u
 DIAG=$HOME/diag; ROUTES=$DIAG/routes
 export DISPLAY=:0 XAUTHORITY=$(ls /run/user/1000/xauth_* 2>/dev/null | head -1)
@@ -56,6 +58,18 @@ stop)
     [ -n "$NAME" ] && { mkdir -p "$ROUTES"; OUT=$ROUTES/$NAME.pad; }
     awk -v s="$shift_ms" '{$1 = $1 + s; print}' "$DIAG/route.pad" > "$OUT"
     echo "shift $shift_ms ms: $OUT ($(wc -l < "$OUT") samples)"
+    # A replay does not take inputs made in the first seconds after the start reliably (two routes whose
+    # first press came 7-10 s in stayed in the menus; the routes that replay press first at 18 s or later).
+    # A route that starts earlier is moved later as a whole; ROUTE_MIN_FIRST_MS=0 leaves it as recorded.
+    min_first=${ROUTE_MIN_FIRST_MS:-18000}
+    # The first input: a button, a trigger, or a stick pushed well off centre (not stick drift).
+    first=$(awk 'function off(v) { return v < 88 || v > 168 }
+                 $2 != 0 || off($3) || off($4) || off($5) || off($6) || $7 > 40 || $8 > 40 {print $1; exit}' "$OUT")
+    if [ -n "$first" ] && [ "$first" -lt "$min_first" ]; then
+        add=$((min_first - first))
+        awk -v a="$add" -v f="$first" '$1 >= f {$1 = $1 + a} {print}' "$OUT" > "$OUT.tmp" && mv "$OUT.tmp" "$OUT"
+        echo "first input was $first ms after the start: the route is moved $add ms later (first input now at $min_first ms)"
+    fi
     [ -n "$NAME" ] && echo "write $OUT.marks (countdown_ms, photo_ms), then: bench-run.sh N A B $NAME" ;;
 list)
     for f in "$ROUTES"/*.pad; do
