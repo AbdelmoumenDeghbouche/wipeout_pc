@@ -67,6 +67,9 @@ are not ready), so it is no guide on the Deck.
 Hands-off, same route every run. Record the pad route once: on the Deck run
 `route-record.sh start <build dir> <name>`, play the route, then `route-record.sh stop`, which
 writes `~/diag/routes/<name>.pad` (without a name, `~/diag/route-shifted.pad`).
+A replay does not reliably take inputs made in the first seconds after the start, so `stop` moves a
+route whose first input comes before 18 s later as a whole and says so (`ROUTE_MIN_FIRST_MS=0` keeps
+it as recorded).
 `route-record.sh list` shows the saved routes and whether their marks are written, and
 `bench-run.sh <N> <A> <B> <name>` replays one by name. Copy a route worth keeping to
 `tools/deck/routes/<name>.pad`. Write `<name>.pad.marks` by hand: `countdown_ms` is the X press
