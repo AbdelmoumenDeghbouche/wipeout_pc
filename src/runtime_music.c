@@ -426,9 +426,11 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
         const unsigned now_loads=loads;
         /* After a loading screen: the game's music comes back after its silence, or it came back
          * just before the sound banks loaded (Quit in the pause menu, whose silence came first),
-         * or it never stopped: 10 s, or 2 s when the song is of the other scene (#130: after a
-         * finished race the game's music goes on, and the race song played on for 10 s). */
-        if (now_loads!=loads_seen && (silent_frames>=12000 || since_silence<3*48000 || since_load>=(switch_song ? 2 : 10)*48000)) {
+         * or it never stopped: 10 s, or 2 s back in the menus with a race song (#130: after a
+         * finished race the game's music goes on, and the race song played on for 10 s). Not into a
+         * race: there the game's music fades out for the intro a few seconds after the load, and a
+         * race song started at 2 s played a moment, then waited for the race (#180). */
+        if (now_loads!=loads_seen && (silent_frames>=12000 || since_silence<3*48000 || since_load>=(switch_song && !in_race ? 2 : 10)*48000)) {
             loads_seen=now_loads; since_load=0;
             if (heard && (switch_song || !gow3gpu_music_continue())) { runtime_music_step(1); heard=0; }
             switch_song=0;
