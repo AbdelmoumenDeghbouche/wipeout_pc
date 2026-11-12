@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: Copyright 2024-2026 shadPS4 Emulator Project
 // SPDX-License-Identifier: GPL-2.0-or-later
 
+#include <atomic>
 #include <type_traits>
 #include <utility>
 #include <xxhash.h>
@@ -2109,19 +2110,75 @@ bool Rasterizer::IsComputeMetaClear(const Pipeline* pipeline) {
         // Assume if a shader writes metadata without address calculation, it is a clear shader.
         for (const auto& desc : info.buffers) {
             const VAddr address = desc.GetSharp(info).base_address;
-            if (!desc.IsSpecial() && desc.is_written && texture_cache.ClearMeta(address)) {
-                // gow3: the target reads as cleared from now on, also when the game only samples
-                // it and draws nothing into it before. Clearing it at the next bind only left
-                // WipEout's ship select ship in the menus after it (#58).
-                const auto [image_id, clear_value] = texture_cache.MetaTarget(address);
-                if (image_id) {
-                    auto& image = texture_cache.GetImage(image_id);
-                    runtime.ClearImage(&image, {.extent = image.info.resources}, clear_value);
-                }
-                // Assume all slices were updates
-                LOG_TRACE(Render_Vulkan, "Metadata update skipped");
-                return true;
+            if (desc.IsSpecial() || !desc.is_written) {
+                continue;
             }
+            // gow3: a metadata entry is keyed by the address of its first slice. A write that
+            // holds less than every slice's CMask is the game clearing one slice: WipEout
+            // clears a ship's reflection cube face by face, each face's CMask with a write of
+            // its own right before it draws the face, one after the other in memory. Taking the
+            // first face's write for the whole target blanked the faces a frame does not
+            // redraw until a later frame drew them: a flicker on the ships.
+            const u32 written = desc.GetSharp(info).GetSize();
+            VAddr base = address;
+            u32 slice = 0;
+            if (!texture_cache.IsMeta(address)) {
+                // A later slice of a layered target: the write is a whole number of its own
+                // size above the target's CMask.
+                base = 0;
+                for (u32 k = 1; k < 32 && written && address >= u64{k} * written; ++k) {
+                    const VAddr candidate = address - u64{k} * written;
+                    const auto [id, value] = texture_cache.MetaTarget(candidate);
+                    if (!id) {
+                        continue;
+                    }
+                    // One slice's CMask, padding included: 4 bits per 8x8 tile at least.
+                    const auto& target = texture_cache.GetImage(id).info;
+                    if (target.resources.layers > k &&
+                        written >= u64{(target.size.width + 7) / 8} * ((target.size.height + 7) / 8) / 2) {
+                        base = candidate;
+                        slice = k;
+                    }
+                    break;
+                }
+                if (!base) {
+                    continue;
+                }
+            }
+            // gow3: the target reads as cleared from now on, also when the game only samples
+            // it and draws nothing into it before. Clearing it at the next bind only left
+            // WipEout's ship select ship in the menus after it (#58).
+            const auto [image_id, clear_value] = texture_cache.MetaTarget(base);
+            bool one_slice = slice != 0;
+            if (image_id) {
+                auto& image = texture_cache.GetImage(image_id);
+                VideoCore::SubresourceRange range{.extent = image.info.resources};
+                // 4 bits per 8x8 tile, before padding.
+                const u64 slice_cmask = u64{(image.info.size.width + 7) / 8} *
+                                        ((image.info.size.height + 7) / 8) / 2;
+                one_slice |= range.extent.layers > 1 && written < slice_cmask * range.extent.layers;
+                if (one_slice) {
+                    range.base.layer = slice;
+                    range.extent.layers = 1;
+                    static std::atomic<u32> said{0};
+                    if (said.fetch_add(1) < 4) {
+                        std::printf("Fast clear: a %u-byte CMask write clears slice %u of %u of "
+                                    "the %ux%u target at %#llx\n",
+                                    written, slice, image.info.resources.layers,
+                                    image.info.size.width, image.info.size.height,
+                                    static_cast<unsigned long long>(image.info.guest_address));
+                    }
+                }
+                runtime.ClearImage(&image, range, clear_value);
+            }
+            // The cleared state of that slice alone, or of every slice.
+            if (one_slice) {
+                texture_cache.TouchMeta(base, slice, true);
+            } else {
+                texture_cache.ClearMeta(base);
+            }
+            LOG_TRACE(Render_Vulkan, "Metadata update skipped");
+            return true;
         }
     }
     return false;
