@@ -2818,7 +2818,10 @@ class Launcher:
 
     def draw_pad_icon(self, button):
         """The gamepad column's icon of a game button, in the chosen style (L2/R2: the triggers)."""
-        name = self.control_vars['pad'][button].get() or button_icons.GAME_BUTTONS[button]
+        name = self.control_vars['pad'][button].get() or button_icons.GAME_BUTTONS.get(button)
+        if not name:  # the trick button has no gamepad button until one is chosen (#207)
+            self.pad_icons[button].delete('all')
+            return
         button_icons.draw(self.pad_icons[button], name, self.pad_style.get(), self.px(28))
 
     def pad_name(self, label):

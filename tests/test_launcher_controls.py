@@ -890,6 +890,15 @@ class TrickButtonTest(unittest.TestCase):
         self.assertEqual(launcher.control_map({'pad': {'trick': 'y'}}, 'pad'), 'trick=y')
         self.assertIn('trick=B', launcher.keyboard_map({'key': {'trick': 'B'}}))
 
+    def test_the_gamepad_icon_of_an_unbound_trick_button_is_empty(self):
+        # The launcher crashed at start (KeyError 'trick') drawing an icon for a button without a default.
+        icon = mock.Mock()
+        app = types.SimpleNamespace(control_vars={'pad': {'trick': types.SimpleNamespace(get=lambda: '')}},
+                                    pad_icons={'trick': icon}, pad_style=types.SimpleNamespace(get=lambda: 'xbox'),
+                                    px=lambda v: v)
+        launcher.Launcher.draw_pad_icon(app, 'trick')
+        icon.delete.assert_called_once_with('all')
+
 
 class MenuFpsCapTest(unittest.TestCase):
     def test_the_menu_cap_switch_off_lifts_the_60_fps_menus(self):
