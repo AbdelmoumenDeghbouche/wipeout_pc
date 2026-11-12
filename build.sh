@@ -118,6 +118,8 @@ if [[ ${1:-} == --test ]]; then
     out/videodec-test tests/data/tiny.h264
     "$CC" -std=c11 -D_GNU_SOURCE -O2 -g -Wall -Wextra -Werror -I. -Isrc tests/test_json.c src/runtime_json.c -o out/json-test
     out/json-test
+    "$CC" -std=c11 -D_GNU_SOURCE -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_presence.c src/runtime_presence.c -o out/presence-test
+    out/presence-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_services.c -o out/services-test
     out/services-test
     "$CC" -std=c11 -O2 -g -Wall -Wextra -Werror -pthread -I. -Isrc tests/test_matching.c src/runtime_matchserver.c src/runtime_wire.c -o out/matching-test

@@ -125,4 +125,14 @@ void runtime_json_report(void);
 const char *runtime_thread_name(void *handle);
 uint64_t runtime_memory_flexible_available(void);
 unsigned char *runtime_image_base(void);
+/* Discord Rich Presence (runtime_presence.c): the game's state for scripts/discord_presence.py,
+ * written to GOW3_PRESENCE_FILE as JSON whenever it changes. Without a file every call is a no-op. */
+void runtime_presence_configure(const char *path);
+void runtime_presence_file(const char *guest_path); /* a game file the game opened */
+void runtime_presence_room(uint64_t room_id, unsigned members, unsigned slots); /* members 0: no room */
+void runtime_presence_song(const char *text); /* the custom soundtrack's song; "" or NULL: none */
+void runtime_presence_flush(void); /* writes a dirty state now, on this thread (tests) */
+int runtime_presence_json(char *out, size_t size); /* the state as JSON (tests) */
+unsigned runtime_presence_writes(void);
+void runtime_presence_report(void);
 #endif

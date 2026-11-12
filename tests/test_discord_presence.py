@@ -102,8 +102,58 @@ class Framing(unittest.TestCase):
 
 
 class Activity(unittest.TestCase):
-    def test_only_the_start_time_is_shown(self):
-        self.assertEqual(dp.activity(100.9), {'timestamps': {'start': 100}})
+    def test_discords_own_entry_for_the_game_is_used(self):
+        self.assertEqual(dp.CLIENT_ID, '1439067084456726588')
+
+    def test_without_a_state_the_start_time_cover_and_port_show(self):
+        value = dp.activity(100.9)
+        self.assertEqual(value['timestamps'], {'start': 100})
+        self.assertEqual(value['details'], 'Starting the game')
+        self.assertNotIn('state', value)
+        self.assertNotIn('party', value)
+        self.assertEqual(value['assets'], {'large_image': dp.COVER_IMAGE, 'large_text': dp.GAME_NAME,
+                                           'small_image': dp.PORT_IMAGE, 'small_text': dp.PORT_NAME})
+        self.assertEqual(value['buttons'], [{'label': 'Get the PC port', 'url': dp.PORT_URL}])
+        self.assertEqual(dp.activity(5, 'not a state')['details'], 'Starting the game')
+
+    def test_menus_and_races_name_the_scene_track_mode_and_game(self):
+        self.assertEqual(dp.describe({'scene': 'menu'}), ('In the menus', ''))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'vinetak', 'mode': ''}), ('Racing on Vineta K', ''))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'sebencoclimb', 'mode': 'zone'}),
+                         ('Zone on Sebenco Climb', 'WipEout HD'))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'talonsjunction', 'mode': 'elim'}),
+                         ("Eliminator on Talon's Junction", 'WipEout HD Fury'))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'altima', 'mode': 'zbattle'}),
+                         ('Zone Battle on Altima', 'WipEout 2048'))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'zone', 'mode': ''}), ('Zone', 'WipEout HD Fury'))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'det', 'mode': 'det'}), ('Detonator', 'WipEout HD Fury'))
+        self.assertEqual(dp.describe({'scene': 'race', 'track': 'new_track', 'mode': 'odd'}), ('Racing on New Track', ''))
+        self.assertEqual(dp.describe({'scene': 'race'}), ('Racing', ''))
+
+    def test_every_track_bank_has_a_name_and_a_game(self):
+        for key, (name, game) in dp.TRACKS.items():
+            self.assertRegex(key, '^[a-z0-9]+$')
+            self.assertTrue(name or key in ('zone', 'det'), key)
+            self.assertIn(game, ('', dp.HD, dp.FURY, dp.G2048))
+
+    def test_online_room_is_the_party(self):
+        value = dp.activity(1, {'scene': 'menu', 'room': [2, 8, '1000']})
+        self.assertEqual(value['details'], 'In an online lobby')
+        self.assertEqual(value['party'], {'id': 'room-1000', 'size': [2, 8]})
+        value = dp.activity(1, {'scene': 'race', 'track': 'metropia', 'mode': 'zone', 'room': [3, 2, '7']})
+        self.assertEqual(value['details'], 'Zone online on Metropia')
+        self.assertEqual(value['party'], {'id': 'room-7', 'size': [3, 3]})  # never more members than slots
+        for empty in ([0, 0, '0'], [1, 8], 'x', ['1', '8', '1']):
+            self.assertNotIn('party', dp.activity(1, {'scene': 'menu', 'room': empty}))
+            self.assertEqual(dp.activity(1, {'scene': 'menu', 'room': empty})['details'], 'In the menus')
+
+    def test_the_song_replaces_the_port_badge_text(self):
+        value = dp.activity(1, {'scene': 'race', 'track': 'sol', 'song': ' Artist - Title '})
+        self.assertEqual(value['assets']['small_text'], '\u266a Artist - Title')
+        self.assertEqual(dp.activity(1, {'song': ''})['assets']['small_text'], dp.PORT_NAME)
+        self.assertEqual(dp.activity(1, {'song': 3})['assets']['small_text'], dp.PORT_NAME)
+        self.assertEqual(len(dp.activity(1, {'song': 'x' * 300})['assets']['small_text']), dp.TEXT_LIMIT)
+        self.assertEqual(len(dp.describe({'scene': 'race', 'track': 'y' * 300})[0]), dp.TEXT_LIMIT)
 
     def test_clearing_omits_the_activity(self):
         _, body = decode(dp.set_activity(7))
@@ -147,7 +197,7 @@ class PresenceLifecycle(unittest.TestCase):
         opcode, body = frames[1]
         self.assertEqual(opcode, dp.FRAME)
         self.assertEqual(body['args']['pid'], os.getpid())
-        self.assertEqual(body['args']['activity'], {'timestamps': {'start': int(presence.started)}})
+        self.assertEqual(body['args']['activity'], dp.activity(presence.started))
         self.assertNotIn('activity', frames[2][1]['args'])
         self.assertEqual(frames[3][0], dp.CLOSE)
         self.assertTrue(transport.closed)
@@ -265,7 +315,14 @@ class GameProcessPresence(unittest.TestCase):
     def test_game_pid_is_used_and_presence_closes_after_wait(self):
         self.assertEqual(self.run.main(), 17)
         self.opened.assert_called_once()
-        self.factory.assert_called_once_with(pid=4321)
+        self.factory.assert_called_once_with(pid=4321, state_file=Path(self.temp.name) / 'out' / 'presence.json')
+        self.assertEqual(os.environ['GOW3_PRESENCE_FILE'], str(Path(self.temp.name) / 'out' / 'presence.json'))
+
+    def test_switched_off_the_runtime_gets_no_state_file(self):
+        os.environ['GOW3_DISCORD'] = '0'
+        self.assertEqual(self.run.main(), 17)
+        self.factory.assert_called_once_with(pid=4321, state_file=None)
+        self.assertNotIn('GOW3_PRESENCE_FILE', os.environ)
         self.process.wait.assert_called_once()
         self.presence.close.assert_called_once()
 
@@ -279,6 +336,82 @@ class GameProcessPresence(unittest.TestCase):
         with self.assertRaises(KeyboardInterrupt):
             self.run.main()
         self.presence.close.assert_called_once()
+
+
+class StateFile(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp.cleanup)
+        self.path = Path(self.temp.name) / 'presence.json'
+        self.enterContext(mock.patch.dict(os.environ, {'GOW3_DISCORD': '1'}))
+        self.enterContext(mock.patch.object(dp, 'STATE_SECONDS', 0.01))
+
+    def activities(self, transport):
+        return [decode(data)[1]['args'].get('activity') for data in transport.written
+                if dp.HEADER.unpack(data[:8])[0] == dp.FRAME and decode(data)[1].get('cmd') == 'SET_ACTIVITY']
+
+    def wait_for(self, transport, count):
+        deadline = time.monotonic() + 2
+        while time.monotonic() < deadline:
+            if len(self.activities(transport)) >= count:
+                return self.activities(transport)
+            time.sleep(0.01)
+        self.fail(f'{count} activities were not published: {self.activities(transport)}')
+
+    def write(self, text):
+        temp = self.path.with_suffix('.tmp')
+        temp.write_text(text, encoding='utf-8')
+        os.replace(temp, self.path)
+
+    def test_changes_are_published_and_a_half_written_file_waits(self):
+        transport = LiveTransport([{'evt': 'READY'}, {'evt': None}])
+        with mock.patch.object(dp, 'open_transport', return_value=transport):
+            presence = dp.Presence(client_id='123', state_file=self.path)
+            try:
+                first = self.wait_for(transport, 1)[0]
+                self.assertEqual(first['details'], 'Starting the game')
+                self.write('{"scene":"menu","track":"","mode":"","room":[0,0,"0"],"song":""}\n')
+                self.assertEqual(self.wait_for(transport, 2)[1]['details'], 'In the menus')
+                self.write('{"scene":"race","track":"vin')  # cut short: ignored until it is whole
+                time.sleep(0.1)
+                self.assertEqual(len(self.activities(transport)), 2)
+                self.write('{"scene":"race","track":"vinetak","mode":"zone","room":[2,8,"1000"],"song":"A - B"}\n')
+                third = self.wait_for(transport, 3)[2]
+                self.assertEqual(third['details'], 'Zone online on Vineta K')
+                self.assertEqual(third['party'], {'id': 'room-1000', 'size': [2, 8]})
+                self.assertEqual(third['assets']['small_text'], '\u266a A - B')
+                self.write('{"scene":"race","track":"vinetak","mode":"zone","room":[2,8,"1000"],"song":"A - B"}\n')
+                time.sleep(0.1)
+                self.assertEqual(len(self.activities(transport)), 3)  # rewritten unchanged: nothing to publish
+                self.assertTrue(presence.thread.is_alive())
+            finally:
+                presence.close()
+
+    def test_a_reconnection_publishes_the_current_state(self):
+        self.write('{"scene":"race","track":"altima","mode":"","room":[0,0,"0"],"song":""}\n')
+        first = FakeTransport([{'evt': 'READY'}, {'evt': None}])
+        second = LiveTransport([{'evt': 'READY'}, {'evt': None}])
+        with mock.patch.object(dp, 'open_transport', side_effect=[first, second]), \
+                mock.patch.object(dp, 'RETRY_SECONDS', 0.01):
+            presence = dp.Presence(client_id='123', state_file=self.path)
+            try:
+                self.assertEqual(self.wait_for(second, 1)[0]['details'], 'Racing on Altima')
+                self.assertEqual(self.activities(first)[0]['details'], 'Racing on Altima')
+            finally:
+                presence.close()
+
+    def test_without_a_state_file_nothing_is_polled(self):
+        transport = LiveTransport([{'evt': 'READY'}, {'evt': None}])
+        with mock.patch.object(dp, 'open_transport', return_value=transport), \
+                mock.patch.object(os, 'stat', wraps=os.stat) as stat:
+            presence = dp.Presence(client_id='123')
+            try:
+                self.wait_for(transport, 1)
+                time.sleep(0.05)
+                self.assertFalse(presence.load_state())
+                self.assertFalse(any(str(self.path) in str(call) for call in stat.call_args_list))
+            finally:
+                presence.close()
 
 
 class SocketIntegration(unittest.TestCase):
@@ -414,9 +547,11 @@ class LauncherSwitch(unittest.TestCase):
         import gow3_lang
         self.assertEqual(gow3_lang.table('es')['Show Discord Rich Presence'], 'Mostrar Discord Rich Presence')
         self.assertIn('Discord', gow3_lang.table('pt')['Show Discord Rich Presence'])
-        self.assertEqual(gow3_lang.table('es')[
-            'Shows only the game name and the time played on your Discord profile.'],
-            'Muestra en tu perfil de Discord solo el nombre del juego y el tiempo jugado.')
+        hint = ('Shows the game, the track and mode you play, your online lobby and the time played on your Discord '
+                'profile, as "Playing WipEout: Omega Collection" with its game page.')
+        self.assertTrue(gow3_lang.table('es')[hint].startswith('Muestra en tu perfil de Discord el juego, la pista'))
+        self.assertTrue(gow3_lang.table('pt')[hint].startswith('Mostra no seu perfil do Discord o jogo, a pista'))
+        self.assertIn("'discord_rpc', 'app'", (ROOT / 'launcher' / 'gow3_launcher_win.py').read_text(encoding='utf-8'))
         self.assertEqual(gow3_lang.table('es')['Game multisampling'], 'Multisampling del juego')
 
 

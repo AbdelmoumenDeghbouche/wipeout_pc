@@ -97,6 +97,17 @@ sound effects stay.
 Each song is leveled, so loud and quiet songs sound alike; Music volume 100% is about as loud as
 the game's own music. Without the launcher, `GOW3_MUSIC_DIR` points to another folder.
 
+## Discord Rich Presence
+
+With **Show Discord Rich Presence** on (launcher, Advanced page), your Discord profile shows
+"Playing WipEout: Omega Collection" with the game's page and cover from Discord's own game library,
+the time played, and what you do: "In the menus", "Racing on Sebenco Climb", "Zone on Altima",
+"Eliminator online on Talon's Junction", the online lobby's player count, and the song of your own
+music (hover the small icon). Off by default; the game's code is untouched: the runtime learns the
+scene from the sound banks the game loads (`src/runtime_presence.c`) and `scripts/discord_presence.py`
+tells the Discord app on your PC. Nothing is sent anywhere else. Without the launcher,
+`GOW3_DISCORD=0` turns it off.
+
 ## Supported game versions
 
 | Title ID | Region | Version | State |
@@ -195,6 +206,7 @@ function the runtime does not implement and prints its name.
 | Json2 | `src/runtime_json.c` | sce::Json values, parser and serializer (race results) |
 | Red zones | `src/redzone.cpp`, `scripts/function_starts.py` | Keeps Windows exception records out of the game's red zones |
 | Launcher | `launcher/` | Settings window and game start |
+| Discord Rich Presence | `src/runtime_presence.c`, `scripts/discord_presence.py` | The game's scene, track, mode, online room and song, shown on Discord |
 | GPU | `gpu/shadps4/` | shadPS4 video core (Vulkan) |
 
 Many names (`gow3-probe.exe`, `GOW3_*` variables, the launcher) still come from the God of
