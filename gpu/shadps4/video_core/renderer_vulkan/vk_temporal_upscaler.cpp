@@ -317,6 +317,13 @@ bool TemporalUpscaler::OnFrameStart() {
     if (output_changed) {
         target_width = Gow3Settings::OutputWidths[output];
         target_height = Gow3Settings::OutputHeights[output];
+        // wipeout (pixel-shader trigger) has none of God of War III's UI hooks that an output
+        // above 1920x1080 needs (Scaled()): FSR and DLSS never ran there (#211). Its upscaler
+        // writes the game's 1920x1080 scene, so a larger output works like 1920x1080.
+        if (ps_trigger_hash && target_width > 1920) {
+            target_width = 1920;
+            target_height = 1080;
+        }
         std::printf("Output resolution: %ux%u (live)\n", target_width, target_height);
         failed = false;
         fsr4_failed = false;
