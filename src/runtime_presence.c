@@ -146,7 +146,7 @@ static int bank_key(const char *key) { /* letters, digits and underscores only: 
     for (; *key; ++key) if (!islower((unsigned char)*key) && !isdigit((unsigned char)*key) && *key!='_') return 0;
     return 1;
 }
-static void set(char *field, size_t size, const char *value) { snprintf(field,size,"%s",value); }
+static void set(char *field, size_t size, const char *value) { snprintf(field,size,"%.*s",(int)size-1,value); }
 
 void runtime_presence_file(const char *guest_path) {
     if (!file[0] || !guest_path) return;

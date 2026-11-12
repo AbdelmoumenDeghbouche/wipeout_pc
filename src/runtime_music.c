@@ -204,10 +204,10 @@ static void announce(const AVFormatContext *format, const AVStream *stream, size
     char text[sizeof(notice)], song[sizeof(notice)];
     if (title && artist) snprintf(song,sizeof(song),"%s - %s",artist->value,title->value);
     else snprintf(song,sizeof(song),"%s",title ? title->value : names[file]);
-    snprintf(text,sizeof(text),"Now playing: %s",song);
+    snprintf(text,sizeof(text),"Now playing: %.*s",(int)sizeof(text)-14,song); /* GCC -Wformat-truncation */
     pthread_mutex_lock(&lock); /* shown once the ring plays this file's first frame */
     const int announced=!skipping;
-    if (announced) { memcpy(notice,text,sizeof(notice)); notice_at=head; notice_file=(long)file; notice_pending=1; snprintf(current_song,sizeof(current_song),"%s",song); }
+    if (announced) { memcpy(notice,text,sizeof(notice)); notice_at=head; notice_file=(long)file; notice_pending=1; snprintf(current_song,sizeof(current_song),"%.*s",(int)sizeof(current_song)-1,song); }
     pthread_mutex_unlock(&lock);
     if (announced) runtime_presence_song(song); /* Discord shows it too */
 }
