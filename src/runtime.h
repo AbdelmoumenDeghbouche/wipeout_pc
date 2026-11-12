@@ -97,6 +97,7 @@ void runtime_audio_report(void);
 int runtime_music_bgm(float *pcm, int frames, int channels);
 /* A game file opened (runtime_file.c): its sound banks tell menus from races (#66). */
 void runtime_music_scene(const char *guest_path);
+int runtime_music_in_zone(void); /* a Zone race is on (runtime_music.c) */
 uintptr_t runtime_pad_resolve(const char *name);
 void runtime_pad_report(void);
 extern volatile int runtime_pad_opened; /* the game opened a pad (start watch, #113) */

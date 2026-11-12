@@ -21,6 +21,7 @@
 #include "gow3_perf_stats.h"
 #include "gow3_settings.h"
 extern "C" int runtime_music_in_race(void); // src/runtime_music.c
+extern "C" int runtime_music_in_zone(void); // src/runtime_music.c
 extern "C" int runtime_wipeout_paused(void); // src/probe.c
 #include "gow3_graphics.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
@@ -709,11 +710,20 @@ void VideoOutDriver::PresentThread(std::stop_token token) {
         const char* value = std::getenv("GOW3_MENU_FPS");
         return value && value[0] == '6';
     }();
+    // gow3 (#118): Zone mode adds its points once a frame (+1 at 0x2c938b) and runs its speed-class
+    // transition per frame: above 60 FPS the score grew with the frame rate (145 points a second at
+    // 144 FPS, 60 at 60). Zone races stay at 60 too. GOW3_ZONE_FPS=0 turns it off.
+    static const bool zone_cap = [] {
+        const char* value = std::getenv("GOW3_ZONE_FPS");
+        return !value || value[0] != '0';
+    }();
     const auto current_limit = [&] {
         const auto& s = Gow3Settings::Get();
         const u32 limit = fixed_limit ? EmulatorSettings.GetFrameLimit()
                                       : u32(Gow3Graphics::PresentLimit(s.fps_limit, s.applied_engine_fps));
-        return menu_cap && (!runtime_music_in_race() || runtime_wipeout_paused()) && (limit == 0 || limit > 60)
+        return ((menu_cap && (!runtime_music_in_race() || runtime_wipeout_paused())) ||
+                (zone_cap && runtime_music_in_zone())) &&
+                       (limit == 0 || limit > 60)
                    ? 60u
                    : limit;
     };
