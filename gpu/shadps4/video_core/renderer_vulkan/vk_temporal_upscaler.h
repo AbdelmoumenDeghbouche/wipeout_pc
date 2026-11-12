@@ -178,7 +178,10 @@ private:
     /// Records FSR 4 into output_image; on a permanent failure FSR 3 takes over.
     bool RecordFsr4(vk::CommandBuffer cmdbuf, Fsr4Upscaler::Image color, Fsr4Upscaler::Image depth,
                     u32 w, u32 h, u32 ow, u32 oh, float frame_ms);
-    void RecordTaa(vk::CommandBuffer cmdbuf, vk::ImageView color, vk::ImageView depth);
+    /// `scene` (Run): the B10G11R11 scene color the result is written back to. With sharpening on,
+    /// the sharpen pass then writes it itself; true when it did (no write-back pass needed).
+    bool RecordTaa(vk::CommandBuffer cmdbuf, vk::ImageView color, vk::ImageView depth,
+                   VideoCore::Image* scene = nullptr, vk::ImageView scene_view = {});
     /// Sharpness above 1 for FSR 3/4 (their RCAS stops at 1): one more RCAS pass over the target
     /// (output_image, or the 8-bit UI image with ldr) in General layout after the upscaler.
     void ExtraSharpen(vk::CommandBuffer cmdbuf, vk::Image target, bool ldr, u32 w, u32 h);
@@ -227,6 +230,7 @@ private:
     vk::UniqueImageView ui_view;
     vk::UniqueImageView ui_depth_view;
     bool depth_blit = false;
+    bool sharpen_scene_r11 = false; ///< B10G11R11 storage writes without format (RecordTaa)
     bool scaled_session = false;
     u32 ui_width = 0, ui_height = 0;
     u32 render_width = 0, render_height = 0;
@@ -279,10 +283,12 @@ private:
     vk::UniqueDescriptorSetLayout taa_desc_layout;
     vk::UniquePipelineLayout taa_pipeline_layout;
     vk::UniquePipeline taa_pipeline;
+    vk::UniquePipeline taa_default_pipeline; ///< taa.comp, TAA_DEFAULT_SWITCHES
     vk::UniqueDescriptorSetLayout taa_sharpen_desc_layout;
     vk::UniquePipelineLayout taa_sharpen_pipeline_layout;
     vk::UniquePipeline taa_sharpen_pipeline;
     vk::UniquePipeline taa_sharpen_ldr_pipeline;
+    vk::UniquePipeline taa_sharpen_scene_pipeline; ///< into a B10G11R11 scene color
     // ExtraSharpen: a copy of the upscaled frame (RCAS reads neighbours) and the target views.
     VideoCore::UniqueImage extra_sharpen_image;
     vk::UniqueImageView extra_sharpen_view;

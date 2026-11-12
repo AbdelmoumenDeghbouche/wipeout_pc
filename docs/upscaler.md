@@ -304,3 +304,23 @@ pass0_post, проходы модели 1..12 (за каждым `_post`, обн
 **Поправка к A/B выше («кадр упирается в CPU»).** Те замеры шли, пока 12 зависших процессов
 shadPS4 занимали по ядру. На свободной системе: «host copies» 1.6%, ожидание GPU ~41% — кадр
 упирается в GPU, так что async compute для FSR снова имеет смысл.
+
+## TAA: two shortcuts with the same image (2026-11-11)
+
+- **Resolve without the A/B switches.** `taa.comp` reads its off-by-default A/B switches (toggle
+  bits 51-55) and its diagnostic mode from a push constant, so their work was kept in every pixel
+  even while they were off. While all of them are at their default, the resolve now runs a build
+  of the same shader with them as constants (`TAA_DEFAULT_SWITCHES`). Setting a switch or
+  `GOW3_TAA_DIAGNOSTICS` goes back to the shader that reads them, also while running.
+- **Sharpen into the scene color.** With TAA sharpening on, the sharpen pass overwrote the
+  resolve's output image, and a third pass (`upscale_merge.comp`) copied that into the game's
+  B10G11R11 scene color. Now the resolve stores only the history and the sharpen pass writes the
+  scene color itself. It needs B10G11R11 storage writes without format, checked at start (the
+  log's `TAA: sharpen into a B10G11R11 scene color` line); otherwise the old passes run. The value
+  is rounded to the scene format once instead of through half floats first: the same bits where
+  those conversions truncate, at most the last bit where they round to nearest. With sharpening
+  off, a reduced scene or a debug view, the write-back pass still runs.
+- **Switch:** toggle bit 31 (`TaaFastPaths`, 2147483648) restores the old passes while running.
+- **Test:** `taa-fast-paths-test` (plain Vulkan, no `gow3gpu`) runs the old passes and each
+  shortcut on the same 12 frames with history, at four sharpen strengths, and requires the same
+  bits in the scene color and the history.
