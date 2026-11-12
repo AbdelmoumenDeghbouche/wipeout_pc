@@ -6,10 +6,10 @@ code runs directly on the PC's processor, a runtime replaces the PS4 system libr
 graphics are translated to Vulkan by the shadPS4 video core. There is no CPU emulator.
 
 > **Status: playable. Menus and races (HD and 2048) play above 60 FPS.** See [Progress](#progress).
-> The project is now community-maintained: pull requests are reviewed by trusted contributors and
-> merged by a bot, and a new release comes out every Sunday. See [CONTRIBUTING.md](CONTRIBUTING.md).
+> In active development. Pull requests are welcome: trusted contributors review them, a bot merges
+> them, and a new release comes out every Sunday. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-> 💙 **Like the port? You can donate with PayPal to `a.deghbouche@esi-sba.dz`.** See [Donate](#donate).
+> 💙 **Like the port? You can donate with PayPal to `a.deghbouche@esi-sba.dz` or on [Ko-fi](https://ko-fi.com/abd_dbh).** See [Donate](#donate).
 
 For contributors: [build and debug on Windows](docs/windows-debug.md), or optionally [edit from WSL2](docs/windows-debug-wsl.md). Debugging scripts and tests are versioned; GDB and the compiler are installed as development dependencies.
 
