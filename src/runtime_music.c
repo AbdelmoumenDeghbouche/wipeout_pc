@@ -50,6 +50,7 @@ static unsigned char *played;    /* per file: played in this round (music_played
 static char played_path[1100];
 static size_t menu_songs;        /* songs in any group's subfolder */
 static size_t group_songs[GROUPS];
+static long group_last[GROUPS]={-1,-1,-1,-1,-1}; /* #182: each group's last song started */
 static volatile int mode;        /* GROUP_ZONE..GROUP_DETONATOR from the mode's sound banks, else 0 */
 static volatile int in_race;     /* the game loaded a race's sound banks, not the menus' */
 static volatile unsigned loads;  /* sound bank loads of a race or the menus: a loading screen */
@@ -104,8 +105,9 @@ static char *display_name(const char *path) {
 }
 /* Whether a song plays now: the group of the scene (menus, the race's mode, other races); every
  * song when that group has none. */
+static int scene_group(void) { return !in_race ? GROUP_MENU : group_songs[mode] ? mode : GROUP_RACE; }
 static int fits(size_t file) {
-    const int group=!in_race ? GROUP_MENU : group_songs[mode] ? mode : GROUP_RACE;
+    const int group=scene_group();
     return !group_songs[group] || menu_song[file]==group;
 }
 /* The play order from `first` on (under lock): shuffled, or the list's order. */
@@ -280,6 +282,7 @@ static void *decode(void *unused) {
         pthread_mutex_lock(&lock);
         const size_t file=order[pos];
         played[file]=1;
+        group_last[menu_song[file]]=(long)file;
         save_played();
         pthread_mutex_unlock(&lock);
         failures=play(file) ? 0 : failures+1;
@@ -333,9 +336,19 @@ void runtime_music_step(int direction) {
     const size_t now=playing>=0 ? (size_t)playing : order[pos];
     size_t k=pos;
     for (size_t i=0;i<file_count;++i) if (order[i]==now) k=i;
-    size_t song=order[(k+(direction>0 ? 1 : file_count-1))%file_count];
-    for (size_t tries=1; tries<file_count && !fits(song); ++tries)
-        song=order[(k+(direction>0 ? 1+tries : file_count-1-tries))%file_count];
+    size_t song;
+    if (direction>0) {
+        /* #182: like the end of a song (this round's next in shuffle). After a scene change, from
+         * the new scene's last song: stepping from the other scene's song always landed on the
+         * same neighbour (one menu song -> the same race song every race). */
+        const long last=group_last[scene_group()];
+        if (!fits(now) && last>=0) for (size_t i=0;i<file_count;++i) if (order[i]==(size_t)last) k=i;
+        next_song((k+1)%file_count,order_shuffled,(long)now);
+        song=order[pos];
+    } else {
+        song=order[(k+file_count-1)%file_count];
+        for (size_t tries=1; tries<file_count && !fits(song); ++tries) song=order[(k+file_count-1-tries)%file_count];
+    }
     pthread_mutex_unlock(&lock);
     runtime_music_play((int)song);
 }
@@ -359,7 +372,7 @@ void runtime_music_scene(const char *guest_path) {
     else if (!strcmp(name,"speech_elim.bnk")) mode=GROUP_ELIMINATOR;
     else if (!strcmp(name,"speech_det.bnk") || !strcmp(name,"weapons_det.bnk") || !strcmp(name,"env0_det.bnk")) mode=GROUP_DETONATOR;
     if ((in_race!=was || mode!=was_mode) && menu_songs) {
-        const int group=!in_race ? GROUP_MENU : group_songs[mode] ? mode : GROUP_RACE;
+        const int group=scene_group();
         printf("Music: %s songs from now on\n",group==GROUP_RACE ? "race" : group_folders[group]);
     }
 }
