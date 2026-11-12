@@ -40,6 +40,9 @@ public:
     StagingBufferPool(const StagingBufferPool&) = delete;
     StagingBufferPool& operator=(const StagingBufferPool&) = delete;
 
+    /// Charge ring space or the largest reusable dedicated buffer accepted for an upload.
+    static u64 UploadReservationBytes(u64 size, u64 alignment);
+
     /// Requests size bytes of memory of the given type.
     [[nodiscard]] StagingBufferRef Request(u64 size, VideoCore::MemoryType type, u64 alignment = 0,
                                            bool deferred = false);

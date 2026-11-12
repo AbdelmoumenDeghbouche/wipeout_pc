@@ -31,6 +31,7 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_format_traits.hpp>
 #include "video_core/texture_cache/tile_manager.h"
+#include "video_core/texture_cache/tile.h"
 
 namespace VideoCore {
 
@@ -1853,6 +1854,62 @@ void TextureCache::RefreshImage(Image& image, u32 first_mip) {
 
     scheduler.EndRendering();
 
+    ImageInfo upload_info = image.info;
+    u32 source_offset = 0;
+    bool compact = first_mip != 0 && !image.info.props.is_block &&
+                   image.info.resources.layers == 1 && image.info.size.depth == 1 &&
+                   image.info.mips_layout[first_mip].offset % instance.StorageMinAlignment() == 0;
+    if (compact && AmdGpu::IsMacroTiled(image.info.array_mode)) {
+        const auto [macro_pitch, macro_height] =
+            GetMacroTileExtents(image.info.tile_mode, image.info.num_bits, image.info.guest_samples,
+                                image.info.alt_tile);
+        const auto micro_mip = [&](u32 mip) {
+            u32 w = std::max(image.info.pitch >> mip, 1u);
+            u32 h = std::max(image.info.size.height >> mip, 1u);
+            if (image.info.props.is_pow2) {
+                w = std::bit_ceil(w);
+                h = std::bit_ceil(h);
+            }
+            return w < macro_pitch || h < macro_height;
+        };
+        // A dispatch uses one tiling mode. Keep the old path for a mixed macro/micro range.
+        compact = micro_mip(first_mip) == micro_mip(num_mips - 1);
+        if (compact && micro_mip(first_mip)) {
+            switch (AmdGpu::GetMicroTileMode(image.info.tile_mode)) {
+            case AmdGpu::MicroTileMode::Thin:
+                upload_info.tile_mode = AmdGpu::TileMode::Thin1DThin;
+                break;
+            case AmdGpu::MicroTileMode::Display:
+                upload_info.tile_mode = AmdGpu::TileMode::Display1DThin;
+                break;
+            case AmdGpu::MicroTileMode::Depth:
+                upload_info.tile_mode = AmdGpu::TileMode::Depth1DThin;
+                break;
+            default:
+                compact = false;
+                break;
+            }
+            upload_info.array_mode = AmdGpu::GetArrayMode(upload_info.tile_mode);
+        }
+    }
+    if (compact) {
+        source_offset = image.info.mips_layout[first_mip].offset;
+        upload_info.guest_address += source_offset;
+        upload_info.guest_size -= source_offset;
+        upload_info.resources.levels -= first_mip;
+        upload_info.size.width = std::max(image.info.size.width >> first_mip, 1u);
+        upload_info.size.height = std::max(image.info.size.height >> first_mip, 1u);
+        upload_info.pitch = image.info.mips_layout[first_mip].pitch;
+        // Preserve the guest's mip layout; recomputing it as a new mip 0 changes its padding.
+        for (u32 mip = 0; mip < upload_info.resources.levels; ++mip) {
+            upload_info.mips_layout[mip] = image.info.mips_layout[first_mip + mip];
+            upload_info.mips_layout[mip].offset -= source_offset;
+        }
+    }
+    const u64 upload_charge = compact ? runtime.GetStagingPool().UploadReservationBytes(
+                                            upload_info.guest_size, instance.StorageMinAlignment())
+                                      : upload_info.guest_size;
+
     // gow3: a staging buffer is free again only once the GPU is done with the submission that
     // read it. A track load put all its uploads in one submission: 2-7 GB of upload buffers
     // at once. Past GOW3_UPLOAD_SUBMIT_MB (512) of uploads the work so far is submitted, so
@@ -1868,7 +1925,7 @@ void TextureCache::RefreshImage(Image& image, u32 first_mip) {
         upload_tick_bytes = 0;
     }
     if (submit_bytes != 0 && upload_tick_bytes != 0 &&
-        upload_tick_bytes + image.info.guest_size > submit_bytes) {
+        upload_tick_bytes + upload_charge > submit_bytes) {
         scheduler.Flush();
         ++early_submits;
         if (Gow3Stats::enabled) {
@@ -1884,13 +1941,13 @@ void TextureCache::RefreshImage(Image& image, u32 first_mip) {
         upload_tick = scheduler.CurrentTick();
         upload_tick_bytes = 0;
     }
-    upload_tick_bytes += image.info.guest_size;
+    upload_tick_bytes += upload_charge;
 
     const auto [in_buffer, in_offset] =
-        buffer_cache.ObtainBufferForImage(image.info.guest_address, image.info.guest_size);
-    const auto [buffer, offset] = tile_manager.DetileImage(in_buffer, in_offset, image.info);
+        buffer_cache.ObtainBufferForImage(upload_info.guest_address, upload_info.guest_size);
+    const auto [buffer, offset] = tile_manager.DetileImage(in_buffer, in_offset, upload_info);
     for (auto& copy : image_copies) {
-        copy.bufferOffset += offset;
+        copy.bufferOffset = copy.bufferOffset - source_offset + offset;
     }
 
     runtime.UploadImage(&image, buffer, image_copies);

@@ -352,6 +352,7 @@ target_include_directories(mip-growth-gpu-test PRIVATE shim shadps4 third_party/
 target_compile_definitions(mip-growth-gpu-test PRIVATE NDEBUG)
 target_compile_options(mip-growth-gpu-test PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
 target_link_libraries(mip-growth-gpu-test PRIVATE gow3gpu atrac9 -pthread)
+target_link_options(mip-growth-gpu-test PRIVATE -Wl,--wrap=runtime_memory_region)
 set_source_files_properties(../tests/test_mip_growth_gpu.cpp PROPERTIES
     COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
 if (WIN32)
