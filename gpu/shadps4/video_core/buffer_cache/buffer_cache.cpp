@@ -86,6 +86,7 @@ BufferCache::BufferCache(const Vulkan::Instance& instance_, Vulkan::Scheduler& s
     ASSERT_MSG(std::popcount(block_size) == 1, "Sparse block size {} is not a power of 2",
                block_size);
     block_shift = std::bit_width(block_size) - 1;
+    resident_slab.size = Common::AlignUp(RESIDENT_SLAB_SIZE, block_size);
     blocks_per_arena_page = arena_page_size / block_size;
     blocks_per_arena_page_shift = arena_page_bits - block_shift;
     arena_memory_type_index =
@@ -470,6 +471,20 @@ bool BufferCache::IsResident(VAddr device_addr, u64 size) const {
     return !gap;
 }
 
+vk::DeviceMemory BufferCache::AllocateResident(u64 size, bool must_succeed) {
+    const vk::MemoryAllocateInfo alloc_info = {
+        .allocationSize = size,
+        .memoryTypeIndex = arena_memory_type_index,
+    };
+    const auto [result, memory] = instance.GetDevice().allocateMemory(alloc_info);
+    if (result != vk::Result::eSuccess) {
+        ASSERT_MSG(!must_succeed, "Resident range of {} bytes: {}", size, vk::to_string(result));
+        return VK_NULL_HANDLE;
+    }
+    Gow3Stats::resident_bytes += static_cast<s64>(size);
+    return memory;
+}
+
 void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_block) {
     u32 resident_blocks{};
     IntervalList bind_ranges;
@@ -483,45 +498,53 @@ void BufferCache::EnsureResident(const Buffer* arena, u64 first_block, u64 last_
     }
     Gow3Stats::Timer timer{Gow3Stats::t_resident};
 
-    const vk::MemoryAllocateInfo alloc_info = {
-        .allocationSize = resident_blocks << block_shift,
-        .memoryTypeIndex = arena_memory_type_index,
-    };
-    const auto device_memory = Vulkan::Check(instance.GetDevice().allocateMemory(alloc_info));
-    Gow3Stats::resident_bytes += static_cast<s64>(alloc_info.allocationSize);
-
     boost::container::small_vector<vk::BufferCopy, 8> copies;
     const auto staging =
         staging_pool.Request(resident_blocks * sizeof(vk::DeviceAddress), MemoryType::HostUncached);
 
-    u64 memory_offset{};
     ArenaBinds* binds = BindsForArena(arena);
     auto* bda_addrs = reinterpret_cast<vk::DeviceAddress*>(staging.mapped);
     u64 offset = staging.offset;
+    // gow3: the backing comes from slabs (resident_slab.h). One driver allocation per call made
+    // a frame that first uses many ranges (the ships appearing on the grid) ask the driver for
+    // memory hundreds of times. A range that does not fit in what is left of the slab is split:
+    // it takes what is left and the rest starts the next slab.
     for (const auto& range : bind_ranges) {
-        Backing backing;
-        backing.start = range.start;
-        backing.end = range.end;
-        backing.memory = device_memory;
-        backing.offset = memory_offset;
-        resident_ranges.Add(backing);
+        for (u64 start = range.start; start < range.end;) {
+            const u64 wanted = (range.end - start) << block_shift;
+            auto piece = resident_slab.Take(wanted);
+            if (piece.new_slab) {
+                resident_slab_memory = AllocateResident(resident_slab.size, false);
+                if (!resident_slab_memory) {
+                    // No room for a whole slab: this range gets exactly what it needs, as before.
+                    resident_slab.free = 0;
+                    piece = {0, wanted, false};
+                }
+            }
+            Backing backing;
+            backing.start = start;
+            backing.end = start + (piece.bytes >> block_shift);
+            backing.memory =
+                resident_slab_memory ? resident_slab_memory : AllocateResident(wanted, true);
+            backing.offset = piece.offset;
+            resident_ranges.Add(backing);
 
-        LOG_INFO(Render, "Making range start={}, end={} resident", backing.start, backing.end);
+            LOG_INFO(Render, "Making range start={}, end={} resident", backing.start, backing.end);
 
-        const auto& bind = binds->binds.emplace_back(vk::SparseMemoryBind{
-            .resourceOffset = (range.start << block_shift) - arena->cpu_addr,
-            .size = (range.end - range.start) << block_shift,
-            .memory = device_memory,
-            .memoryOffset = memory_offset,
-        });
-        memory_offset += bind.size;
-
-        for (u32 block = 0; block < bind.size; block += block_size) {
-            *(bda_addrs++) = arena->BufferDeviceAddress() + bind.resourceOffset + block;
+            const auto& bind = binds->binds.emplace_back(vk::SparseMemoryBind{
+                .resourceOffset = (backing.start << block_shift) - arena->cpu_addr,
+                .size = piece.bytes,
+                .memory = backing.memory,
+                .memoryOffset = piece.offset,
+            });
+            for (u64 block = 0; block < bind.size; block += block_size) {
+                *(bda_addrs++) = arena->BufferDeviceAddress() + bind.resourceOffset + block;
+            }
+            const u64 copy_size = (backing.end - backing.start) * sizeof(vk::DeviceAddress);
+            copies.emplace_back(offset, backing.start * sizeof(vk::DeviceAddress), copy_size);
+            offset += copy_size;
+            start = backing.end;
         }
-        const u64 copy_size = (backing.end - backing.start) * sizeof(vk::DeviceAddress);
-        copies.emplace_back(offset, backing.start * sizeof(vk::DeviceAddress), copy_size);
-        offset += copy_size;
     }
 
     staging.Flush();
