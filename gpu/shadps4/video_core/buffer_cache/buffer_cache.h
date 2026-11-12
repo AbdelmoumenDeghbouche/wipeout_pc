@@ -13,6 +13,7 @@
 #include "video_core/buffer_cache/buffer.h"
 #include "video_core/buffer_cache/fault_manager.h"
 #include "video_core/buffer_cache/range_set.h"
+#include "video_core/buffer_cache/resident_slab.h"
 #include "video_core/renderer_vulkan/vk_semaphore.h"
 
 namespace AmdGpu {
@@ -49,6 +50,8 @@ public:
     /// Read-only bindings up to this size are copied into a stream buffer (gow3: public for
     /// the draw pipeline's constant ring).
     static constexpr u64 STREAM_THRESHOLD = 16_KB;
+    /// Backing for newly resident ranges is taken from the driver this much at a time.
+    static constexpr u64 RESIDENT_SLAB_SIZE = 8_MB;
 
     explicit BufferCache(const Vulkan::Instance& instance, Vulkan::Scheduler& scheduler,
                          Vulkan::Runtime& runtime, AmdGpu::Liverpool* liverpool,
@@ -129,6 +132,9 @@ private:
     const Buffer* GetArena(u64 first_block, u64 last_block);
 
     void EnsureResident(const Buffer* arena, u64 first_block, u64 last_block);
+    /// Device memory for resident ranges (never freed), counted in Gow3Stats::resident_bytes.
+    /// Null if the driver refuses and must_succeed is false.
+    vk::DeviceMemory AllocateResident(u64 size, bool must_succeed);
 
     /// Whether the arena already has memory backing every block of the range.
     [[nodiscard]] bool IsResident(VAddr device_addr, u64 size) const;
@@ -189,6 +195,8 @@ private:
         }
     };
     IntervalList<Backing> resident_ranges;
+    ResidentSlab resident_slab;            ///< fill level of the slab below
+    vk::DeviceMemory resident_slab_memory; ///< the slab EnsureResident is filling
 
     u32 arena_memory_type_index{};
     u32 block_size{};
