@@ -54,6 +54,8 @@ from prepare import load_sfo  # noqa: E402  (scripts/)
 DATA_DIR = Path(os.environ.get('GOW3_DATA_DIR', PORT_DIR))
 CONFIG_DIR = (Path(os.environ.get('APPDATA', Path.home())) if WINDOWS else
               Path(os.environ.get('XDG_CONFIG_HOME') or Path.home() / '.config')) / 'wipeout-launcher'
+if (DATA_DIR / 'settings.json').is_file():  # #203 portable: the launcher's settings stay next to it
+    CONFIG_DIR = DATA_DIR
 CONFIG_FILE = CONFIG_DIR / 'settings.json'
 WINDOW_POSITION = CONFIG_DIR / 'window.json'  # #151: the launcher's last position
 MOD_PRESETS = DATA_DIR / 'mods_presets.json'
@@ -3770,17 +3772,18 @@ class Launcher:
                 shutil.rmtree(UPDATE_DIR, ignore_errors=True)
                 UPDATE_DIR.mkdir(parents=True, exist_ok=True)
                 archive = UPDATE_DIR / 'update.zip'
-                request = urllib.request.Request(url, headers={'User-Agent': 'wipeout-launcher'})
-                with urllib.request.urlopen(request, timeout=60) as response, open(archive, 'wb') as out:
-                    total, done, shown = int(response.headers.get('Content-Length') or 0), 0, -1
-                    while chunk := response.read(1 << 20):
-                        out.write(chunk)
-                        done += len(chunk)
-                        percent = done * 100 // total if total else 0
-                        if percent != shown:
-                            shown = percent
-                            text = _('Downloading version {}… {} of {} MB').format(version, done >> 20, total >> 20)
-                            self.ui_calls.put(lambda t=text, p=percent: self.update_progress(t, p))
+
+                def progress(done, total):
+                    text = _('Downloading version {}… {} of {} MB').format(version, done >> 20, total >> 20)
+                    self.ui_calls.put(lambda t=text, p=done * 100 // total if total else 0: self.update_progress(t, p))
+                for attempt in range(3):  # #191: a dropped connection left a cut zip ("not a zip file")
+                    try:
+                        download_update(url, archive, progress)
+                        break
+                    except OSError:
+                        if attempt == 2:
+                            raise
+                        time.sleep(3)
                 self.ui_calls.put(lambda: self.update_progress(_('Unpacking…'), 100))
                 with zipfile.ZipFile(archive) as package:
                     package.extractall(UPDATE_DIR / 'new')
@@ -4057,6 +4060,22 @@ def latest_release():
     url = next((asset['browser_download_url'] for asset in release.get('assets', [])
                 if asset.get('name', '').lower().endswith('.zip')), None)
     return version, url, release.get('html_url') or RELEASES_PAGE, whats_new(release.get('body') or '')
+
+
+def download_update(url, archive, progress=None, opener=urllib.request.urlopen):
+    """Downloads the release zip to `archive`; progress(done, total) per MiB. Raises OSError when
+    the connection ends early or the file is not a whole zip (#191)."""
+    request = urllib.request.Request(url, headers={'User-Agent': 'wipeout-launcher'})
+    with opener(request, timeout=60) as response, open(archive, 'wb') as out:
+        total, done, shown = int(response.headers.get('Content-Length') or 0), 0, -1
+        while chunk := response.read(1 << 20):
+            out.write(chunk)
+            done += len(chunk)
+            if progress and done >> 20 != shown:
+                shown = done >> 20
+                progress(done, total)
+    if (total and done != total) or not zipfile.is_zipfile(archive):
+        raise OSError(f'the download stopped early ({done >> 20} of {total >> 20} MB)')
 
 
 def install_update(target, wait_pid):

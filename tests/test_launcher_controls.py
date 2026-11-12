@@ -851,6 +851,47 @@ class TextureQualityTest(unittest.TestCase):
         self.assertEqual(low['GOW3_TEXTURE_LIMIT'], '2048')
 
 
+class PortableTest(unittest.TestCase):
+    def test_a_settings_file_next_to_the_launcher_keeps_its_options_there(self):
+        # #203: settings.json next to WipEout.exe keeps the launcher's options in that folder.
+        import importlib
+        with tempfile.TemporaryDirectory() as folder:
+            try:
+                with mock.patch.dict(os.environ, {'GOW3_DATA_DIR': folder}):
+                    importlib.reload(launcher)
+                    self.assertNotEqual(launcher.CONFIG_FILE.parent, Path(folder))
+                    (Path(folder) / 'settings.json').write_text('', encoding='utf-8')  # empty: defaults
+                    importlib.reload(launcher)
+                    self.assertEqual(launcher.CONFIG_FILE, Path(folder) / 'settings.json')
+                    self.assertEqual(launcher.load_json(launcher.CONFIG_FILE, {}), {})
+            finally:
+                importlib.reload(launcher)
+
+
+class UpdateDownloadTest(unittest.TestCase):
+    def test_a_cut_download_is_an_error_and_a_whole_zip_is_kept(self):
+        # #191: the connection ended early and the launcher said "File is not a zip file".
+        import io
+        import zipfile
+        whole = io.BytesIO()
+        with zipfile.ZipFile(whole, 'w') as package:
+            package.writestr('WipEout.exe', b'x' * 5000)
+        data = whole.getvalue()
+
+        def opener(body, length):
+            response = io.BytesIO(body)
+            response.headers = {'Content-Length': str(length)}
+            return lambda request, timeout: response
+        with tempfile.TemporaryDirectory() as folder:
+            archive = Path(folder) / 'update.zip'
+            with self.assertRaises(OSError):
+                launcher.download_update('https://example.invalid/w.zip', archive, opener=opener(data[:100], len(data)))
+            with self.assertRaises(OSError):  # no length from the server and not a zip
+                launcher.download_update('https://example.invalid/w.zip', archive, opener=opener(b'<html>', 0))
+            launcher.download_update('https://example.invalid/w.zip', archive, opener=opener(data, len(data)))
+            self.assertTrue(zipfile.is_zipfile(archive))
+
+
 class ReleaseVersionTest(unittest.TestCase):
     def test_first_wipeout_release(self):
         self.assertEqual(launcher.VERSION, '0.2.67')

@@ -54,7 +54,8 @@ Next time
 
 Data
 - Saves, shader cache and the log: user\ next to WipEout.exe (keep it when updating).
-- Settings: gow3.ini next to WipEout.exe; launcher options in %APPDATA%\wipeout-launcher.
+- Settings: gow3.ini next to WipEout.exe; launcher options in %APPDATA%\wipeout-launcher
+  (portable: move settings.json from there next to WipEout.exe and the launcher keeps it there).
 - Generated files (prepared game image, patches): out\.
 
 Known issues
