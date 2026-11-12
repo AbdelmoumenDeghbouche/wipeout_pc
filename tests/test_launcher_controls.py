@@ -882,6 +882,15 @@ class LauncherGamepadSwitchTest(unittest.TestCase):
             self.assertEqual(app.gamepad_action.call_count, calls)
 
 
+class TrickButtonTest(unittest.TestCase):
+    def test_the_trick_button_has_no_pad_default_and_binds_on_both_tables(self):
+        # #207: V on the keyboard (the game's own key: nothing sent), no gamepad button until chosen.
+        self.assertNotIn('trick', launcher.keyboard_map({'key': {}}))
+        self.assertEqual(launcher.control_map({'pad': {}}, 'pad'), '')
+        self.assertEqual(launcher.control_map({'pad': {'trick': 'y'}}, 'pad'), 'trick=y')
+        self.assertIn('trick=B', launcher.keyboard_map({'key': {'trick': 'B'}}))
+
+
 class MenuFpsCapTest(unittest.TestCase):
     def test_the_menu_cap_switch_off_lifts_the_60_fps_menus(self):
         # #177: off sets GOW3_MENU_FPS=0 over the profile's 60; on leaves the profile (or the player's variable).

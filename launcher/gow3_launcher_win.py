@@ -482,11 +482,13 @@ CONTROLS = [('cross', 'Space', 'a'), ('circle', 'Left Shift', 'b'), ('square', '
             ('l2', 'R', None), ('r2', 'F', None), ('l3', 'Z', 'leftstick'),
             ('r3', 'C', 'rightstick'), ('options', 'Return', 'start'),
             ('touchpad_left', 'Tab', None), ('touchpad_right', 'Backspace', 'back'),
-            ('up', 'I', 'dpup'), ('down', 'K', 'dpdown'), ('left', 'J', 'dpleft'), ('right', 'L', 'dpright')]
+            ('up', 'I', 'dpup'), ('down', 'K', 'dpdown'), ('left', 'J', 'dpleft'), ('right', 'L', 'dpright'),
+            ('trick', 'V', '')]  # #207: no gamepad button by default ('' = none, bindable)
 PS_BUTTON_NAMES = {'cross': 'Cross', 'circle': 'Circle', 'square': 'Square', 'triangle': 'Triangle',
                    'l1': 'L1', 'r1': 'R1', 'l2': 'L2', 'r2': 'R2', 'l3': 'L3', 'r3': 'R3',
                    'options': 'Options', 'touchpad_left': 'Touchpad left', 'touchpad_right': 'Touchpad right',
-                   'up': 'D-pad up', 'down': 'D-pad down', 'left': 'D-pad left', 'right': 'D-pad right'}
+                   'up': 'D-pad up', 'down': 'D-pad down', 'left': 'D-pad left', 'right': 'D-pad right',
+                   'trick': 'Side-shift / barrel roll'}
 # Gamepad buttons by SDL name, labelled as on a PlayStation or an Xbox controller.
 PAD_STYLES = {
     'playstation': {'a': 'Cross', 'b': 'Circle', 'x': 'Square', 'y': 'Triangle', 'leftshoulder': 'L1',
@@ -638,7 +640,7 @@ def keyboard_map(controls):
 def control_changes(values, kind):
     """The buttons whose chosen key or SDL gamepad name differs from the default."""
     return {row[0]: values[row[0]].strip() for row in CONTROLS
-            if default_input(row, kind) and values.get(row[0], '').strip()
+            if default_input(row, kind) is not None and values.get(row[0], '').strip()
             and values[row[0]].strip().casefold() != default_input(row, kind).casefold()}
 
 
@@ -652,7 +654,8 @@ def control_values(controls, kind):
     if 'touchpad' in chosen and 'touchpad_left' not in values:
         values['touchpad_left'] = chosen['touchpad']
     return {button: values[button] for button, key, pad in CONTROLS
-            if (pad if kind == 'pad' else key) and isinstance(values.get(button), str) and values[button].strip()}
+            if (pad if kind == 'pad' else key) is not None and isinstance(values.get(button), str)
+            and values[button].strip()}
 
 
 def control_map(controls, kind):
@@ -2708,7 +2711,7 @@ class Launcher:
             pad_icon = icon_canvas(table)
             pad_icon.grid(row=r, column=2, sticky='w', padx=self.px((0, 6)))
             self.pad_icons[button] = pad_icon
-            if pad:
+            if pad is not None:
                 box = ttk.Combobox(table, state='readonly', values=list(labels.values()),
                                    width=max(22, *(len(l) + 2 for l in labels.values())))
                 box.set(labels.get(pad_name, pad_name))
@@ -2727,6 +2730,8 @@ class Launcher:
         self.note(f, _('L2/R2 stay on the triggers. Touchpad right opens the game\'s pause menu; Touchpad left '
                        '(photo mode) is L1 + Touchpad right. R3+L2 always opens the port\'s menu. '
                        'Applied when the game starts.'))
+        self.note(f, _('Side-shift / barrel roll: press it with an airbrake held to side-shift that way, or while '
+                       'steering left or right in the air to barrel-roll. The double taps of the game still work.'))
         ttk.Button(f, text=_('Reset gamepad to defaults'), command=lambda: self.reset_controls('pad')).grid(
             row=self.next_row(f), column=0, sticky='w', pady=self.px((14, 0)))
         self.show_device(fit=False)

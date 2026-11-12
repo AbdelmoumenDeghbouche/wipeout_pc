@@ -38,6 +38,8 @@ enum {
     /* Host-only actions of the keyboard map: dodge tilts the right stick (apply_dodge); rage and
      * grab press two buttons together (apply_combos). */
     DODGE=0x20000000, RAGE=0x10000000, GRAB=0x08000000,
+    /* WipEout's trick button (apply_trick): a side-shift or a barrel roll in one press (#207). */
+    TRICK=0x04000000,
 };
 typedef struct { uint16_t x, y; uint8_t id, reserve[3]; } PadTouch;
 typedef struct {
@@ -171,7 +173,7 @@ static const struct { const char *name; uint32_t ps; } ps_names[]={
     {"l1",BTN_L1}, {"r1",BTN_R1}, {"l2",BTN_L2}, {"r2",BTN_R2}, {"l3",BTN_L3}, {"r3",BTN_R3},
     {"options",BTN_OPTIONS}, {"touchpad",CLICK_LEFT}, {"touchpad_left",CLICK_LEFT}, {"touchpad_right",CLICK_RIGHT},
     {"up",BTN_UP}, {"down",BTN_DOWN}, {"left",BTN_LEFT}, {"right",BTN_RIGHT},
-    {"dodge",DODGE}, {"rage",RAGE}, {"grab",GRAB},
+    {"dodge",DODGE}, {"rage",RAGE}, {"grab",GRAB}, {"trick",TRICK},
 };
 typedef struct { int source; uint32_t ps; } ButtonSource;
 typedef struct { ButtonSource entries[48]; size_t count; } ButtonMap;
@@ -191,7 +193,8 @@ static ButtonMap key_map={{
     {SDL_SCANCODE_R,BTN_L2}, {SDL_SCANCODE_F,BTN_R2}, {SDL_SCANCODE_Z,BTN_L3}, {SDL_SCANCODE_C,BTN_R3},
     {SDL_SCANCODE_RETURN,BTN_OPTIONS}, {SDL_SCANCODE_TAB,CLICK_LEFT}, {SDL_SCANCODE_BACKSPACE,CLICK_RIGHT},
     {SDL_SCANCODE_I,BTN_UP}, {SDL_SCANCODE_K,BTN_DOWN}, {SDL_SCANCODE_J,BTN_LEFT}, {SDL_SCANCODE_L,BTN_RIGHT},
-},17};
+    {SDL_SCANCODE_V,TRICK},
+},18};
 
 static char *trim(char *text) {
     while (*text==' ' || *text=='\t') ++text;
@@ -803,6 +806,38 @@ static void apply_dodge(PadData *d) {
     if (held || d->timestamp<dodge.until) { d->right_x=dodge.x; d->right_y=dodge.y; }
 }
 
+/* #207: the trick button (GOW3_PAD_MAP / GOW3_KEY_MAP "trick=<button>"). Pressed with one airbrake
+ * held (L2 or R2), it side-shifts: the game's double tap of that airbrake (release, press, release,
+ * then the player's hold again). Pressed while steering left or right (stick or D-pad), it barrel-rolls:
+ * the game's left-right-left on the stick, with the side held as the first. Each step lasts TRICK_STEP_US, longer
+ * than a game frame at 30 FPS, and the whole move stays inside the game's double-tap window. */
+enum { TRICK_STEP_US=40000 };
+static struct { bool held; int kind; uint32_t brake; int side; uint64_t start; } trick;
+static void apply_trick(PadData *d) {
+    const bool held=(d->buttons & TRICK)!=0;
+    d->buttons&=~TRICK;
+    if (held && !trick.held && !trick.kind) {
+        const uint32_t brake=d->buttons & (BTN_L2|BTN_R2);
+        const int side=d->left_x<64 || (d->buttons & BTN_LEFT) ? -1 : d->left_x>192 || (d->buttons & BTN_RIGHT) ? 1 : 0;
+        if (brake==BTN_L2 || brake==BTN_R2) { trick.kind=1; trick.brake=brake; }
+        else if (side) { trick.kind=2; trick.side=side; }
+        trick.start=d->timestamp;
+    }
+    trick.held=held;
+    if (!trick.kind) return;
+    const uint64_t step=(d->timestamp-trick.start)/TRICK_STEP_US;
+    if (step>=3) { trick.kind=0; return; } /* the player's own input again */
+    if (trick.kind==1) {
+        const bool down=step==1;
+        if (down) d->buttons|=trick.brake; else d->buttons&=~trick.brake;
+        if (trick.brake==BTN_L2) d->l2=down ? 255 : 0; else d->r2=down ? 255 : 0;
+    } else {
+        /* the other side, back, then centred: the player's own side next is not a new turn */
+        d->left_x=step==0 ? (trick.side<0 ? 255 : 0) : step==1 ? (trick.side<0 ? 0 : 255) : 128;
+        d->buttons&=~(BTN_LEFT|BTN_RIGHT);
+    }
+}
+
 /* After the menu or the text dialog closes, buttons still held (the Cross that accepted a
  * name) stay hidden until released: the game would take them as a new press. */
 static int hold_after_capture;
@@ -821,6 +856,7 @@ static void sample(PadData *d) {
     apply_scheme(d);
     apply_combos(d);
     apply_dodge(d);
+    apply_trick(d);
     apply_mouse_aim(d);
     note_pause_key(d);
     play_click(d);
@@ -841,7 +877,7 @@ static void sample_second(PadData *d) {
     read_motion(&motions[1],g,&injected2,d);
     d->buttons|=injected2.buttons;
     if (d->buttons & (CLICK_LEFT|CLICK_RIGHT)) d->buttons|=BTN_TOUCHPAD; /* no touch surface to aim */
-    d->buttons&=~(CLICK_LEFT|CLICK_RIGHT|DODGE|RAGE|GRAB);
+    d->buttons&=~(CLICK_LEFT|CLICK_RIGHT|DODGE|RAGE|GRAB|TRICK);
     if (injected2.buttons & BTN_L2) d->l2=255;
     if (injected2.buttons & BTN_R2) d->r2=255;
     uint8_t *axes[4]={&d->left_x,&d->left_y,&d->right_x,&d->right_y};
