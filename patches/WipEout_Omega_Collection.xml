@@ -717,6 +717,15 @@
             <Line Type="bytes" Address="0x00c6bb80" Value="0000004801000000" Pattern="00 00 00 08 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00 00 00 00 28 01 00 00 00 00 00 00 10 00 00 00 00 00 80 00 00 00 00 00 00 00 70 05 00 00 00 00 00" At="32"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Skip the autosave notice" Note="The autosave notice at start goes away as soon as the profile has loaded instead of staying 5.5 seconds (#84). It still shows while the profile loads." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="false">
+        <!-- The "Save Warning" screen (skin.xml, type HDDBoot, 0x56f740) adds each frame's time to
+             [obj+0x184]; once its state machine has set the redirect to the main menu ([obj+0x188]),
+             it still waits until that time is over 5.5 s (vucomiss at 0x56f794, jbe 0x56ff46). The
+             jbe becomes six nops. -->
+        <PatchList>
+            <Line Type="bytes" Address="0x00d6f79c" Pattern="c5 f8 2e 0d ?? ?? ?? ?? 0f 86 ?? ?? ?? ?? 80 3d ?? ?? ?? ?? 00 74 18 8a 05 ?? ?? ?? ?? 84 c0 74 0e 48 8d 35 ?? ?? ?? ?? 48 89 b3 88 01 00 00" At="8" Value="90 90 90 90 90 90"/>
+        </PatchList>
+    </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Startup Hang" Note="Fixes a random hang at start (black screen after 'NEW THREAD'). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
         <!-- The start-up code at 0x67a4f0 starts the loader thread (call 0x3d20e0), then sets the flag
              0xaef4c6 = 1 and sleeps until the thread sets 0xaef390. The thread reads the flag early

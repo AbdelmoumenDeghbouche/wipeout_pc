@@ -434,7 +434,7 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 1920x1440',
                                  'Resolution Patch - 3840x1600', 'Resolution Patch - 5120x1440',
                                  'Native 4K rendering (no checkerboard)',
-                                 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS', 'Bug Fix - Engine trail above 60 FPS',
+                                 'Skip the autosave notice', 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS', 'Bug Fix - Engine trail above 60 FPS',
                                  'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Model slots',
                                  'Cheat - Unlock all HD and Fury events',
                                  'Cheat - Top rank in 2048', 'Cheat - Unlock all ships',
