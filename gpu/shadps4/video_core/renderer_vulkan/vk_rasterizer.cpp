@@ -1254,7 +1254,31 @@ void Rasterizer::DrawRecord(const GraphicsPipeline* pipeline, const PreparedDraw
     const u32 num_instances = regs.num_instances.NumInstances();
     const u32 first_vertex = vertex_offset;
     const u32 first_instance = instance_offset;
+    // gow3: draws left out by their pixel shader. GOW3_SKIP_PS=<hex>,<hex> (debugging: find a draw
+    // by its effect; the frame capture lists the hashes). GOW3_PHOTO_FLARE=0 (#199): WipEout's photo
+    // mode adds a lens flare (ps 38e15bc4, a half-size pass sampling its flare textures) that colours
+    // the ship and its exhaust; the races don't draw it.
+    static const std::vector<u64> skip_ps = [] {
+        std::vector<u64> list;
+        if (const char* v = std::getenv("GOW3_SKIP_PS")) {
+            for (const char* p = v; *p;) {
+                char* end;
+                list.push_back(std::strtoull(p, &end, 16));
+                p = *end ? end + 1 : end;
+            }
+        }
+        if (const char* v = std::getenv("GOW3_PHOTO_FLARE"); v && v[0] == '0') {
+            list.push_back(0x38e15bc4);
+        }
+        return list;
+    }();
+    const auto* skip_stage = pipeline->GetStages()[u32(Shader::SwStage::Fragment)];
+    const bool skip_draw =
+        skip_stage && std::find(skip_ps.begin(), skip_ps.end(), skip_stage->pgm_hash) != skip_ps.end();
     scheduler.Record([=](vk::CommandBuffer cmdbuf) {
+        if (skip_draw) {
+            return;
+        }
         const auto draw = [&] {
             if (is_indexed) {
                 cmdbuf.drawIndexed(num_indices, num_instances, 0, s32(first_vertex),

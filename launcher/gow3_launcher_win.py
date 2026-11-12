@@ -551,7 +551,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'launcher_gamepad': True, 'menu_fps_cap': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
+                'update_popup': True, 'launcher_gamepad': True, 'menu_fps_cap': True, 'photo_flare': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
                 'controls_layout': 2,
                 'glyph_style': 'off', 'eliminator_limit': '2000'}
 
@@ -1331,6 +1331,8 @@ def game_environment(s):
     env['GOW3_NEO'] = '1' if s.get('ps4_pro') else '0'  # the game asks sceKernelIsNeoMode
     if not s.get('menu_fps_cap', True):  # #177: menus at the frame rate limit too (the profile caps them at 60)
         env['GOW3_MENU_FPS'] = '0'
+    if not s.get('photo_flare', True):  # #199: the photo mode's lens flare left out
+        env['GOW3_PHOTO_FLARE'] = '0'
     if s.get('update_dir'):
         env['GOW3_PATCH_DIR'] = s['update_dir']
     if not WINDOWS:
@@ -2207,6 +2209,9 @@ class Launcher:
                                Path(self.var('user_dir', 'app').get() or DATA_DIR / 'user') / 'screenshots'))
         self.row(f, _('F12 in the game'), shots,
                  _("Saves the game's image, without the overlay, as a PNG in the screenshots folder of the saves."))
+        self.check(f, 'photo_flare', 'app', _('Lens flare in photo mode'),
+                   _("Off: no colour flare over the ship and its exhaust in the game's photo mode."),
+                   restart=True)
 
     def build_performance(self):
         f = self.scrolled_page('performance', _('Performance'), _('Frame rate and speed options.'))

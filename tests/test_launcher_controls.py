@@ -910,6 +910,8 @@ class MenuFpsCapTest(unittest.TestCase):
             os.environ.pop('GOW3_MENU_FPS', None)
             self.assertNotIn('GOW3_MENU_FPS', launcher.game_environment(base))
             self.assertEqual(launcher.game_environment(dict(base, menu_fps_cap=False))['GOW3_MENU_FPS'], '0')
+            self.assertNotIn('GOW3_PHOTO_FLARE', launcher.game_environment(base))
+            self.assertEqual(launcher.game_environment(dict(base, photo_flare=False))['GOW3_PHOTO_FLARE'], '0')
 
 
 class LinuxLauncherTest(unittest.TestCase):
