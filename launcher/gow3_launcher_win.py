@@ -470,7 +470,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'launcher_gamepad': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
+                'update_popup': True, 'launcher_gamepad': True, 'menu_fps_cap': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
                 'controls_layout': 2,
                 'glyph_style': 'off', 'eliminator_limit': '2000'}
 
@@ -1245,6 +1245,8 @@ def game_environment(s):
     # The Graphics page's anti-aliasing switch (build_graphics); off, run.py keeps the upscaler out.
     env['GOW3_EXPERIMENTAL_UPSCALER'] = '1' if s.get('experimental_upscaler') else '0'
     env['GOW3_NEO'] = '1' if s.get('ps4_pro') else '0'  # the game asks sceKernelIsNeoMode
+    if not s.get('menu_fps_cap', True):  # #177: menus at the frame rate limit too (the profile caps them at 60)
+        env['GOW3_MENU_FPS'] = '0'
     if s.get('update_dir'):
         env['GOW3_PATCH_DIR'] = s['update_dir']
     if not WINDOWS:
@@ -2119,6 +2121,9 @@ class Launcher:
         self.section(f, _('Frame rate', 'Частота кадров'), top=4)
         self.row(f, _('Frame rate limit'), self.choice(f, 'fps_limit', 'ini', FPS_LIMITS),
                  _("Unlimited: up to 240 FPS. With VSync on, your monitor's refresh rate is the highest it goes."))
+        self.check(f, 'menu_fps_cap', 'app', _('Menus at 60 FPS'),
+                   _('On: the menus and the pause menu run at 60 FPS like on PS4. Off: at the frame rate limit '
+                     '(some menu animations then run faster).'))
         self.row(f, _('Frames queued'), self.choice(f, 'frames_queued', 'ini', FRAMES_QUEUED),
                  _('1 is the lowest input latency; more can raise FPS when the graphics card is the limit.'))
         self.section(f, _('Shaders'))

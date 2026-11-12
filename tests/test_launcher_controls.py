@@ -882,6 +882,16 @@ class LauncherGamepadSwitchTest(unittest.TestCase):
             self.assertEqual(app.gamepad_action.call_count, calls)
 
 
+class MenuFpsCapTest(unittest.TestCase):
+    def test_the_menu_cap_switch_off_lifts_the_60_fps_menus(self):
+        # #177: off sets GOW3_MENU_FPS=0 over the profile's 60; on leaves the profile (or the player's variable).
+        base = dict(launcher.APP_DEFAULTS, game_dir='')
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop('GOW3_MENU_FPS', None)
+            self.assertNotIn('GOW3_MENU_FPS', launcher.game_environment(base))
+            self.assertEqual(launcher.game_environment(dict(base, menu_fps_cap=False))['GOW3_MENU_FPS'], '0')
+
+
 class UpdateDownloadTest(unittest.TestCase):
     def test_a_cut_download_is_an_error_and_a_whole_zip_is_kept(self):
         # #191: the connection ended early and the launcher said "File is not a zip file".
