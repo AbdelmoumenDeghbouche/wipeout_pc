@@ -868,6 +868,20 @@ class PortableTest(unittest.TestCase):
                 importlib.reload(launcher)
 
 
+class LauncherGamepadSwitchTest(unittest.TestCase):
+    def test_the_switch_off_ignores_the_controller(self):
+        # #179: players who move the mouse with the stick turn the launcher's controller off.
+        for on, calls in ((True, 1), (False, 0)):
+            app = types.SimpleNamespace(var=lambda key, store, on=on: types.SimpleNamespace(get=lambda: on),
+                                        root=mock.Mock(), gamepad_action=mock.Mock(), poll_gamepad=None)
+            app.root.wm_frame.return_value = '0x10'
+            with mock.patch.object(launcher, 'xinput_buttons', return_value=0x1000), \
+                    mock.patch.object(launcher, 'ctypes', create=True) as fake_ctypes:
+                fake_ctypes.windll.user32.GetForegroundWindow.return_value = 0x10
+                launcher.Launcher.poll_gamepad(app)
+            self.assertEqual(app.gamepad_action.call_count, calls)
+
+
 class UpdateDownloadTest(unittest.TestCase):
     def test_a_cut_download_is_an_error_and_a_whole_zip_is_kept(self):
         # #191: the connection ended early and the launcher said "File is not a zip file".

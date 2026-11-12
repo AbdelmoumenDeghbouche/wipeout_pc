@@ -470,7 +470,7 @@ APP_DEFAULTS = {'ui_language': 'en', 'ui_scale': 'auto', 'game_dir': os.environ.
                 'gpu_id': '', 'partial_height_views': True, 'background_warmup': True, 'parallel_warmup': True, 'pipeline_binary_cache': True,
                 'perf_diag': False, 'frame_capture_key': False, 'upscaler_key': False, 'frame_stats': False, 'gpu_profile': False,
                 'vk_validation': False, 'close_on_play': False, 'discord_rpc': False,
-                'update_popup': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
+                'update_popup': True, 'launcher_gamepad': True, 'game_patches': {}, 'controls': {}, 'pad_style': 'playstation', 'gamepad_number': '1', 'pad_scheme': '',
                 'controls_layout': 2,
                 'glyph_style': 'off', 'eliminator_limit': '2000'}
 
@@ -1890,7 +1890,8 @@ class Launcher:
         LB/RB pages, D-pad or left stick up/down moves, left/right changes a choice or a slider,
         A selects, B goes home, Start plays, Back saves."""
         state = xinput_buttons()
-        held = state if state and ctypes.windll.user32.GetForegroundWindow() == int(self.root.wm_frame(), 16) else 0
+        on = self.var('launcher_gamepad', 'app').get()  # #179: off for players who move the cursor with the stick
+        held = state if on and state and ctypes.windll.user32.GetForegroundWindow() == int(self.root.wm_frame(), 16) else 0
         now = time.monotonic()
         fire = held & ~getattr(self, 'pad_prev', 0)
         if fire:
@@ -2871,6 +2872,8 @@ class Launcher:
         if WINDOWS:
             self.check(f, 'update_popup', 'app', _('Check for updates when the launcher opens',
                                                     'Проверять обновления при открытии лаунчера'))
+            self.check(f, 'launcher_gamepad', 'app', _('Control the launcher with an Xbox controller'),
+                       _('Off: the controller does nothing in the launcher (for example while it moves the mouse).'))
         holder = ttk.Frame(f)
         holder.grid(row=self.next_row(f), column=0, columnspan=2, sticky='w', pady=self.px((10, 0)))
         ttk.Button(holder, text=_('Desktop shortcut', 'Ярлык на рабочем столе'), command=self.shortcut).pack(side='left', padx=self.px((0, 6)))
