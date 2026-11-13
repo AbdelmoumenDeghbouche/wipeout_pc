@@ -221,19 +221,29 @@ u32 Gow3DisplayRefreshHz() {
 }
 
 #ifdef GOW3_PGO_GENERATE
+#ifdef __clang__
+extern "C" int __llvm_profile_write_file(void);
+#else
 extern "C" void __gcov_dump(void);
 extern "C" void __gcov_reset(void);
+#endif
 // Instrumented build (GOW3_PGO=generate): the game often ends through _exit (watchdog, guest
-// exit), which skips the profile write at exit. Write every 30 s and reset: the files sum the
-// intervals.
+// exit), which skips the profile write at exit. Write every 30 s. GCC: write and reset, the files
+// sum the intervals. Clang: the file (LLVM_PROFILE_FILE, %p = one per run) is written again with
+// the counts since the start.
 static void StartProfileWriter() {
     std::thread([] {
         Common::SetCurrentThreadName("gow3:pgo");
         for (;;) {
             std::this_thread::sleep_for(std::chrono::seconds(30));
+#ifdef __clang__
+            const int failed = __llvm_profile_write_file();
+            std::printf(failed ? "PGO: the profile could not be written\n" : "PGO: profile written\n");
+#else
             __gcov_dump();
             __gcov_reset();
             std::printf("PGO: profile written\n");
+#endif
         }
     }).detach();
 }
