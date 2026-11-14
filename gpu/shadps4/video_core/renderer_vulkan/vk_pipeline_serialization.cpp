@@ -64,8 +64,8 @@ bool LowOnCommit() {
 
 namespace Serialization {
 /* You should increment versions below once corresponding serialization scheme is changed. */
-// gow3: sample barycentrics and Sample inputs per pixel without per-sample shading
-static constexpr u32 ShaderBinaryVersion = 14u;
+// gow3: FragCoord takes push constant scene_size as native / reduced ratios (#211)
+static constexpr u32 ShaderBinaryVersion = 15u;
 // gow3: HwFragmentRuntimeInfo::per_sample_shading
 static constexpr u32 ShaderMetaVersion = 8u;
 static constexpr u32 PipelineKeyVersion = 6u; // gow3: GraphicsPipelineKey::ps_iter_samples

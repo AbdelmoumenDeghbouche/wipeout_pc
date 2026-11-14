@@ -110,6 +110,13 @@ int main() {
         const auto size = SceneResolution::ForPreset(preset, output);
         targets.SetSize(size);
         assert(SceneResolution::Unpack(SceneResolution::Pack(size)) == size);
+        // The shaders' FragCoord factor: raster pixels times it land on the native pixel (#211).
+        for (const SceneResolution::Size native : {SceneResolution::Size{}, SceneResolution::Size{3840, 2160}}) {
+            const auto r = SceneResolution::ForPreset(preset, native);
+            const u32 ratio = SceneResolution::PackRatio(r, native);
+            assert(std::abs((ratio & 65535u) / 16384.0 * r.width - native.width) < 0.5);
+            assert(std::abs((ratio >> 16) / 16384.0 * r.height - native.height) < 0.5);
+        }
         clear_native(0xffff0000, copied_stencil); // blue
         auto c = targets.Read(color_id,cv);
         assert(pixel(c.image,vk::ImageAspectFlagBits::eColor,c.layout,size.width,size.height)==0xffff0000);

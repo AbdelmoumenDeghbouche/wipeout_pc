@@ -313,17 +313,22 @@ bool TemporalUpscaler::OnFrameStart() {
     const bool jitter_on = active && settings.jitter && !Gow3Toggle::Disabled(1u << 25);
     const int upscaler = settings.upscaler.load();
     const int output = settings.output_res.load();
-    const bool output_changed = !scaled_session && applied_output != output;
+    u32 want_width = Gow3Settings::OutputWidths[output], want_height = Gow3Settings::OutputHeights[output];
+    // wipeout (pixel-shader trigger) has none of God of War III's UI hooks that an output other
+    // than the scene's size needs (Scaled()): with a larger one FSR and DLSS never ran (#211).
+    // Its upscaler writes the game's scene (1920x1080, 3840x2160 with the 4K render resolution or
+    // PS4 Pro mode), so an output from 1920x1080 up works like the scene's size and the presets
+    // divide that. A smaller one (Steam Deck 1280x720) keeps the raster at its size, as before.
+    const auto native = scene_targets.Native();
+    if (ps_trigger_hash && want_width >= 1920 && want_height >= 1080) {
+        want_width = native.width;
+        want_height = native.height;
+    }
+    const bool output_changed =
+        !scaled_session && (want_width != target_width || want_height != target_height);
     if (output_changed) {
-        target_width = Gow3Settings::OutputWidths[output];
-        target_height = Gow3Settings::OutputHeights[output];
-        // wipeout (pixel-shader trigger) has none of God of War III's UI hooks that an output
-        // above 1920x1080 needs (Scaled()): FSR and DLSS never ran there (#211). Its upscaler
-        // writes the game's 1920x1080 scene, so a larger output works like 1920x1080.
-        if (ps_trigger_hash && target_width > 1920) {
-            target_width = 1920;
-            target_height = 1080;
-        }
+        target_width = want_width;
+        target_height = want_height;
         std::printf("Output resolution: %ux%u (live)\n", target_width, target_height);
         failed = false;
         fsr4_failed = false;
@@ -350,7 +355,6 @@ bool TemporalUpscaler::OnFrameStart() {
     if (changed || !dispatched_last_frame) reset = true;
     if (changed) jitter_index = 0;
     applied_preset = preset;
-    applied_output = output;
     applied_upscaler = upscaler;
     last_active = active;
     last_jitter = jitter_on;
@@ -374,7 +378,7 @@ bool TemporalUpscaler::OnFrameStart() {
     // CameraMotion::OnDisplayPass has already cleared Depth(). Use the context's render
     // size, which survives the frame boundary (Performance 960 -> 1920 needs 32 phases).
     const u32 phases = Scaled() ? Motion::JitterPhases(render_width, target_width)
-        : Motion::JitterPhases(scene_targets.Size().width, 1920);
+        : Motion::JitterPhases(scene_targets.Size().width, scene_targets.Native().width);
     jitter_index = jitter_index % phases + 1;
     jitter = {Halton(jitter_index, 2) - 0.5f, Halton(jitter_index, 3) - 0.5f};
     return changed;
@@ -1393,12 +1397,13 @@ std::array<u32, 2> TemporalUpscaler::SceneSize(u32 w, u32 h) const {
 float TemporalUpscaler::SceneMipBias() const {
     if (!Active() || Gow3Settings::Get().upscaler == Gow3Settings::UpscalerTaa) return 0.0f;
     const float render = float(Gow3Settings::Get().active_render_width.load());
-    const float output = float(Scaled() ? target_width : 1920u);
+    const float output = float(Scaled() ? target_width : scene_targets.Native().width);
     return render > 0.0f && render < output ? std::log2(render / output) : 0.0f;
 }
 
 bool TemporalUpscaler::Scaled() const {
-    return scaled_session || target_width != 1920 || target_height != 1080;
+    const auto native = scene_targets.Native(); // 1920x1080 but in WipEout's 4K or Pro scene
+    return scaled_session || target_width != native.width || target_height != native.height;
 }
 
 void TemporalUpscaler::OnColorTarget(VideoCore::ImageId color) {

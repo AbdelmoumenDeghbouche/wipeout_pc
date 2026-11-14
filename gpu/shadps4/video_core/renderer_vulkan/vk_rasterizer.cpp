@@ -360,6 +360,16 @@ void Rasterizer::PrepareRenderState(const GraphicsPipeline* pipeline) {
         camera_motion->OnGBufferPass(db_desc.first);
         camera_motion->OnGameMotion(cb_descs[2].first);
         upscaler->OnSceneColor(cb_descs[0].first);
+        // #211: the scene is 1920x1080, or what the render resolution patch or PS4 Pro mode
+        // makes it (3840x2160); the presets divide that. The largest scene pass seen, so two
+        // sizes in one session cannot make it switch back and forth.
+        const auto& depth = texture_cache.GetImage(db_desc.first).info.size;
+        const auto native = scene_targets->Native();
+        if (depth.width >= 640 && depth.height >= 360 &&
+            (!scene_native_seen || u64(depth.width) * depth.height > u64(native.width) * native.height)) {
+            scene_native_seen = true;
+            scene_targets->SetNative({depth.width, depth.height});
+        }
     }
     if (upscaler->Enabled() && cb_descs[0].first) {
         upscaler->OnColorTarget(cb_descs[0].first);
@@ -3104,7 +3114,8 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
         }
         std::printf("Scene pass: reduced %d %s\n", reduced, why.c_str());
     }
-    push_data.scene_size = reduced ? SceneResolution::Pack(scene_targets->Size()) : 0;
+    push_data.scene_size =
+        reduced ? SceneResolution::PackRatio(scene_targets->Size(), scene_targets->Native()) : 0;
     if (Gow3Stats::enabled) {
         Gow3Stats::reduced_draws.fetch_add(reduced, std::memory_order_relaxed);
         Gow3Stats::scene_draws.fetch_add(scene_started, std::memory_order_relaxed);
@@ -3345,12 +3356,14 @@ RenderState Rasterizer::BeginRenderingFull(const GraphicsPipeline* pipeline) {
     }
 
     if (reduced) {
-        // Half-resolution passes keep the scene's factor (proxy / native = scene / 1920).
+        // Half-resolution passes keep the scene's factor (proxy / native = scene / native).
         const auto size = scene_targets->Size();
+        const auto native = scene_targets->Native();
         const auto proxy = pass_size.value_or(size);
         state.width = proxy.width;
         state.height = proxy.height;
-        target_scale = {float(size.width) / 1920.0f, float(size.height) / 1080.0f};
+        target_scale = {float(size.width) / float(native.width),
+                        float(size.height) / float(native.height)};
     }
     if (census_on) {
         std::array<const VideoCore::ImageInfo*, AmdGpu::NUM_COLOR_BUFFERS> colors{};

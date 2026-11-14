@@ -18,6 +18,15 @@ inline Size ForPreset(int preset, Size output = {}) {
             uint32_t(std::max(1l, std::lround(output.height / scale / 2)) * 2)};
 }
 constexpr uint32_t Pack(Size size) { return size.width | (size.height << 16); }
+// The shaders' FragCoord conversion (push constant scene_size): native / raster per axis, in
+// 2.14 fixed point, width low. The presets divide by at most 3, so each half fits 16 bits.
+// The ratio rather than the raster size, so the scene need not be 1920x1080 (#211: 3840x2160).
+constexpr uint32_t PackRatio(Size raster, Size native) {
+    const auto fixed = [](uint32_t n, uint32_t r) {
+        return uint32_t((uint64_t(n) * 16384u + r / 2) / std::max(r, 1u));
+    };
+    return fixed(native.width, raster.width) | (fixed(native.height, raster.height) << 16);
+}
 constexpr Size Unpack(uint32_t packed) {
     return packed ? Size{packed & 65535u, packed >> 16} : Size{};
 }

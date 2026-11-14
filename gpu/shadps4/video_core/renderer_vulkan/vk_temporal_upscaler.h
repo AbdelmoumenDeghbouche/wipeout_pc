@@ -205,7 +205,6 @@ private:
     VideoCore::ImageId scene_color{};
     bool done_this_frame = false;
     u32 preset_file_frames = 0; ///< GOW3_PRESET_FILE polling
-    int applied_output = -1;
     bool snapshot_taken = false;
     bool opaque_valid = false;
     bool mask_ready = false;

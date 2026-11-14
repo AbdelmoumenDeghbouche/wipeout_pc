@@ -19,7 +19,7 @@ KEYS = [
     'Upscaling',
     "Temporal upscaling with the game's own motion vectors. FSR 4 needs its assets (below) and a GPU with INT8 dot products; otherwise the game falls back to FSR 3.1 by itself.",
     'Quality preset', 'Render scale per axis: Quality renders at 1/1.5 of the output size.',
-    'Output resolution', 'Above 1920x1080 it works like 1920x1080; Render resolution sets how sharp the race is.',
+    'Output resolution', 'From 1920x1080 up it follows Render resolution, which sets how sharp the race is; Upscaling divides that.',
     'Live resolution changes',
     'Off: outputs other than 1080p are set by a patch at start (fastest; changing them in the game restarts it). On: change output and preset in the game without a restart, at a cost.',
     'Sharpening (RCAS)', 'Sharpness', 'Object motion vectors',

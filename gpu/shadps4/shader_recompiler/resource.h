@@ -226,7 +226,7 @@ struct PushData {
     std::array<u32, NUM_USER_DATA_REGS> ud_regs;
     std::array<u8, NUM_BUFFERS> buf_offsets;
     u32 motion_param; ///< gow3: object motion parameter index (0: off)
-    u32 scene_size; ///< reduced width | height << 16; zero means native pixel coordinates
+    u32 scene_size; ///< native / reduced size per axis, 2.14 fixed point, x low; 0: native pixels
 
     void AddOffset(u32 binding, u32 offset) {
         ASSERT(offset < 256 && binding < buf_offsets.size());
