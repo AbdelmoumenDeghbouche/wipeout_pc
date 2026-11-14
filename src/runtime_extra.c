@@ -718,6 +718,89 @@ void runtime_ue4_setres_poll(void) {
     if (want && *want) ue4_setres(want);
 }
 
+/* The frame rate the present thread aims at: its frame limit, or the vblank rate without one, and
+ * no more than the display shows with VSync. Set by the present thread (videoout/driver.cpp). */
+static uint32_t target_millifps=60000; /* written by the present thread, read by the game's */
+void runtime_set_target_fps(double fps) {
+    if (fps>=10.0 && fps<=1000.0) __atomic_store_n(&target_millifps,(uint32_t)(fps*1000.0+0.5),__ATOMIC_RELAXED);
+}
+
+/* WipEout's ship reflection cubes follow the frame rate (CUSA07671 and CUSA05670 01.07;
+ * GOW3_CUBE_BUDGET=off leaves them alone). Every frame the game draws up to six faces of the camera
+ * ship's cube, a scene render each, capped by the byte at 0xed4875, which it copies to its working
+ * value (0xeb4845) at the end of the frame function (0x5fe058) and sets back to 0xff when a track
+ * loads. Its VR mode lowers that byte when the frame rate falls (0x768760); with two players it
+ * draws three faces a frame, the cube complete every second frame. This does the same for one
+ * player: three faces while the game runs more than 5 % below the frame rate it aims at
+ * (runtime_set_target_fps), all six again once it has held that rate for a while. A return to six
+ * that does not hold doubles the wait before the next try (1.5 s up to 24 s), so a stretch near
+ * the limit does not swing. The rate is counted from the game's own frame counter (0x103ece8),
+ * which stops while it is paused. The byte stays the game's: this only lowers it, puts back the
+ * value it found, and keeps out with two players (0x1012811) and in VR (0x1012810), where the
+ * game sets its own lower budget. Called from scePadReadState on the game's thread. */
+void runtime_cube_budget_poll(void) {
+    static int state=-1; /* -1: not checked, 0: off, 1: on */
+    static unsigned char *image;
+    static uint32_t last_frame;
+    static uint64_t last_us, restored_us, good_since_us, hold_us=1500000;
+    static unsigned char found=0xff; /* the game's value when this lowered it */
+    static int low, wrote; /* this wants three faces; it lowered the byte itself */
+    static unsigned lowered, restored;
+    if (state<0) {
+        const char *mode=getenv("GOW3_CUBE_BUDGET");
+        const int wanted=!mode || (strcmp(mode,"off") && strcmp(mode,"0"));
+        image=runtime_image_base();
+        /* the build this was read from: "mov al,6" of the default budget, the copy to 0xeb4845 */
+        const int known=image && runtime_image_size()>0x103ece8+sizeof(uint32_t) && image[0x62d479]==0xb0 &&
+                        image[0x62d47a]==0x06 && image[0x5fe058]==0x8a && image[0x5fe059]==0x05;
+        state=wanted && known;
+        if (state) printf("Reflection cubes: the camera ship's cube follows the frame rate (6 or 3 faces a frame)\n");
+        else if (mode && wanted) printf("Reflection cubes: GOW3_CUBE_BUDGET is not available for this game build\n");
+    }
+    if (!state) return;
+    unsigned char *const budget=image+0xed4875;
+    if (image[0x1012811]>1 || image[0x1012810]) { /* two players, VR: the game's own budget */
+        if (wrote && *budget==3) *budget=found;
+        low=wrote=0; last_us=0; good_since_us=0;
+        return;
+    }
+    struct timespec t; clock_gettime(CLOCK_MONOTONIC,&t);
+    const uint64_t now=(uint64_t)t.tv_sec*1000000u+(uint64_t)t.tv_nsec/1000u;
+    uint32_t frame; memcpy(&frame,image+0x103ece8,sizeof(frame));
+    if (!last_us) { last_us=now; last_frame=frame; }
+    const uint32_t frames=frame-last_frame;
+    if (frames>=30 && now>last_us) { /* a window of half a second at 60 frames a second */
+        const double fps=frames*1e6/(double)(now-last_us);
+        const double target=__atomic_load_n(&target_millifps,__ATOMIC_RELAXED)/1000.0;
+        last_us=now; last_frame=frame;
+        if (fps<target*0.95) {
+            if (!low) {
+                low=1; ++lowered;
+                /* six faces did not hold: wait longer before the next try */
+                hold_us=restored_us && now-restored_us<4000000u ? (hold_us<12000000u ? hold_us*2 : 24000000u) : hold_us;
+            }
+            good_since_us=0;
+        } else if (fps>=target*0.988) {
+            if (!good_since_us) good_since_us=now;
+            if (low && now-good_since_us>=hold_us) {
+                low=0; ++restored; restored_us=now;
+                if (wrote && *budget==3) *budget=found; /* only what this set */
+                wrote=0;
+            }
+            if (!low && restored_us && now-restored_us>=10000000u) hold_us=1500000; /* it held */
+        } else good_since_us=0;
+        /* the first switches one by one, then every sixteenth */
+        static unsigned said;
+        const unsigned switches=lowered+restored;
+        if (said!=switches && (switches<=12 || switches%16==0)) {
+            said=switches;
+            printf("Reflection cubes: %s faces a frame at %.1f fps, aiming at %.1f (lowered %u times, back %u times)\n",
+                   low ? "3" : "6",fps,target,lowered,restored);
+        }
+    } else if (now-last_us>2000000u) { last_us=now; last_frame=frame; good_since_us=0; } /* paused or loading */
+    if (low && *budget>3) { found=*budget; *budget=3; wrote=1; } /* again after a track load's 0xff */
+}
+
 uintptr_t runtime_extra_resolve(const char *name) { return RUNTIME_LOOKUP(exports,name); }
 void runtime_extra_report(void) {
     printf("Runtime: event flags created=%zu, NGS2 silent renders=%zu\n",flags_created,ngs2_renders);

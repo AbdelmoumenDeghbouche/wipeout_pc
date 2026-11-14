@@ -926,6 +926,7 @@ static ABI int32_t pad_read_state(int32_t handle, PadData *data) {
     else sample_second(data);
     pthread_mutex_unlock(&lock);
     if (first) runtime_user_events(); /* user 2 logging in or out (split-screen) */
+    if (first) runtime_cube_budget_poll();
     return 0;
 }
 /* Buffered read: the port samples once per call, so one entry is returned. */
