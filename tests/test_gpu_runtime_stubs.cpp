@@ -24,7 +24,6 @@ int runtime_music_playing() { std::abort(); }
 void runtime_music_play(int) { std::abort(); }
 void runtime_music_step(int) { std::abort(); }
 int runtime_music_in_race(void) { return 1; }
-int runtime_music_in_zone(void) { return 0; }
 int runtime_wipeout_paused(void) { return 0; }
 void runtime_restart() { std::abort(); }
 void runtime_report() {}

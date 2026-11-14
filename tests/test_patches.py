@@ -436,15 +436,15 @@ class HalfResolutionTests(unittest.TestCase):
                                  'Resolution Patch - 3840x1600', 'Resolution Patch - 5120x1440',
                                  'Native 4K rendering (no checkerboard)',
                                  'Skip the autosave notice', 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS', 'Bug Fix - Engine trail above 60 FPS',
-                                 'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Model slots',
-                                 'Cheat - Unlock all HD and Fury events',
+                                 'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Zone points above 60 FPS',
+                                 'Bug Fix - Model slots', 'Cheat - Unlock all HD and Fury events',
                                  'Cheat - Top rank in 2048', 'Cheat - Unlock all ships',
                                  'Cheat - Van Uber team (owned DLC)', 'Cheat - VR ships outside VR'])
         # The resolution patches stay off until a resolution is chosen; native 4K rendering is on.
         self.assertEqual(selected_patches(WIPEOUT, '01.00', ''),
                          ['Native 4K rendering (no checkerboard)', 'Bug Fix - Startup Hang',
                           'Bug Fix - Effects above 60 FPS', 'Bug Fix - Engine trail above 60 FPS',
-                          'Bug Fix - Zone crash above 60 FPS',
+                          'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Zone points above 60 FPS',
                           'Bug Fix - Model slots'])
         # The model slots fix needs the game's code (test_wipeout_model_slots_move_to_the_reserve).
         self.assertTrue(compile_patches(WIPEOUT, [n for n in names[1:] if n != 'Bug Fix - Model slots'],
@@ -472,6 +472,22 @@ class HalfResolutionTests(unittest.TestCase):
         self.assertIn('Bug Fix - Zone crash above 60 FPS', selected_patches(WIPEOUT, '01.00', '', only=True))
         self.assertEqual(compile_patches(WIPEOUT, ['Bug Fix - Zone crash above 60 FPS'], '01.00', SEGMENTS),
                          [(0x665e66, bytes.fromhex('8b0558ff8600 ffc8 83e003 890535223400'))])
+
+    def test_wipeout_zone_points_follow_time(self):
+        # #222: the Zone update's inc [r12+0x300cc] (one point a frame) calls CAVE, the zero padding
+        # after .eh_frame_hdr, which adds (int)((t + dt) * 60) - (int)(t * 60) with its own 60.0 (K60).
+        name = 'Bug Fix - Zone points above 60 FPS'
+        self.assertIn(name, selected_patches(WIPEOUT, '01.00', '', only=True))
+        writes = dict(compile_patches(WIPEOUT, [name], '01.00', SEGMENTS))
+        self.assertEqual(set(writes), {0x964000, 0x964040, 0x2c938b})
+        call = writes[0x2c938b]
+        self.assertEqual((call[0], call[5:]), (0xe8, bytes.fromhex('0f1f00')))
+        self.assertEqual(0x2c938b + 5 + struct.unpack_from('<i', call, 1)[0], 0x964000)
+        cave = writes[0x964000]
+        self.assertEqual((len(cave), cave[-1]), (64, 0xc3))  # ends with ret, right before K60
+        for at in (0x0c, 0x27):  # both vmulss read K60
+            self.assertEqual(0x964000 + at + 8 + struct.unpack_from('<i', cave, at + 4)[0], 0x964040)
+        self.assertEqual(struct.unpack('<f', writes[0x964040])[0], 60.0)
 
     def test_wipeout_fades_take_the_exact_factor(self):
         # The fades step once by 1 - (1 - rate)^(dt * 60) at any frame rate: F (x87: fyl2x, f2xm1, fscale

@@ -264,7 +264,8 @@ REPLACED_BY_EXCLUSIVE={'Bug Fix - Texture Corruption Fix'}
 # Fixes with nothing to choose: not offered in the launcher and applied even with its saved list,
 # which predates them (the startup black screen fix sets a value the game overwrites at once).
 ALWAYS_ON={'Bug Fix - Startup Black Screen', 'Bug Fix - Startup Hang', 'Bug Fix - Effects above 60 FPS',
-           'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Model slots'}
+           'Bug Fix - Zone crash above 60 FPS', 'Bug Fix - Zone points above 60 FPS',
+           'Bug Fix - Model slots'}
 
 
 def selected_patches(xml, app_version, extra, only=False):

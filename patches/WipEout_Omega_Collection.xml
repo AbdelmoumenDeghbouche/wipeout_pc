@@ -1016,6 +1016,22 @@
             <Line Type="bytes" Address="0x00a65e66" Pattern="41 80 67 01 fb 8b 05 ?? ?? ?? ?? ff c0 83 e0 03 89 05 ?? ?? ?? ?? eb 07" At="5" Value="8b 05 {rel:NEXT:0} ff c8 83 e0 03 89 05 {rel:INDEX:0}"/>
         </PatchList>
     </Metadata>
+    <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Zone points above 60 FPS" Note="Zone races give their points by time, as the 60 FPS game: 60 a second at any frame rate. Without it the points grew with the frame rate (240 a second at 240 FPS). Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
+        <!-- The Zone update (0x2c938b) adds 1 point per frame: inc [r12+0x300cc]. The zone timer t
+             ([r12+0x300f8]) grows by dt ([rbp-0x2c]) right after; at 10 s it is set back to 0 and the
+             zone goes up. The inc becomes a call to CAVE, which adds (int)((t + dt) * 60) - (int)(t * 60):
+             60 points a second at any frame rate, the fraction carried in t itself (at most 1 point lost
+             per zone, when t is set back to 0). xmm0 is reloaded right after the call; rax and rcx are
+             saved. CAVE is the zero padding after the unwind table (.eh_frame_hdr ends at 0x963f9c,
+             the code segment at 0x96651c); K60 is its 60.0. -->
+        <Target Name="CAVE" Address="0x00d64000" Pattern="cc ff ff ff 90 03 ec ff e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" At="0x70"/>
+        <Target Name="K60" Address="0x00d64040" Pattern="cc ff ff ff 90 03 ec ff e0 ff ff ff 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00 00" At="0xb0"/>
+        <PatchList>
+            <Line Type="bytes" Address="0x00d64000" Target="CAVE" Value="5051c4c17a108424f8000300c5fa5905{rel:K60:0}c5fa2cc8c4c17a108424f8000300c5fa5845d4c5fa5905{rel:K60:0}c5fa2cc029c841018424cc0003005958c3"/>
+            <Line Type="bytes" Address="0x00d64040" Target="K60" Value="00007042"/>
+            <Line Type="bytes" Address="0x006c938b" Pattern="41 ff 84 24 cc 00 03 00 c5 fa 10 45 d4 c4 c1 7a 58 84 24 f8 00 03 00" Value="e8{rel:CAVE:0}0f1f00"/>
+        </PatchList>
+    </Metadata>
     <Metadata Title="WipEout Omega Collection" Name="Bug Fix - Model slots" Note="Fixes a crash while a race loads (2048 Unity Square, Empire Climb): the game's list of loaded models was full. Always on." Author="AbdelmoumenDeghbouche" PatchVer="1.0" AppVer="01.00" AppElf="eboot.bin" isEnabled="true">
         <!-- Loaded models (rcsmodel, PS4.MaterialTable.inl) take a slot of a .bss table of 1396 entries
              of 0x360 bytes at 0xedf3e0 (in use: byte +0x114; count 0xedf3c4). 0x6265a0 scans for a

@@ -359,8 +359,6 @@ void runtime_music_step(int direction) {
 
 /* The game loaded a race's sound banks last, not the menus' (frame limit in the menus, #118). */
 int runtime_music_in_race(void) { return in_race; }
-/* A Zone race (its sound banks): WipEout adds the Zone points once a frame (#118). */
-int runtime_music_in_zone(void) { return in_race && mode==GROUP_ZONE; }
 
 void runtime_music_scene(const char *guest_path) {
     const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
