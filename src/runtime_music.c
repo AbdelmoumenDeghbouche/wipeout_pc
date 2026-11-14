@@ -104,12 +104,18 @@ static char *display_name(const char *path) {
     for (char *c=name; *c; ++c) if (*c=='_') *c=' ';
     return name;
 }
-/* Whether a song plays now: the group of the scene (menus, the race's mode, other races); every
- * song when that group has none. */
+/* Whether a song plays now: the group of the scene (menus, the race's mode, other races). A song
+ * of a subfolder plays only in its scene; the main folder's songs play in the races, and in the
+ * menus when there is no menu/ folder. A scene without songs has the game's music (#220: with only
+ * menu/ songs, they played in the races too). */
 static int scene_group(void) { return !in_race ? GROUP_MENU : group_songs[mode] ? mode : GROUP_RACE; }
 static int fits(size_t file) {
     const int group=scene_group();
-    return !group_songs[group] || menu_song[file]==group;
+    return menu_song[file]==group || (group==GROUP_MENU && !group_songs[GROUP_MENU] && menu_song[file]==GROUP_RACE);
+}
+static int scene_has_songs(void) {
+    const int group=scene_group();
+    return group_songs[group] || (group==GROUP_MENU && group_songs[GROUP_RACE]);
 }
 /* The play order from `first` on (under lock): shuffled, or the list's order. */
 static void arrange(int shuffle, size_t first) {
@@ -377,7 +383,8 @@ void runtime_music_scene(const char *guest_path) {
     else if (!strcmp(name,"speech_det.bnk") || !strcmp(name,"weapons_det.bnk") || !strcmp(name,"env0_det.bnk")) mode=GROUP_DETONATOR;
     if ((in_race!=was || mode!=was_mode) && menu_songs) {
         const int group=scene_group();
-        printf("Music: %s songs from now on\n",group==GROUP_RACE ? "race" : group_folders[group]);
+        if (!scene_has_songs()) printf("Music: the game's music from now on\n");
+        else printf("Music: %s songs from now on\n",group==GROUP_RACE ? "race" : group_folders[group]);
     }
 }
 
@@ -388,7 +395,7 @@ int runtime_music_bgm(float *pcm, int frames, int channels) {
     pthread_once(&once,start);
     if (!scanned || !file_count || !playable || channels<2 || frames<=0 || frames>2048) return 0;
     static int music_off; /* Discord shows no song while the game's music plays */
-    if (!gow3gpu_music_on()) { /* the game's music; the ring waits where it stopped */
+    if (!gow3gpu_music_on() || !scene_has_songs()) { /* the game's music; the ring waits where it stopped */
         if (!music_off) { music_off=1; runtime_presence_song(""); }
         return 0;
     }
