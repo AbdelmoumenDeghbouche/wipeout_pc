@@ -165,9 +165,10 @@ class HiddenUpscalingTest(LauncherOverTemporaryFiles):
 
     def test_hidden_settings_are_preserved_without_migration(self):
         before, _lines = launcher.load_ini()
-        for key in ('upscaler', 'preset', 'fsr1', 'sharpen', 'sharpness', 'rcas',
-                    'rcas_strength', 'object_motion', 'live_resolution',
-                    'experimental_upscaler'):
+        # upscaler, preset and experimental_upscaler are on the Graphics page since WipEout's
+        # anti-aliasing (bd230e1); the rest stay hidden.
+        for key in ('fsr1', 'sharpen', 'sharpness', 'rcas', 'rcas_strength', 'object_motion',
+                    'live_resolution'):
             self.assertNotIn(key, self.app.vars)
         self.assertEqual(self.save_state(), 'disabled')
         self.app.var('vsync', 'ini').set(False)
@@ -178,7 +179,6 @@ class HiddenUpscalingTest(LauncherOverTemporaryFiles):
                 self.assertEqual(after[key], before[key], key)
         self.app.var('ui_language', 'app').set('ru')
         self.app.save()
-        self.assertNotIn('upscaler', self.app.vars)
         self.assertEqual(launcher.load_ini()[0]['upscaler'], 'fsr4')
 
 

@@ -22,7 +22,10 @@ class FakeCanvas:
 
 class ButtonIconTest(unittest.TestCase):
     def test_every_game_button_has_a_playstation_icon(self):
-        for button, _key, _pad in launcher.CONTROLS:
+        buttons = {button for button, _key, _pad in launcher.CONTROLS}
+        # #207: side-shift / barrel roll is the port's own action, with no PS4 button to show.
+        self.assertEqual(buttons - set(button_icons.GAME_BUTTONS), {'trick'})
+        for button in buttons - {'trick'}:
             sdl = button_icons.GAME_BUTTONS[button]
             self.assertIsNotNone(button_icons.spec(sdl, 'playstation'), button)
 

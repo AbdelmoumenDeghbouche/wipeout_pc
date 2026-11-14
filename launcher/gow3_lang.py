@@ -750,6 +750,16 @@ WINDOWS_LANGUAGES = {0x19: 'ru', 0x01: 'ar', 0x0a: 'es', 0x16: 'pt', 0x0c: 'fr',
 # other languages fall back to English for them until someone who speaks them contributes.
 EXTRA = {
     'pt': {
+        'Adaptive ship reflections': 'Reflexos adaptativos da nave',
+        'Control the launcher with a gamepad': 'Controlar o launcher com um controle',
+        'Lens flare in photo mode': 'Reflexo de lente no modo foto',
+        'Menus at 60 FPS': 'Menus a 60 FPS',
+        "Off: no colour flare over the ship and its exhaust in the game's photo mode.": 'Desligado: sem o reflexo colorido sobre a nave e o escape no modo foto do jogo.',
+        'Off: the controller does nothing in the launcher (for example while it moves the mouse).': 'Desligado: o controle não faz nada no launcher (por exemplo, enquanto ele move o mouse).',
+        'On: the menus and the pause menu run at 60 FPS like on PS4. Off: at the frame rate limit (some menu animations then run faster).': 'Ligado: os menus e o menu de pausa rodam a 60 FPS como no PS4. Desligado: no limite de FPS (algumas animações dos menus ficam mais rápidas).',
+        "On: while the game runs below its frame rate, your ship's reflection of the track updates half as often, as it does with two players. Off: always at the full rate.": 'Ligado: enquanto o jogo roda abaixo da taxa de quadros, o reflexo da pista na sua nave é atualizado com metade da frequência, como com dois jogadores. Desligado: sempre na taxa completa.',
+        'Side-shift / barrel roll: press it with an airbrake held to side-shift that way, or while steering left or right in the air to barrel-roll. The double taps of the game still work.': 'Deslocamento lateral / barrel roll: aperte com um freio aerodinâmico pressionado para deslizar para esse lado, ou ao virar para a esquerda ou a direita no ar para fazer um barrel roll. Os toques duplos do jogo continuam funcionando.',
+        'Side-shift / barrel roll': 'Deslocamento lateral / barrel roll',
         'Show Discord Rich Presence': 'Mostrar Discord Rich Presence',
         'Shows the game, the track and mode you play, your online lobby and the time played on your Discord profile, as "Playing WipEout: Omega Collection" with its game page.':
             'Mostra no seu perfil do Discord o jogo, a pista e o modo em que você joga, o seu lobby online e o tempo jogado, como "Playing WipEout: Omega Collection" com a página do jogo.',
@@ -1092,6 +1102,16 @@ EXTRA = {
         'Dodge': 'Esquiva',
     },
     'es': {
+        'Adaptive ship reflections': 'Reflejos adaptativos de la nave',
+        'Control the launcher with a gamepad': 'Controlar el launcher con un mando',
+        'Lens flare in photo mode': 'Destello de lente en el modo foto',
+        'Menus at 60 FPS': 'Menús a 60 FPS',
+        "Off: no colour flare over the ship and its exhaust in the game's photo mode.": 'Desactivado: sin el destello de color sobre la nave y su escape en el modo foto del juego.',
+        'Off: the controller does nothing in the launcher (for example while it moves the mouse).': 'Desactivado: el mando no hace nada en el launcher (por ejemplo, mientras mueve el ratón).',
+        'On: the menus and the pause menu run at 60 FPS like on PS4. Off: at the frame rate limit (some menu animations then run faster).': 'Activado: los menús y el menú de pausa van a 60 FPS como en PS4. Desactivado: al límite de FPS (algunas animaciones de los menús van más rápido).',
+        "On: while the game runs below its frame rate, your ship's reflection of the track updates half as often, as it does with two players. Off: always at the full rate.": 'Activado: mientras el juego va por debajo de su frecuencia de imagen, el reflejo de la pista en tu nave se actualiza la mitad de veces, como con dos jugadores. Desactivado: siempre a la frecuencia completa.',
+        'Side-shift / barrel roll: press it with an airbrake held to side-shift that way, or while steering left or right in the air to barrel-roll. The double taps of the game still work.': 'Desplazamiento lateral / tonel: púlsalo con un aerofreno pulsado para desplazarte hacia ese lado, o al girar a la izquierda o la derecha en el aire para hacer un tonel. Los dobles toques del juego siguen funcionando.',
+        'Side-shift / barrel roll': 'Desplazamiento lateral / tonel',
         'Show Discord Rich Presence': 'Mostrar Discord Rich Presence',
         'Shows the game, the track and mode you play, your online lobby and the time played on your Discord profile, as "Playing WipEout: Omega Collection" with its game page.':
             'Muestra en tu perfil de Discord el juego, la pista y el modo que juegas, tu sala online y el tiempo jugado, como "Playing WipEout: Omega Collection" con la página del juego.',
