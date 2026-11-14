@@ -18,6 +18,7 @@ add_compile_options(-fno-omit-frame-pointer)
 option(GOW3_LTO "Link-time optimization of gow3gpu" ON)
 set(GOW3_PGO "off" CACHE STRING "Profile-guided optimization: off, generate, use")
 set(GOW3_PGO_DIR "${CMAKE_CURRENT_SOURCE_DIR}/../pgo" CACHE PATH "Profile directory")
+set(GOW3_PGO_PROFILE "${GOW3_PGO_DIR}/gow3gpu.profdata" CACHE FILEPATH "Clang's merged profile")
 if (GOW3_LTO)
     include(CheckIPOSupported)
     check_ipo_supported(RESULT gow3_ipo_ok OUTPUT gow3_ipo_error)
@@ -27,7 +28,25 @@ if (GOW3_LTO)
         message(WARNING "LTO unavailable: ${gow3_ipo_error}")
     endif()
 endif()
-if (GOW3_PGO STREQUAL "generate")
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND NOT GOW3_PGO STREQUAL "off")
+    # Clang: the IR profile, one file (GOW3_PGO_PROFILE, merged from the .profraw files
+    # the instrumented library writes, llvm-profdata merge). Unlike GCC's, it fits a build made in another
+    # folder (static functions are named by their file's base name, not its path) and a function
+    # whose lines moved; one whose code changed is compiled without its counts, the rest keep theirs.
+    add_compile_options(-mllvm -static-func-full-module-prefix=false)
+    if (GOW3_PGO STREQUAL "generate")
+        add_compile_options(-fprofile-generate -fprofile-update=atomic)
+        add_link_options(-fprofile-generate)
+        add_compile_definitions(GOW3_PGO_GENERATE)
+    else()
+        if (NOT EXISTS "${GOW3_PGO_PROFILE}")
+            message(FATAL_ERROR "GOW3_PGO=use: ${GOW3_PGO_PROFILE} is missing")
+        endif()
+        add_compile_options(-fprofile-use=${GOW3_PGO_PROFILE}
+                            -Wno-profile-instr-unprofiled -Wno-profile-instr-out-of-date -Wno-backend-plugin)
+        add_link_options(-fprofile-use=${GOW3_PGO_PROFILE})
+    endif()
+elseif (GOW3_PGO STREQUAL "generate")
     # Atomic counters: the GPU, recording, preparation and copy threads run the same code.
     add_compile_options(-fprofile-generate=${GOW3_PGO_DIR} -fprofile-update=atomic)
     add_link_options(-fprofile-generate=${GOW3_PGO_DIR})
@@ -168,6 +187,12 @@ set(COMMON
 file(GLOB AVPLAYER CONFIGURE_DEPENDS shadps4/core/libraries/avplayer/*.cpp)
 pkg_check_modules(FFMPEG REQUIRED IMPORTED_TARGET libavformat libavcodec libavutil libswscale libswresample)
 file(GLOB SHIM_SOURCES CONFIGURE_DEPENDS shim/*.cpp shim/*/*.cpp)
+# Clang 18.1.3 overruns its stack ("stack smashing detected", inside PGOInstrumentationUse) on the
+# command processor, with or without the value profiles; that one file is built without the profile.
+if (CMAKE_CXX_COMPILER_ID MATCHES "Clang" AND GOW3_PGO STREQUAL "use")
+    set_source_files_properties(${CMAKE_CURRENT_SOURCE_DIR}/shadps4/video_core/amdgpu/liverpool.cpp
+                                PROPERTIES COMPILE_OPTIONS "-fno-profile-instr-use")
+endif()
 # Windows: a DLL cannot leave the runtime_* symbols for gow3-probe.exe to resolve, so the
 # library is static there and linked into the executable.
 if (WIN32)

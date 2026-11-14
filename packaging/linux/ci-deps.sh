@@ -9,6 +9,7 @@ export DEBIAN_FRONTEND=noninteractive
 $sudo apt-get update
 $sudo apt-get install -y --no-install-recommends \
     build-essential g++-14 gcc-14 cmake ninja-build pkg-config git curl ca-certificates file patchelf binutils \
+    clang lld llvm \
     libvulkan-dev glslang-tools libboost-dev libfmt-dev libxxhash-dev libzydis-dev robin-map-dev \
     libavcodec-dev libavformat-dev libavutil-dev libswscale-dev libswresample-dev \
     libx11-dev libxext-dev libxrandr-dev libxcursor-dev libxi-dev libxss-dev libxtst-dev libxfixes-dev \
