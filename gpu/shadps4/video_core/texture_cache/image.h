@@ -85,7 +85,8 @@ public:
 
 struct Image {
     explicit Image(const Vulkan::Instance& instance, Vulkan::Runtime& runtime,
-                   Common::SlotVector<ImageView>& slot_image_views, const ImageInfo& info);
+                   Common::SlotVector<ImageView>& slot_image_views, const ImageInfo& info,
+                   u32 host_mip_levels = 0);
     ~Image();
 
     Image(const Image&) = delete;
@@ -93,6 +94,8 @@ struct Image {
 
     Image(Image&&) = default;
     Image& operator=(Image&&) = default;
+
+    bool CanGrowMipLevels(const ImageInfo& requested) const;
 
     bool Overlaps(VAddr overlap_cpu_addr, size_t overlap_size) const noexcept {
         const VAddr overlap_end = overlap_cpu_addr + overlap_size;

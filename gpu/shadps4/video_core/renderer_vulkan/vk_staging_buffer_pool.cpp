@@ -65,6 +65,11 @@ StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& sched
 
 StagingBufferPool::~StagingBufferPool() = default;
 
+u64 StagingBufferPool::UploadReservationBytes(u64 size, u64 alignment) {
+    return size > BLOCK_SIZE ? std::max(size + size / 4, RoundAllocationSize(size))
+                             : Common::AlignUp(size, alignment);
+}
+
 StagingBufferRef StagingBufferPool::Request(u64 size, MemoryType type, u64 alignment,
                                             bool deferred) {
     Ring& ring = rings[u32(type)];

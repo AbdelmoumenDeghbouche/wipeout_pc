@@ -31,6 +31,7 @@
 #include <vk_mem_alloc.h>
 #include <vulkan/vulkan_format_traits.hpp>
 #include "video_core/texture_cache/tile_manager.h"
+#include "video_core/texture_cache/tile.h"
 
 namespace VideoCore {
 
@@ -1290,7 +1291,40 @@ std::tuple<ImageId, int, int> TextureCache::ResolveOverlap(const ImageInfo& imag
 }
 
 ImageId TextureCache::ExpandImage(const ImageInfo& info, ImageId image_id) {
-    const auto new_image_id = slot_images.insert(instance, runtime, slot_image_views, info);
+    auto& image = slot_images[image_id];
+    if (image.CanGrowMipLevels(info)) {
+        ResolveReadbacks(info.guest_address, info.guest_size, true, ReadbackSource::ImageRefresh);
+        RefreshImage(image);
+        const u32 first_mip = image.info.resources.levels;
+        const VAddr old_end = image.guest_end;
+        total_used_memory += Common::AlignUp(info.guest_size, 1024) -
+                             Common::AlignUp(image.info.guest_size, 1024);
+        image.info = info;
+        image.guest_end = info.guest_address + info.guest_size;
+        image.mip_hashes.resize(info.resources.levels);
+        ++registry_generation;
+        // Only register and protect the newly declared guest range, never the reserved capacity.
+        const u64 first_page = ((old_end - 1) >> Traits::PageBits) + 1;
+        const u64 last_page = (image.guest_end - 1) >> Traits::PageBits;
+        for (u64 page = first_page; page <= last_page; ++page) {
+            page_table[page].push_back(image_id);
+        }
+        image.flags |= ImageFlagBits::CpuDirty;
+        TrackImage(image_id);
+        RefreshImage(image, first_mip);
+        if (image.binding.is_bound || image.binding.is_target) {
+            image.binding.needs_rebind = 1;
+        }
+        return image_id;
+    }
+    // WipEout builds a mip chain one level at a time. Reserve host capacity on the first
+    // expansion, keeping guest sizes, views and uploads limited to the declared levels.
+    const u32 host_mips = info.type == AmdGpu::ImageType::Color2D &&
+                                 !info.props.is_depth && !info.props.is_block &&
+                                 info.resources.layers == 1 && info.num_samples == 1 &&
+                                 info.guest_samples == 1 && info.size.depth == 1
+                             ? std::bit_width(std::max(info.size.width, info.size.height)) : 0;
+    const auto new_image_id = slot_images.insert(instance, runtime, slot_image_views, info, host_mips);
     RegisterImage(new_image_id);
 
     auto& src_image = slot_images[image_id];
@@ -1741,7 +1775,7 @@ ImageView& TextureCache::FindDepthTarget(ImageId image_id, const ImageDesc& desc
     return image.FindView(desc.view_info, false);
 }
 
-void TextureCache::RefreshImage(Image& image) {
+void TextureCache::RefreshImage(Image& image, u32 first_mip) {
     if (False(image.flags & ImageFlagBits::Dirty) || image.info.guest_samples > 1) {
         return;
     }
@@ -1779,7 +1813,7 @@ void TextureCache::RefreshImage(Image& image) {
 
     Gow3Stats::image_upload_bytes.fetch_add(image.info.guest_size, std::memory_order_relaxed);
     boost::container::small_vector<vk::BufferImageCopy, 14> image_copies;
-    for (u32 m = 0; m < num_mips; m++) {
+    for (u32 m = first_mip; m < num_mips; m++) {
         const u32 width = std::max(image.info.size.width >> m, 1u);
         const u32 height = std::max(image.info.size.height >> m, 1u);
         const u32 depth =
@@ -1790,7 +1824,7 @@ void TextureCache::RefreshImage(Image& image) {
         if (is_gpu_modified && !is_gpu_dirty) {
             const u8* addr = std::bit_cast<u8*>(image.info.guest_address);
             const u64 hash = XXH3_64bits(addr + mip_offset, mip_size);
-            if (image.mip_hashes[m] == hash) {
+            if (first_mip == 0 && image.mip_hashes[m] == hash) {
                 continue;
             }
             image.mip_hashes[m] = hash;
@@ -1820,6 +1854,62 @@ void TextureCache::RefreshImage(Image& image) {
 
     scheduler.EndRendering();
 
+    ImageInfo upload_info = image.info;
+    u32 source_offset = 0;
+    bool compact = first_mip != 0 && !image.info.props.is_block &&
+                   image.info.resources.layers == 1 && image.info.size.depth == 1 &&
+                   image.info.mips_layout[first_mip].offset % instance.StorageMinAlignment() == 0;
+    if (compact && AmdGpu::IsMacroTiled(image.info.array_mode)) {
+        const auto [macro_pitch, macro_height] =
+            GetMacroTileExtents(image.info.tile_mode, image.info.num_bits, image.info.guest_samples,
+                                image.info.alt_tile);
+        const auto micro_mip = [&](u32 mip) {
+            u32 w = std::max(image.info.pitch >> mip, 1u);
+            u32 h = std::max(image.info.size.height >> mip, 1u);
+            if (image.info.props.is_pow2) {
+                w = std::bit_ceil(w);
+                h = std::bit_ceil(h);
+            }
+            return w < macro_pitch || h < macro_height;
+        };
+        // A dispatch uses one tiling mode. Keep the old path for a mixed macro/micro range.
+        compact = micro_mip(first_mip) == micro_mip(num_mips - 1);
+        if (compact && micro_mip(first_mip)) {
+            switch (AmdGpu::GetMicroTileMode(image.info.tile_mode)) {
+            case AmdGpu::MicroTileMode::Thin:
+                upload_info.tile_mode = AmdGpu::TileMode::Thin1DThin;
+                break;
+            case AmdGpu::MicroTileMode::Display:
+                upload_info.tile_mode = AmdGpu::TileMode::Display1DThin;
+                break;
+            case AmdGpu::MicroTileMode::Depth:
+                upload_info.tile_mode = AmdGpu::TileMode::Depth1DThin;
+                break;
+            default:
+                compact = false;
+                break;
+            }
+            upload_info.array_mode = AmdGpu::GetArrayMode(upload_info.tile_mode);
+        }
+    }
+    if (compact) {
+        source_offset = image.info.mips_layout[first_mip].offset;
+        upload_info.guest_address += source_offset;
+        upload_info.guest_size -= source_offset;
+        upload_info.resources.levels -= first_mip;
+        upload_info.size.width = std::max(image.info.size.width >> first_mip, 1u);
+        upload_info.size.height = std::max(image.info.size.height >> first_mip, 1u);
+        upload_info.pitch = image.info.mips_layout[first_mip].pitch;
+        // Preserve the guest's mip layout; recomputing it as a new mip 0 changes its padding.
+        for (u32 mip = 0; mip < upload_info.resources.levels; ++mip) {
+            upload_info.mips_layout[mip] = image.info.mips_layout[first_mip + mip];
+            upload_info.mips_layout[mip].offset -= source_offset;
+        }
+    }
+    const u64 upload_charge = compact ? runtime.GetStagingPool().UploadReservationBytes(
+                                            upload_info.guest_size, instance.StorageMinAlignment())
+                                      : upload_info.guest_size;
+
     // gow3: a staging buffer is free again only once the GPU is done with the submission that
     // read it. A track load put all its uploads in one submission: 2-7 GB of upload buffers
     // at once. Past GOW3_UPLOAD_SUBMIT_MB (512) of uploads the work so far is submitted, so
@@ -1835,7 +1925,7 @@ void TextureCache::RefreshImage(Image& image) {
         upload_tick_bytes = 0;
     }
     if (submit_bytes != 0 && upload_tick_bytes != 0 &&
-        upload_tick_bytes + image.info.guest_size > submit_bytes) {
+        upload_tick_bytes + upload_charge > submit_bytes) {
         scheduler.Flush();
         ++early_submits;
         if (Gow3Stats::enabled) {
@@ -1851,13 +1941,13 @@ void TextureCache::RefreshImage(Image& image) {
         upload_tick = scheduler.CurrentTick();
         upload_tick_bytes = 0;
     }
-    upload_tick_bytes += image.info.guest_size;
+    upload_tick_bytes += upload_charge;
 
     const auto [in_buffer, in_offset] =
-        buffer_cache.ObtainBufferForImage(image.info.guest_address, image.info.guest_size);
-    const auto [buffer, offset] = tile_manager.DetileImage(in_buffer, in_offset, image.info);
+        buffer_cache.ObtainBufferForImage(upload_info.guest_address, upload_info.guest_size);
+    const auto [buffer, offset] = tile_manager.DetileImage(in_buffer, in_offset, upload_info);
     for (auto& copy : image_copies) {
-        copy.bufferOffset += offset;
+        copy.bufferOffset = copy.bufferOffset - source_offset + offset;
     }
 
     runtime.UploadImage(&image, buffer, image_copies);
@@ -2015,10 +2105,12 @@ void TextureCache::TrackImageTail(ImageId image_id) {
         return;
     }
     ASSERT(image.track_addr_end != 0 && image.track_addr_end < image_end);
-    const auto addr = image.track_addr_end;
-    const auto size = image_end - image.track_addr_end;
+    // The last page of the old range is already watched, even when only partly covered.
+    const auto addr = tracker.GetNextPageAddr(image.track_addr_end - 1);
     image.track_addr_end = image_end;
-    tracker.UpdatePageWatchers<1>(addr, size);
+    if (addr < image_end) {
+        tracker.UpdatePageWatchers<1>(addr, image_end - addr);
+    }
 }
 
 void TextureCache::UntrackImage(ImageId image_id) {

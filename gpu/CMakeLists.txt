@@ -345,6 +345,30 @@ else()
     target_link_options(readback-fallback-gpu-test PRIVATE -Wl,--export-dynamic)
 endif()
 
+add_executable(mip-growth-gpu-test EXCLUDE_FROM_ALL
+    ../tests/test_mip_growth_gpu.cpp ${READBACK_TEST_RUNTIME})
+set_target_properties(mip-growth-gpu-test PROPERTIES C_STANDARD 11 C_EXTENSIONS OFF)
+target_include_directories(mip-growth-gpu-test PRIVATE shim shadps4 third_party/gcn/include ../src ..)
+target_compile_definitions(mip-growth-gpu-test PRIVATE NDEBUG)
+target_compile_options(mip-growth-gpu-test PRIVATE $<$<COMPILE_LANGUAGE:C>:-Wall -Wextra -Werror>)
+target_link_libraries(mip-growth-gpu-test PRIVATE gow3gpu atrac9 -pthread)
+target_link_options(mip-growth-gpu-test PRIVATE -Wl,--wrap=runtime_memory_region)
+set_source_files_properties(../tests/test_mip_growth_gpu.cpp PROPERTIES
+    COMPILE_OPTIONS "-fvisibility=hidden;-fvisibility-inlines-hidden")
+if (WIN32)
+    target_sources(mip-growth-gpu-test PRIVATE ../src/compat_win.c)
+    target_compile_definitions(mip-growth-gpu-test PRIVATE
+        sigjmp_buf=gow3_jmp_buf NOMINMAX WIN32_LEAN_AND_MEAN)
+    target_compile_options(mip-growth-gpu-test PRIVATE
+        "$<$<COMPILE_LANGUAGE:CXX>:-include;${CMAKE_CURRENT_SOURCE_DIR}/shim/gow3_win_compat.h>")
+    target_link_libraries(mip-growth-gpu-test PRIVATE onecore)
+    target_link_options(mip-growth-gpu-test PRIVATE -Wl,--disable-high-entropy-va)
+else()
+    target_compile_options(mip-growth-gpu-test PRIVATE $<$<COMPILE_LANGUAGE:C>:-pthread>)
+    target_link_libraries(mip-growth-gpu-test PRIVATE m)
+    target_link_options(mip-growth-gpu-test PRIVATE -Wl,--export-dynamic)
+endif()
+
 # Explicit test targets; neither launches the game nor needs a Vulkan device.
 add_executable(pipeline-binary-cache-test EXCLUDE_FROM_ALL ../tests/test_pipeline_binary_cache.cpp
     ../tests/test_gpu_runtime_stubs.cpp)
