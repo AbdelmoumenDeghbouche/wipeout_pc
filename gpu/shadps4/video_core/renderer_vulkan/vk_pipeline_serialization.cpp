@@ -326,10 +326,14 @@ void ReportPipelineBinaryCache() {
 vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
     vk::Device device, vk::PipelineCache cache, const vk::GraphicsPipelineCreateInfo& info,
     const GraphicsPipelineKey& key, const vk::PipelineBinaryKeyKHR& global_key,
-    const std::filesystem::path& directory) {
+    const std::filesystem::path& directory, PipelineBuild build, bool* unoptimized) {
     using namespace PipelineBinaryCache;
     const auto& dispatch = VULKAN_HPP_DEFAULT_DISPATCHER;
     const bool enabled = global_key.keySize && EmulatorSettings.IsPipelineCacheEnabled();
+    // gow3: an optimised rebuild of a pipeline already drawing stays out of the build statistics
+    // (it has its own) and leaves the compile policy alone: it is no sign of new pipelines
+    // coming, so cache hits keep being built right away.
+    const bool counted = build != PipelineBuild::Rebuild;
     const auto create = [&](vk::PipelineCache used_cache, const auto& used_info, bool restored) {
         const auto started = std::chrono::steady_clock::now();
         auto result = device.createGraphicsPipelineUnique(used_cache, used_info);
@@ -337,6 +341,9 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
                                 std::chrono::steady_clock::now() - started)
                                 .count());
         extern std::atomic<u64> g_gow3_pipeline_driver_ns;
+        if (!counted) {
+            return result;
+        }
         g_gow3_pipeline_driver_ns += ns;
         if (enabled) {
             (restored ? binary_restore_ns : binary_compile_ns) += ns;
@@ -351,13 +358,18 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         return result.result == vk::Result::eSuccess || !cache ? std::move(result)
                                                               : create(nullptr, used_info, false);
     };
+    const auto compiled = [&] {
+        if (counted) {
+            g_compile_policy.Compiled(CompilePolicy::Now());
+        }
+    };
     if (!enabled) {
-        g_compile_policy.Compiled(CompilePolicy::Now()); // gow3: no cache, every build compiles
+        compiled(); // gow3: no cache, every build compiles
         return create_any(info);
     }
     SCOPE_EXIT {
         const auto count = binary_hits.load() + binary_misses.load();
-        if (count && count % 256 == 0) {
+        if (counted && count && count % 256 == 0) {
             ReportPipelineBinaryCache();
         }
     };
@@ -373,12 +385,12 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
     vk::PipelineBinaryKeyKHR pipeline_key;
     const auto key_started = std::chrono::steady_clock::now();
     const auto key_result = device.getPipelineKeyKHR(&key_info, &pipeline_key);
-    binary_key_ns += ElapsedNs(key_started);
+    binary_key_ns += counted ? ElapsedNs(key_started) : 0;
     if (key_result != vk::Result::eSuccess ||
         !ValidKey(global) || !ValidKey(BinaryKey(pipeline_key))) {
         ++binary_errors;
-        ++binary_misses;
-        g_compile_policy.Compiled(CompilePolicy::Now());
+        binary_misses += u64(counted);
+        compiled();
         return create_any(info);
     }
     const auto pipeline_id = BinaryKey(pipeline_key);
@@ -407,7 +419,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
                 Save(file, Encode(global, pipeline_id, 0, *binaries));
             }
         }
-        binary_load_ns += ElapsedNs(load_started);
+        binary_load_ns += counted ? ElapsedNs(load_started) : 0;
         if (binaries) {
             std::vector<VkPipelineBinaryKeyKHR> keys(binaries->size());
             std::vector<VkPipelineBinaryDataKHR> data(binaries->size());
@@ -429,7 +441,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
             const auto handles_started = std::chrono::steady_clock::now();
             const auto handles_result =
                 dispatch.vkCreatePipelineBinariesKHR(device, &binary_info, nullptr, &output);
-            binary_handles_ns += ElapsedNs(handles_started);
+            binary_handles_ns += counted ? ElapsedNs(handles_started) : 0;
             if (handles_result == VK_SUCCESS) {
                 VkPipelineBinaryInfoKHR restored{VK_STRUCTURE_TYPE_PIPELINE_BINARY_INFO_KHR};
                 restored.pNext = &flags;
@@ -442,7 +454,7 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
                 restored_info.pNext = &restored;
                 auto result = create(nullptr, restored_info, true);
                 if (result.result == vk::Result::eSuccess) {
-                    ++binary_hits;
+                    binary_hits += u64(counted);
                     return result;
                 }
             }
@@ -453,8 +465,20 @@ vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
         ++binary_errors;
         destroy();
     }
-    ++binary_misses;
-    g_compile_policy.Compiled(CompilePolicy::Now()); // gow3: a real compile
+    binary_misses += u64(counted);
+    compiled(); // gow3: a real compile
+    // gow3: a first build on a compile worker that finds no binary compiles without driver
+    // optimisations (about a third faster, so fewer skipped draws) and is never stored: the
+    // optimised rebuild that replaces it is. Only with the binary cache, else every launch
+    // would compile each pipeline twice.
+    if (build == PipelineBuild::Fast) {
+        auto fast_info = info;
+        fast_info.flags |= vk::PipelineCreateFlagBits::eDisableOptimization;
+        if (unoptimized) {
+            *unoptimized = true;
+        }
+        return create_any(fast_info);
+    }
     flags.flags = vk::PipelineCreateFlags2{static_cast<VkPipelineCreateFlags>(info.flags)} |
                   vk::PipelineCreateFlagBits2::eCaptureDataKHR;
     auto result = create(nullptr, captured_info, false);
