@@ -78,6 +78,10 @@ struct AsyncGraphicsCompilation {
     GraphicsPipeline::SerializationSupport data;
     std::unique_ptr<GraphicsPipeline> pipeline;
     bool failure_logged = false;
+    // gow3: a fast first build is rebuilt optimised from the same snapshot (StartRebuilds).
+    GraphicsPipeline* published = nullptr;
+    AsyncJob<bool> rebuild;
+    std::unique_ptr<GraphicsPipeline> optimized;
 };
 
 constexpr static auto SpirvVersion1_6 = 0x00010600U;
@@ -419,8 +423,18 @@ PipelineCache::PipelineCache(const Instance& instance_, Scheduler& scheduler_,
             Common::SetCurrentThreadName(("gow3:ShaderCompile" + std::to_string(index)).c_str());
             Common::SetCurrentThreadPriority(Common::ThreadPriority::Low);
         });
-        LOG_INFO(Render_Vulkan, "gow3: async graphics compilation ready ({} capture, {} compile workers)",
-                 capture_count, count);
+        // gow3: fast first builds need a second worker for their optimised rebuilds, so a
+        // rebuild never holds up a first build, and the pipeline binary cache, which stores
+        // the rebuild (CreateCachedGraphicsPipeline). GOW3_FAST_FIRST_BUILD=0 turns them off.
+        const char* fast_env = std::getenv("GOW3_FAST_FIRST_BUILD");
+        fast_first_builds = count >= 2 && (!fast_env || fast_env[0] != '0') &&
+                            instance.GetPipelineBinaryGlobalKey().keySize != 0 &&
+                            EmulatorSettings.IsPipelineCacheEnabled();
+        rebuild_limit = std::max(1u, count / 2);
+        LOG_INFO(Render_Vulkan,
+                 "gow3: async graphics compilation ready ({} capture, {} compile workers, fast "
+                 "first builds {})",
+                 capture_count, count, fast_first_builds ? "on" : "off");
     }
 }
 
@@ -437,6 +451,11 @@ std::atomic<u64> g_gow3_snapshot_ns, g_gow3_guest_wait_ns;
 std::atomic<u32> g_gow3_pool_reuses;
 std::atomic<u32> g_gow3_pending_draws;
 namespace {
+// gow3: fast first builds and their optimised rebuilds, for ReportCompilerStats.
+std::atomic<u32> g_gow3_fast_builds, g_gow3_rebuilds_queued, g_gow3_rebuild_swaps;
+std::atomic<size_t> g_gow3_rebuilds_pending;
+std::atomic<u64> g_gow3_rebuild_ns;
+
 struct PhaseTimer {
     std::atomic<u64>& counter;
     std::chrono::steady_clock::time_point start = std::chrono::steady_clock::now();
@@ -647,10 +666,93 @@ void PipelineCache::PublishGraphics(bool wait) {
         if (NewPipelineKey(fmt::format("g_{:#018x}", hash))) {
             RegisterPipelineData(key, hash, build->data);
         }
-        graphics_pipelines.emplace(key, std::move(build->pipeline));
+        auto* const published = build->pipeline.get();
+        // A key the warm-up published meanwhile keeps that pipeline (PublishFirst).
+        if (graphics_pipelines.emplace(key, std::move(build->pipeline)).second &&
+            published->FastBuild()) {
+            build->published = published;
+            rebuilds.push_back(build);
+            ++g_gow3_fast_builds;
+        }
         ++num_new_pipelines;
         it = pending_graphics.erase(it);
     }
+}
+
+void PipelineCache::StartRebuilds(size_t running) {
+    // gow3: only once the cold burst is over: no first build or shader waiting, and no real
+    // compile for a second (the background window closed; a burst comes in waves over several
+    // frames, with an empty queue between them). At most half the workers rebuild at a time,
+    // so a first build that comes later finds a free one.
+    const auto busy = [this] {
+        for (const auto& [_, build] : pending_graphics) {
+            if (!build->job.Failed()) {
+                return true; // a failed build stays in the map for good
+            }
+        }
+        return !pending_programs.empty() || compiler->Depth() != 0 ||
+               g_compile_policy.Background(CompilePolicy::Now());
+    };
+    if (running >= rebuild_limit || busy()) {
+        return;
+    }
+    for (auto& build : rebuilds) {
+        if (build->rebuild.Pending()) {
+            continue; // already on a worker
+        }
+        const bool started = build->rebuild.Start(*compiler, [this, build] {
+            Shader::Gcn::ScopedFetchShaderSnapshot snapshot{build->fetch[u32(SwStage::Vertex)]};
+            PhaseTimer compile{g_gow3_rebuild_ns};
+            auto& s = build->selection;
+            GraphicsPipeline::SerializationSupport sdata{};
+            build->optimized = std::make_unique<GraphicsPipeline>(
+                instance, scheduler, desc_heap, profile, s.graphics_key,
+                *worker_pipeline_caches[AsyncCompiler::WorkerIndex()], s.infos, s.runtime_infos,
+                s.fetch_shader, s.modules, sdata, false, PipelineBuild::Rebuild);
+            return true;
+        });
+        if (!started) {
+            break;
+        }
+        ++g_gow3_rebuilds_queued;
+        if (++running >= rebuild_limit) {
+            break;
+        }
+    }
+}
+
+void PipelineCache::SwapRebuiltPipelines() {
+    size_t running = 0;
+    for (auto it = rebuilds.begin(); it != rebuilds.end();) {
+        auto& build = **it;
+        if (!build.rebuild.Pending()) {
+            ++it; // waits for StartRebuilds
+            continue;
+        }
+        if (build.rebuild.Poll().has_value()) {
+            // Only while the published object is still the fast build of this key (a replaced
+            // shader erases the key; ReplaceShader drops the rebuilds as well). A rebuild the
+            // driver refused has no handle (logged when built): the fast pipeline stays.
+            const auto found = graphics_pipelines.find(build.selection.graphics_key);
+            if (build.optimized->Handle() && found != graphics_pipelines.end() &&
+                found->second.get() == build.published && build.published->FastBuild()) {
+                found.value()->AdoptOptimized(std::move(build.optimized));
+                ++g_gow3_rebuild_swaps;
+            }
+        } else if (build.rebuild.Failed()) {
+            // The fast pipeline stays in use.
+            LOG_WARNING(Render_Vulkan, "gow3: optimised rebuild of pipeline {:#x} failed: {}",
+                        std::hash<GraphicsPipelineKey>{}(build.selection.graphics_key),
+                        build.rebuild.Error());
+        } else {
+            ++running;
+            ++it;
+            continue;
+        }
+        it = rebuilds.erase(it);
+    }
+    StartRebuilds(running);
+    g_gow3_rebuilds_pending = rebuilds.size();
 }
 
 void PipelineCache::FinishCompilations() {
@@ -659,6 +761,7 @@ void PipelineCache::FinishCompilations() {
         compiler->Stop();
         PublishShaders(true);
         PublishGraphics(true);
+        rebuilds.clear(); // the workers are done
         std::vector<vk::PipelineCache> sources;
         for (const auto& cache : worker_pipeline_caches) {
             sources.push_back(*cache);
@@ -691,10 +794,14 @@ void PipelineCache::SeedWorkerCaches() {
 void PipelineCache::ReportCompilerStats() {
     if (compiler) {
         std::printf("Compiler stats: capture queue %zu, compile queue %zu; queue waits: capture "
-                    "%.1f ms, compile %.1f ms; pools retained %zu, reused %u\n",
+                    "%.1f ms, compile %.1f ms; pools retained %zu, reused %u; fast first builds "
+                    "%u, optimised rebuilds: %u queued, %u swapped in, %zu pending, %.1f ms\n",
                     capture_compiler->Depth(), compiler->Depth(),
                     capture_compiler->QueueWaitNs() / 1e6, compiler->QueueWaitNs() / 1e6,
-                    compiler_pools.Retained(), g_gow3_pool_reuses.exchange(0));
+                    compiler_pools.Retained(), g_gow3_pool_reuses.exchange(0),
+                    g_gow3_fast_builds.exchange(0), g_gow3_rebuilds_queued.exchange(0),
+                    g_gow3_rebuild_swaps.exchange(0), g_gow3_rebuilds_pending.load(),
+                    g_gow3_rebuild_ns.exchange(0) / 1e6);
     }
 }
 
@@ -806,7 +913,8 @@ const GraphicsPipeline* PipelineCache::GetGraphicsPipeline(const DrawIndirectPar
                 build->pipeline = std::make_unique<GraphicsPipeline>(
                     instance, scheduler, desc_heap, profile, s.graphics_key,
                     *worker_pipeline_caches[AsyncCompiler::WorkerIndex()],
-                    s.infos, s.runtime_infos, s.fetch_shader, s.modules, build->data, false);
+                    s.infos, s.runtime_infos, s.fetch_shader, s.modules, build->data, false,
+                    fast_first_builds ? PipelineBuild::Fast : PipelineBuild::Optimized);
                 return build;
             });
             if (queued) {
@@ -1428,6 +1536,12 @@ std::optional<vk::ShaderModule> PipelineCache::ReplaceShader(vk::ShaderModule mo
                                                              std::span<const u32> spv_code) {
     PublishShaders(true);
     PublishGraphics(true);
+    // gow3: the rebuilds use the modules destroyed below; their fast pipelines stay.
+    for (const auto& build : rebuilds) {
+        build->rebuild.Wait();
+    }
+    rebuilds.clear();
+    g_gow3_rebuilds_pending = 0;
     std::optional<vk::ShaderModule> new_module{};
     for (const auto& [_, program] : program_cache) {
         for (auto& m : program->modules) {
