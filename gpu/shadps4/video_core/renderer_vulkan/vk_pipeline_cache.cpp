@@ -482,12 +482,19 @@ struct PhaseTimer {
 // From a load until a few seconds into its first scene (CompilePolicy::LongGrace), up to 25 ms
 // per draw and 80 ms in any 100 ms: with a fresh cache the race intro built its pipelines in
 // two bursts that skipped 1000-1400 draws (flickering pads on the grid); no racing yet.
+// Shader and pipeline waits share one budget (one GPU thread waits for either).
 // ponytail: fixed budget, make it a setting if players need another one.
+struct GraceBudget {
+    std::chrono::steady_clock::time_point window{};
+    std::chrono::nanoseconds used{};
+};
+GraceBudget grace_budget; // GPU thread only
+
 template <typename Job>
 bool GraceWait(const Job& job) {
     using namespace std::chrono;
-    static steady_clock::time_point window{};
-    static nanoseconds used{};
+    auto& window = grace_budget.window;
+    auto& used = grace_budget.used;
     const auto now = steady_clock::now();
     if (now - window > milliseconds(100)) {
         window = now;
