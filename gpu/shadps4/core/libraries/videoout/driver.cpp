@@ -21,9 +21,11 @@
 #include "gow3_perf_stats.h"
 #include "gow3_settings.h"
 extern "C" int runtime_music_in_race(void); // src/runtime_music.c
+extern "C" unsigned runtime_music_loads(void); // src/runtime_music.c
 extern "C" int runtime_wipeout_paused(void); // src/probe.c
 extern "C" void runtime_set_target_fps(double fps); // src/runtime_extra.c
 #include "gow3_graphics.h"
+#include "video_core/renderer_vulkan/vk_compile_policy.h"
 #include "video_core/renderer_vulkan/vk_frame_capture.h"
 #include "common/debug.h"
 #include "common/thread.h"
@@ -314,6 +316,16 @@ void VideoOutDriver::Flip(const Request& req) {
     });
     Vulkan::FrameCapture::OnFlip(req.index >= 0 ? req.port->buffer_slots[req.index].address_left
                                                 : 0);
+    // gow3: after the game loads a race or the menus, new pipelines may wait longer until a
+    // few seconds into the scene (vk_compile_policy.h); the log line marks its first frame.
+    if (Vulkan::g_compile_policy.Flipped(Vulkan::CompilePolicy::Now(),
+                                         Gow3Stats::draws.load(std::memory_order_relaxed),
+                                         runtime_music_loads())) {
+        std::printf("Pipelines: first scene after a load; new pipelines may wait longer for "
+                    "%llu s more (GOW3_LOAD_GRACE=0: no)\n",
+                    static_cast<unsigned long long>(Vulkan::CompilePolicy::after_load_ns /
+                                                    1'000'000'000));
+    }
 
     // gow3: GOW3_FRAME_STATS=1 prints flip rate and frame time spread every 5 seconds.
     static const bool frame_stats = EmulatorSettingsImpl::Flag("GOW3_FRAME_STATS", false);
