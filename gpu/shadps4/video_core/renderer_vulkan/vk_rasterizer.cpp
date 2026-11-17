@@ -1618,6 +1618,8 @@ void Rasterizer::Finish() {
 
 void Rasterizer::OnSubmit() {
     DrainDrawPipe();
+    // gow3: the draw recording thread is idle now, so published pipelines may change handles.
+    pipeline_cache.SwapRebuiltPipelines();
     if (fault_process_pending) {
         fault_process_pending = false;
         buffer_cache.ProcessFaultBuffer();
