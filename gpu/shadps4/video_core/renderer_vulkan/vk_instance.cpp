@@ -3,6 +3,7 @@
 
 #include <algorithm>
 #include <atomic>
+#include <chrono>
 #include <cstdio>
 #include <ctime>
 #include <cstdlib>
@@ -21,6 +22,7 @@
 #include "video_core/renderer_vulkan/vk_amd_paths.h"
 #include "video_core/renderer_vulkan/vk_dlss.h"
 #include "video_core/renderer_vulkan/vk_instance.h"
+#include "video_core/renderer_vulkan/vk_memory_reserve.h"
 #include "video_core/renderer_vulkan/vk_platform.h"
 
 #include <vk_mem_alloc.h>
@@ -203,6 +205,11 @@ Instance::Instance(const Frontend::WindowSystemInfo& window_info, s32 physical_d
 
 Instance::~Instance() {
     ImGui::Core::Shutdown(GetDevice());
+    // gow3: only the instance that made the pool (a GPU list makes no allocator).
+    if (image_reserve_mib != 0) {
+        vmaDestroyPool(allocator, image_reserve_pool);
+        image_reserve_pool = VK_NULL_HANDLE;
+    }
     vmaDestroyAllocator(allocator);
 }
 
@@ -930,6 +937,82 @@ void Instance::CreateAllocator() {
         UNREACHABLE_MSG("Failed to initialize VMA with error {}",
                         vk::to_string(vk::Result{result}));
     }
+
+    // gow3: device memory for images is held from here on, in a fixed pool of 128 MiB blocks
+    // (never grown, never returned) that UniqueImage::Create tries first. A race load otherwise
+    // asks the driver for new memory inside the frame that needs it (vk_memory_reserve.h).
+    // GOW3_MEMORY_RESERVE: unset = the size rule, 0 = off, a number = that many MiB.
+    const char* reserve_env = std::getenv("GOW3_MEMORY_RESERVE");
+    const s64 requested =
+        reserve_env ? std::max<s64>(0, std::strtoll(reserve_env, nullptr, 10)) : -1;
+    if (requested == 0) {
+        image_reserve_summary = "none (GOW3_MEMORY_RESERVE=0)";
+        return;
+    }
+    // A typical texture, with the allocation flags UniqueImage::Create uses.
+    VkImageCreateInfo probe_ci{};
+    probe_ci.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    probe_ci.flags = VK_IMAGE_CREATE_MUTABLE_FORMAT_BIT | VK_IMAGE_CREATE_EXTENDED_USAGE_BIT;
+    probe_ci.imageType = VK_IMAGE_TYPE_2D;
+    probe_ci.format = VK_FORMAT_R8G8B8A8_UNORM;
+    probe_ci.extent = {256, 256, 1};
+    probe_ci.mipLevels = 1;
+    probe_ci.arrayLayers = 1;
+    probe_ci.samples = VK_SAMPLE_COUNT_1_BIT;
+    probe_ci.tiling = VK_IMAGE_TILING_OPTIMAL;
+    probe_ci.usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
+    probe_ci.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+    probe_ci.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    VmaAllocationCreateInfo probe_alloc{};
+    probe_alloc.flags = VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;
+    probe_alloc.usage = VMA_MEMORY_USAGE_AUTO_PREFER_DEVICE;
+    u32 type = 0;
+    if (vmaFindMemoryTypeIndexForImageInfo(allocator, &probe_ci, &probe_alloc, &type) !=
+        VK_SUCCESS) {
+        image_reserve_summary = "none (no memory type for images found)";
+        return;
+    }
+    const VkPhysicalDeviceMemoryProperties* mem_props{};
+    vmaGetMemoryProperties(allocator, &mem_props);
+    const u32 heap = mem_props->memoryTypes[type].heapIndex;
+    // The allocator reads no driver budget (no VK_EXT_memory_budget flag), so VMA gives 80 % of
+    // the heap's size: the same on every start of one GPU, whatever other programs use.
+    VmaBudget budgets[VK_MAX_MEMORY_HEAPS]{};
+    vmaGetHeapBudgets(allocator, budgets);
+    const u64 budget_mib = budgets[heap].budget >> 20;
+    const std::string where =
+        fmt::format("memory type {}, heap {} of {} MiB, budget {} MiB", type, heap,
+                    mem_props->memoryHeaps[heap].size >> 20, budget_mib);
+    const u64 reserve_mib = MemoryReserveMiB(budget_mib, requested);
+    if (reserve_mib == 0) {
+        image_reserve_summary = fmt::format("none (budget under 4096 MiB: {})", where);
+        return;
+    }
+
+    constexpr u64 block_mib = MEMORY_RESERVE_BLOCK_MIB;
+    VmaPoolCreateInfo pool_ci{};
+    pool_ci.memoryTypeIndex = type;
+    pool_ci.blockSize = block_mib << 20;
+    pool_ci.minBlockCount = reserve_mib / block_mib;
+    pool_ci.maxBlockCount = pool_ci.minBlockCount;
+    const auto start = std::chrono::steady_clock::now();
+    const VkResult pool_result = vmaCreatePool(allocator, &pool_ci, &image_reserve_pool);
+    const double ms =
+        std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+            .count();
+    if (pool_result != VK_SUCCESS) {
+        image_reserve_pool = VK_NULL_HANDLE;
+        image_reserve_summary = fmt::format("none (vmaCreatePool {} for {} MiB: {}; {:.1f} ms)",
+                                            vk::to_string(vk::Result{pool_result}), reserve_mib,
+                                            where, ms);
+        return;
+    }
+    image_reserve_mib = reserve_mib;
+    image_reserve_type = type;
+    image_reserve_summary =
+        fmt::format("images {} MiB in {} blocks of {} MiB ({}) {:.1f} ms", reserve_mib,
+                    pool_ci.minBlockCount, block_mib, where, ms);
 }
 
 void Instance::CollectDeviceParameters() {

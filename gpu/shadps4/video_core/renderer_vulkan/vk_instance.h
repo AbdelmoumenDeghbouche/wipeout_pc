@@ -17,8 +17,14 @@ struct WindowSystemInfo;
 }
 
 VK_DEFINE_HANDLE(VmaAllocator)
+VK_DEFINE_HANDLE(VmaPool)
 
 namespace Vulkan {
+
+/// gow3: the fixed VMA pool of device memory made at start (vk_memory_reserve.h) that
+/// UniqueImage::Create tries first; null when nothing is held.
+inline VmaPool image_reserve_pool{};
+inline u32 image_reserve_type = 0; ///< the pool's memory type index
 
 class Instance {
 public:
@@ -361,6 +367,14 @@ public:
     /// gow3: after a device loss, prints what VK_EXT_device_fault reports (once per process).
     void LogDeviceFault() const;
 
+    /// gow3: MiB of device memory held for images (0: none), and what is held or why not.
+    u64 ImageReserveMiB() const {
+        return image_reserve_mib;
+    }
+    const std::string& ImageReserveSummary() const {
+        return image_reserve_summary;
+    }
+
     /// Returns if the device is an integrated GPU.
     bool IsIntegrated() const {
         return properties.deviceType == vk::PhysicalDeviceType::eIntegratedGpu;
@@ -558,6 +572,8 @@ private:
     vk::UniqueDebugUtilsMessengerEXT debug_callback{};
     std::string vendor_name;
     VmaAllocator allocator{};
+    u64 image_reserve_mib = 0;
+    std::string image_reserve_summary;
     vk::Queue present_queue;
     vk::Queue graphics_queue;
     vk::Queue sparse_queue;
