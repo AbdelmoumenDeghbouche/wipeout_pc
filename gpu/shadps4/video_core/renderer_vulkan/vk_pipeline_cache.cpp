@@ -884,7 +884,7 @@ const ComputePipeline* PipelineCache::GetComputePipeline() {
 }
 
 bool PipelineCache::RefreshGraphicsKey(PipelineSelection& sel) {
-    std::memset(&sel.graphics_key, 0, sizeof(GraphicsPipelineKey));
+    std::memset(static_cast<void*>(&sel.graphics_key), 0, sizeof(GraphicsPipelineKey));
     const auto& regs = (*sel.regs);
     auto& key = sel.graphics_key;
 
