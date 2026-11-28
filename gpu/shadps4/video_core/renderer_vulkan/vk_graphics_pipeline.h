@@ -72,6 +72,12 @@ struct GraphicsPipelineKey {
     bool Deserialize(Serialization::Archive& ar);
 };
 
+/// gow3: how a graphics pipeline is built. Fast: a first build on a compile worker, without
+/// driver optimisations when the binary cache has nothing to restore. Rebuild: the optimised
+/// build that later replaces a fast one (GraphicsPipeline::AdoptOptimized); a driver error
+/// leaves it without a handle instead of stopping the game, and it stays out of the build stats.
+enum class PipelineBuild : u8 { Optimized, Fast, Rebuild };
+
 class GraphicsPipeline : public Pipeline {
 public:
     struct SerializationSupport {
@@ -94,8 +100,18 @@ public:
                      std::span<const Shader::RuntimeInfo, MaxShaderStages> runtime_infos,
                      std::optional<const Shader::Gcn::FetchShaderData> fetch_shader,
                      std::span<const vk::ShaderModule> modules, SerializationSupport& sdata,
-                     bool preloading);
+                     bool preloading, PipelineBuild build = PipelineBuild::Optimized);
     ~GraphicsPipeline();
+
+    /// gow3: drawing with pipelines built without driver optimisations, until AdoptOptimized.
+    bool FastBuild() const noexcept {
+        return fast_build;
+    }
+
+    /// gow3: takes over the pipelines of `rebuilt`, the optimised build of the same key. The
+    /// fast ones are destroyed once the GPU has passed the current tick. GPU command thread,
+    /// only while the draw recording thread is idle: it reads the handles without a lock.
+    void AdoptOptimized(std::unique_ptr<GraphicsPipeline> rebuilt);
 
     // gow3: switch from compiler-owned snapshots to live stage data on publication.
     void PublishStages(std::span<const Shader::Info*, MaxShaderStages> infos) {
@@ -129,6 +145,9 @@ private:
     GraphicsPipelineKey key;
     std::optional<const Shader::Gcn::FetchShaderData> fetch_shader{};
     vk::UniquePipeline square_pipeline;
+    bool fast_build = false;
+    /// gow3: the adopted rebuild; kept for its layout, which its pipelines were created with.
+    std::unique_ptr<GraphicsPipeline> optimized;
 };
 
 struct ClipDistanceShaderKey {

@@ -31,10 +31,13 @@ std::optional<std::vector<Binary>> Load(const std::filesystem::path& file, const
                                         const Key& pipeline, u64 graphics_hash);
 } // namespace PipelineBinaryCache
 
+/// `unoptimized`, when given, is set when a PipelineBuild::Fast build compiled without driver
+/// optimisations (a binary cache miss); such a pipeline is never stored in the cache.
 vk::ResultValue<vk::UniquePipeline> CreateCachedGraphicsPipeline(
     vk::Device device, vk::PipelineCache cache, const vk::GraphicsPipelineCreateInfo& info,
     const GraphicsPipelineKey& key, const vk::PipelineBinaryKeyKHR& global_key,
-    const std::filesystem::path& directory);
+    const std::filesystem::path& directory, PipelineBuild build = PipelineBuild::Optimized,
+    bool* unoptimized = nullptr);
 void ReportPipelineBinaryCache();
 
 void RegisterPipelineData(const ComputePipelineKey& key,

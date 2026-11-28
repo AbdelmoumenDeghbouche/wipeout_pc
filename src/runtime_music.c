@@ -365,6 +365,8 @@ void runtime_music_step(int direction) {
 
 /* The game loaded a race's sound banks last, not the menus' (frame limit in the menus, #118). */
 int runtime_music_in_race(void) { return in_race; }
+/* Loads of a race or of the menus so far: each is a loading screen (longer pipeline grace wait). */
+unsigned runtime_music_loads(void) { return loads; }
 
 /* #242: in a race the touchpad click skips the game's song; while the player's songs play
  * (runtime_music_bgm), it skips theirs. */
