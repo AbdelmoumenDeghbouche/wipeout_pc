@@ -249,5 +249,34 @@ class EverySettingSavesTest(LauncherOverTemporaryFiles):
         self.assertEqual(reopened.control_vars['pad']['cross'].get(), 'b')
         self.assertEqual(str(reopened.save_button['state']), 'disabled')
 
+class SupportPopupTest(LauncherOverTemporaryFiles):
+    def test_close_only_three_times_then_dont_show_again_works(self):
+        before = set(self.root.winfo_children())  # the launcher's own hidden windows
+
+        def popup():
+            self.app.support_popup()
+            self.root.update()
+            boxes = [w for w in self.root.winfo_children() if isinstance(w, tk.Toplevel) and w not in before]
+            texts = []
+            for box in boxes:
+                stack = [box]
+                while stack:
+                    widget = stack.pop()
+                    stack.extend(widget.winfo_children())
+                    if isinstance(widget, ttk.Checkbutton):
+                        texts.append(widget)
+            return boxes, texts
+        for _start in range(3):
+            boxes, checks = popup()
+            self.assertEqual((len(boxes), checks), (1, []))  # only Close the first three times
+            self.app.support_close()
+        boxes, checks = popup()
+        self.assertEqual(len(checks), 1)  # the fourth: "Don't show this again"
+        checks[0].invoke()
+        self.app.support_close()
+        self.assertEqual(popup()[0], [])  # never again
+        self.assertIsNone(self.app.support_close)
+
+
 if __name__ == '__main__':
     unittest.main()

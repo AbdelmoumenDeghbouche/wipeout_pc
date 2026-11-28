@@ -1881,6 +1881,39 @@ EXTRA['es'].update({
     'Join a friend': 'Unirme a un amigo',
 })
 
+# The support box (Launcher.support_popup).
+EXTRA['pt'].update({
+    'Enjoying the port?': 'Curtindo o port?',
+    'I make this port in my free time, and every update is free. If it gave you a good race, a small tip '
+    'helps me keep the fixes and new features coming.':
+        'Faço este port no meu tempo livre, e toda atualização é grátis. Se ele te deu uma boa corrida, uma '
+        'pequena contribuição me ajuda a continuar trazendo correções e recursos novos.',
+    'Buy me a coffee': 'Me pague um café',
+    'Copy email': 'Copiar e-mail',
+    'Copied!': 'Copiado!',
+    'No money to spare? A star on GitHub, a bug report or telling a friend helps too.':
+        'Sem grana sobrando? Uma estrela no GitHub, um relato de bug ou contar para um amigo também ajuda.',
+    'Star on GitHub': 'Estrela no GitHub',
+    "Don't show this again": 'Não mostrar de novo',
+    'Close': 'Fechar',
+})
+
+EXTRA['es'].update({
+    'Enjoying the port?': '¿Te gusta el port?',
+    'I make this port in my free time, and every update is free. If it gave you a good race, a small tip '
+    'helps me keep the fixes and new features coming.':
+        'Hago este port en mi tiempo libre y todas las actualizaciones son gratis. Si te dio una buena carrera, '
+        'una pequeña propina me ayuda a seguir con los arreglos y las funciones nuevas.',
+    'Buy me a coffee': 'Invítame a un café',
+    'Copy email': 'Copiar el correo',
+    'Copied!': '¡Copiado!',
+    'No money to spare? A star on GitHub, a bug report or telling a friend helps too.':
+        '¿Sin dinero de sobra? Una estrella en GitHub, un reporte de error o contárselo a un amigo también ayuda.',
+    'Star on GitHub': 'Estrella en GitHub',
+    "Don't show this again": 'No volver a mostrar',
+    'Close': 'Cerrar',
+})
+
 _tables = {}
 
 

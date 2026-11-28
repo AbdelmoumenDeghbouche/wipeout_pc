@@ -70,6 +70,11 @@ UI_FONT, MONO_FONT, SERIF_FONT = 'Segoe UI', 'Consolas', 'Georgia'
 VERSION = '0.2.67'
 RELEASES_API = 'https://api.github.com/repos/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
 RELEASES_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc/releases/latest'
+# The support box (Launcher.support_popup), as the README's Donate section.
+REPO_PAGE = 'https://github.com/AbdelmoumenDeghbouche/wipeout_pc'
+KOFI_URL = 'https://ko-fi.com/abd_dbh'
+PAYPAL_EMAIL = 'a.deghbouche@esi-sba.dz'
+SUPPORT_CLOSE_ONLY = 3  # the first three starts offer only Close; "Don't show this again" from the fourth
 UPDATE_DIR = Path(tempfile.gettempdir()) / 'gow3-update'
 # Never copied over an installation by an update (the package does not hold them either).
 USER_FILES = ('user', 'out', 'mods', 'gow3.ini', 'mods.json', 'mods_presets.json', 'patches.json', 'last_run.log')
@@ -1503,6 +1508,7 @@ class Launcher:
         self.mod_details_shown, self.mod_picture_key, self.mod_photo = False, None, None
         self.pending_update = None  # (version, url, page, notes) once offered
         self.update_window, self.update_parts, self.update_popped = None, None, False
+        self.support_close = None  # closes the support box while it is up
         root.title(f'{APP_NAME} (PC)')
         if sys.platform == 'win32':
             try:  # the taskbar shows this window's icon, not Python's
@@ -1675,6 +1681,10 @@ class Launcher:
                     padding=self.px((36, 10)), borderwidth=0)
         s.map('Play.TButton', background=[('active', ACCENT_HI), ('disabled', '#1c252e')],
               foreground=[('disabled', '#78848e')])
+        for name, color, active in (('Kofi', '#ff5e5b', '#ff7b78'), ('Paypal', '#0070ba', '#1a86cf')):  # support box
+            s.configure(f'{name}.TButton', background=color, foreground='#ffffff', borderwidth=0,
+                        font=self.heading_font(12, bold=True), padding=self.px((18, 8)))
+            s.map(f'{name}.TButton', background=[('active', active)])
         s.configure('Horizontal.TProgressbar', background=ACCENT, troughcolor=CARD, bordercolor=LINE,
                     arrowsize=self.px(14), sliderlength=self.px(30))
         s.configure('TScrollbar', background=CARD, arrowcolor=MUTED, troughcolor=PANEL, bordercolor=PANEL,
@@ -2011,6 +2021,16 @@ class Launcher:
     def gamepad_action(self, action):
         page = self.pages[self.current_page]
         widget = self.root.focus_get()
+        if self.support_close:  # the support box is up: up/down move in it, A presses, B closes it
+            nxt = widget and action in ('up', 'down') and \
+                (widget.tk_focusNext() if action == 'down' else widget.tk_focusPrev())
+            if nxt:
+                nxt.focus_set()
+            elif action == 'select' and hasattr(widget, 'invoke'):
+                widget.invoke()
+            elif action == 'back':
+                self.support_close()
+            return
         if action in ('prev_page', 'next_page'):
             i = PAGES.index(self.current_page) + (1 if action == 'next_page' else -1)
             self.show(PAGES[i % len(PAGES)])
@@ -3783,6 +3803,103 @@ class Launcher:
         win.lift()
         now.focus_set()
 
+    def support_popup(self):
+        """The support box over the launcher at each start: Ko-fi and PayPal. It holds the window
+        until it is closed by hand; from the fourth time it offers "Don't show this again"
+        (support.json in the settings folder counts the times)."""
+        tk, ttk = self.tk, self.ttk
+        path = CONFIG_DIR / 'support.json'
+        state = load_json(path, {})
+        state = state if isinstance(state, dict) else {}
+        if state.get('hidden'):
+            return
+        shown = (state.get('shown') if isinstance(state.get('shown'), int) else 0) + 1
+        with contextlib.suppress(OSError):
+            atomic_write(path, json.dumps({'shown': shown}))
+        win = tk.Toplevel(self.root, bg=PANEL)
+        win.title(APP_NAME)
+        win.transient(self.root)
+        win.resizable(False, False)
+        hide = tk.BooleanVar(value=False)
+
+        def close(_event=None):
+            if hide.get():
+                with contextlib.suppress(OSError):
+                    atomic_write(path, json.dumps({'shown': shown, 'hidden': True}))
+            self.support_close = None
+            win.destroy()
+        self.support_close = close
+        win.protocol('WM_DELETE_WINDOW', close)
+        win.bind('<Escape>', close)
+
+        pad, inner = self.px(26), self.px(16)
+        tk.Frame(win, bg=ACCENT_HI, height=self.px(4)).pack(fill='x')
+        head = tk.Frame(win, bg=PANEL)
+        head.pack(fill='x', padx=pad, pady=(self.px(22), 0))
+        tk.Label(head, text='♥', bg=PANEL, fg='#ff5e5b', font=self.font(UI_FONT, 24)).pack(
+            side='left', padx=(0, self.px(12)))
+        tk.Label(head, text=_('Enjoying the port?', 'Нравится порт?'), bg=PANEL, fg=TEXT,
+                 font=self.heading_font(20)).pack(side='left')
+        tk.Label(win, text=_('I make this port in my free time, and every update is free. If it gave you a good race, a small tip '
+                             'helps me keep the fixes and new features coming.',
+                             'Я делаю этот порт в свободное время, и все обновления бесплатны. Если он подарил вам хорошую '
+                             'гонку, небольшой донат поможет мне и дальше выпускать исправления и новые функции.'),
+                 bg=PANEL, fg=TEXT, font=self.font(UI_FONT, 10), wraplength=self.px(500), justify='left').pack(
+            anchor='w', padx=pad, pady=(self.px(10), self.px(18)))
+
+        cards = tk.Frame(win, bg=PANEL)
+        cards.pack(fill='x', padx=pad)
+        cards.columnconfigure((0, 1), weight=1, uniform='card')
+
+        def card(column, name, color, detail):
+            box = tk.Frame(cards, bg=CARD)
+            box.grid(row=0, column=column, sticky='nsew', padx=(0, self.px(12)) if column == 0 else 0)
+            tk.Frame(box, bg=color, height=self.px(3)).pack(fill='x')
+            tk.Label(box, text=name, bg=CARD, fg=TEXT, font=self.heading_font(15)).pack(
+                anchor='w', padx=inner, pady=(self.px(12), 0))
+            tk.Label(box, text=detail, bg=CARD, fg=MUTED, font=self.font(UI_FONT, 9)).pack(anchor='w', padx=inner)
+            return box
+
+        kofi = ttk.Button(card(0, 'Ko-fi', '#ff5e5b', 'ko-fi.com/abd_dbh'), style='Kofi.TButton',
+                          text=_('Buy me a coffee', 'Угостить кофе'), command=lambda: open_url(KOFI_URL))
+        kofi.pack(anchor='w', padx=inner, pady=(self.px(12), inner))
+        paypal = ttk.Button(card(1, 'PayPal', '#0070ba', PAYPAL_EMAIL), style='Paypal.TButton',
+                            text=_('Copy email', 'Копировать адрес'))
+
+        def copy():
+            self.root.clipboard_clear()
+            self.root.clipboard_append(PAYPAL_EMAIL)
+            paypal.configure(text=_('Copied!', 'Скопировано!'))
+        paypal.configure(command=copy)
+        paypal.pack(anchor='w', padx=inner, pady=(self.px(12), inner))
+
+        more = tk.Frame(win, bg=PANEL)
+        more.pack(fill='x', padx=pad, pady=(self.px(14), 0))
+        tk.Label(more, text=_('No money to spare? A star on GitHub, a bug report or telling a friend helps too.',
+                              'Нет лишних денег? Звезда на GitHub, сообщение об ошибке или рассказ другу тоже помогают.'),
+                 bg=PANEL, fg=MUTED, font=self.font(UI_FONT, 9), wraplength=self.px(500), justify='left').pack(anchor='w')
+        ttk.Button(more, text=_('Star on GitHub', 'Звезда на GitHub'), style='Link.TButton',
+                   command=lambda: open_url(REPO_PAGE)).pack(anchor='w', pady=(self.px(2), 0))
+        tk.Frame(win, bg=LINE, height=self.px(1)).pack(fill='x', padx=pad, pady=(self.px(16), 0))
+        bottom = tk.Frame(win, bg=PANEL)
+        bottom.pack(fill='x', padx=pad, pady=(self.px(12), self.px(20)))
+        if shown > SUPPORT_CLOSE_ONLY:
+            ttk.Checkbutton(bottom, text=_("Don't show this again", 'Больше не показывать'), variable=hide).pack(side='left')
+        ttk.Button(bottom, text=_('Close', 'Закрыть'), command=close).pack(side='right')
+
+        win.update_idletasks()  # in the middle of the launcher
+        root = self.root
+        x = root.winfo_rootx() + max(0, (root.winfo_width() - win.winfo_reqwidth()) // 2)
+        y = root.winfo_rooty() + max(0, (root.winfo_height() - win.winfo_reqheight()) // 2)
+        win.geometry(f'+{x}+{y}')
+        win.lift()
+        kofi.focus_set()
+
+        def hold():  # the launcher behind takes no clicks until the box is closed
+            with contextlib.suppress(tk.TclError):
+                win.grab_set()
+        win.after(50, hold)
+
     def build_dlss_row(self, f):
         """NVIDIA DLSS on the Graphics page: installed, a download button, or why it is not offered."""
         holder = self.ttk.Frame(f)
@@ -4286,7 +4403,8 @@ def main():
         messagebox.showerror(APP_NAME, str(error), parent=root)
         root.destroy()
         return 1
-    Launcher(root, tk, ttk, filedialog, messagebox)
+    app = Launcher(root, tk, ttk, filedialog, messagebox)
+    root.after(300, app.support_popup)
     root.mainloop()
 
 
