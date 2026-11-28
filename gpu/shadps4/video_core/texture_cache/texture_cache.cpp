@@ -2168,6 +2168,15 @@ void TextureCache::GarbageCollectImages() {
     Gow3Stats::Timer gc_timer{Gow3Stats::t_gc};
     if (instance.CanReportMemoryUsage()) {
         total_used_memory = instance.GetDeviceMemoryUsage();
+        // gow3: the driver counts the memory held at start for images (vk_memory_reserve.h) as
+        // used in full, and an image freed in it frees nothing the driver sees. Its free part
+        // counts as free here, so the marks below see the same use as without it.
+        if (Vulkan::image_reserve_pool) {
+            VmaStatistics pool{};
+            vmaGetPoolStatistics(instance.GetAllocator(), Vulkan::image_reserve_pool, &pool);
+            total_used_memory -=
+                std::min<u64>(total_used_memory, pool.blockBytes - pool.allocationBytes);
+        }
         // gow3: on integrated GPUs (Steam Deck) the usage covers system-memory heaps holding
         // much more than images (buffers backing guest memory), and the startup budget left
         // ~1 GB after its 8 GB system reserve: usage stayed above the critical mark, so the

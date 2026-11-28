@@ -116,15 +116,31 @@ void UniqueImage::Create(const vk::ImageCreateInfo& image_ci) {
     // that menu images kept alive: after a 2048 race 2.4 GB of blocks held 1.1 GB of images, and
     // 4 GB cards ran out of video memory at the next load (#16, #72).
     const vk::DeviceImageMemoryRequirements query{.pCreateInfo = &image_ci};
-    if (device.getImageMemoryRequirements(query).memoryRequirements.size >= (8ull << 20)) {
+    const vk::MemoryRequirements requirements =
+        device.getImageMemoryRequirements(query).memoryRequirements;
+    if (requirements.size >= (8ull << 20)) {
         alloc_ci.flags |= VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
     }
 
     const VkImageCreateInfo image_ci_unsafe = static_cast<VkImageCreateInfo>(image_ci);
     VkImage unsafe_image{};
     VmaAllocationInfo alloc_info{};
-    VkResult result = vmaCreateImage(allocator, &image_ci_unsafe, &alloc_ci, &unsafe_image,
-                                     &allocation, &alloc_info);
+    VkResult result = VK_ERROR_OUT_OF_DEVICE_MEMORY;
+    // gow3: the memory held from the start first (Instance::CreateAllocator), any size, without
+    // memory of its own (a fixed-block pool refuses it). Pool full, no hole big enough or the
+    // wrong memory type: as without the pool.
+    if (Vulkan::image_reserve_pool &&
+        (requirements.memoryTypeBits >> Vulkan::image_reserve_type & 1) != 0) {
+        VmaAllocationCreateInfo pool_ci = alloc_ci;
+        pool_ci.flags &= ~VMA_ALLOCATION_CREATE_DEDICATED_MEMORY_BIT;
+        pool_ci.pool = Vulkan::image_reserve_pool;
+        result = vmaCreateImage(allocator, &image_ci_unsafe, &pool_ci, &unsafe_image, &allocation,
+                                &alloc_info);
+    }
+    if (result != VK_SUCCESS) {
+        result = vmaCreateImage(allocator, &image_ci_unsafe, &alloc_ci, &unsafe_image,
+                                &allocation, &alloc_info);
+    }
     if (result == VK_ERROR_OUT_OF_DEVICE_MEMORY) {
         // Upstream shadPS4: past the budget the driver can still page it to system memory.
         alloc_ci.flags &= ~VMA_ALLOCATION_CREATE_WITHIN_BUDGET_BIT;

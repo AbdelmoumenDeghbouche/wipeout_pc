@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <bit>
 #include <chrono>
+#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 
@@ -49,8 +50,13 @@ StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& sched
     : instance{instance_}, scheduler{scheduler_} {
     const char* env = std::getenv("GOW3_STAGING_KEEP_MB");
     keep_blocks = (env ? std::strtoull(env, nullptr, 10) : 512) * 1_MB / BLOCK_SIZE;
+    // gow3: with device memory held for images (Instance::CreateAllocator), the upload ring is
+    // made and touched in full now, up to what it keeps, so a race load makes no ring blocks.
+    const bool reserve = instance.ImageReserveMiB() != 0;
+    const u64 prewarm = reserve ? std::max(keep_blocks, PREWARM_BLOCKS) : PREWARM_BLOCKS;
+    const auto start = std::chrono::steady_clock::now();
     Ring& ring = rings[u32(MemoryType::HostUncached)];
-    for (u64 i = 0; i < PREWARM_BLOCKS; ++i) {
+    for (u64 i = 0; i < prewarm; ++i) {
         auto& block = ring.blocks.emplace_back(Block{
             .buffer = std::make_unique<VideoCore::StreamBuffer>(
                 instance, scheduler, MemoryType::HostUncached, BLOCK_SIZE),
@@ -61,6 +67,17 @@ StagingBufferPool::StagingBufferPool(const Instance& instance_, Scheduler& sched
             std::memset(block.buffer->mapped_data.data(), 0, block.buffer->mapped_data.size());
         }
     }
+    if (reserve) {
+        const double ms = std::chrono::duration<double, std::milli>(
+                              std::chrono::steady_clock::now() - start)
+                              .count();
+        std::printf("Memory reserve: %s; upload staging %llu MiB made in %.1f ms\n",
+                    instance.ImageReserveSummary().c_str(),
+                    (unsigned long long)(prewarm * BLOCK_SIZE >> 20), ms);
+    } else {
+        std::printf("Memory reserve: %s\n", instance.ImageReserveSummary().c_str());
+    }
+    std::fflush(stdout);
 }
 
 StagingBufferPool::~StagingBufferPool() = default;
