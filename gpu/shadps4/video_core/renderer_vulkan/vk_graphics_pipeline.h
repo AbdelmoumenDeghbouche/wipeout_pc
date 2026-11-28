@@ -4,6 +4,7 @@
 #pragma once
 
 #include <algorithm>
+#include <cstddef>
 
 #include <boost/container/static_vector.hpp>
 #include <xxhash.h>
@@ -44,12 +45,14 @@ struct GraphicsPipelineKey {
     u8 num_samples;
     u8 depth_samples;
     std::array<u8, AmdGpu::NUM_COLOR_BUFFERS> color_samples;
+    std::array<u8, 2> unused_gap; ///< gow3: always zero; named so that a copy carries it
     u32 mrt_mask;
     u32 motion_vectors = 0;
     struct {
         AmdGpu::DepthBuffer::ZFormat z_format : 2;
         AmdGpu::DepthBuffer::StencilFormat stencil_format : 1;
         u32 depth_clamp_enable : 1;
+        u32 unused_depth_bits : 28; ///< gow3: always zero
     };
     struct {
         AmdGpu::PrimitiveType prim_type : 5;
@@ -58,10 +61,24 @@ struct GraphicsPipelineKey {
         AmdGpu::ProvokingVtxLast provoking_vtx_last : 1;
         u32 depth_clip_enable : 1;
         u32 ps_iter_samples : 3; ///< gow3: DB_EQAA, log2 of the samples a pixel shader runs per pixel
+        u32 unused_raster_bits : 19; ///< gow3: always zero
     };
+    std::array<u8, 4> unused_tail; ///< gow3: always zero; without it bytes 348-351 are padding
 
     GraphicsPipelineKey() {
-        std::memset(this, 0, sizeof(*this));
+        std::memset(static_cast<void*>(this), 0, sizeof(*this));
+    }
+
+    // gow3: every copy is a memcpy of all 352 bytes (see the note below the struct).
+    GraphicsPipelineKey(const GraphicsPipelineKey& other) noexcept {
+        std::memcpy(static_cast<void*>(this), &other, sizeof(*this));
+    }
+
+    GraphicsPipelineKey& operator=(const GraphicsPipelineKey& other) noexcept {
+        if (this != &other) {
+            std::memcpy(static_cast<void*>(this), &other, sizeof(*this));
+        }
+        return *this;
     }
 
     bool operator==(const GraphicsPipelineKey& key) const noexcept {
@@ -71,6 +88,48 @@ struct GraphicsPipelineKey {
     void Serialize(Serialization::Archive& ar) const;
     bool Deserialize(Serialization::Archive& ar);
 };
+
+// gow3: the key is hashed and compared as raw bytes, so a copy must carry every byte. The
+// key's own gaps (bytes 330-331, the unused bits of the two bit-field words, the tail at
+// 348-351) are named members, always zero, and the size and every offset are those of the
+// saved key files. The element types Shader::PsColorBuffer and AmdGpu::BlendControl keep
+// padding of their own, which no member names. An implicit copy would leave copying that
+// padding to the compiler, so the copy operations memcpy all 352 bytes and it travels too
+// (tests/test_pipeline_key_copy.cpp).
+static_assert(sizeof(GraphicsPipelineKey) == 352);
+// Each member starts where the one before it ends, at its offset in the saved key files, and
+// the last one ends the struct. Bytes 340-347 are the two bit-field words, 32 named bits each.
+static_assert([] {
+    using K = GraphicsPipelineKey;
+    constexpr size_t members[][3] = {
+        // {offset in the files, offset, size}
+        {0, offsetof(K, stage_hashes), sizeof(K::stage_hashes)},
+        {48, offsetof(K, vertex_buffer_formats), sizeof(K::vertex_buffer_formats)},
+        {176, offsetof(K, patch_control_points), sizeof(K::patch_control_points)},
+        {180, offsetof(K, num_color_attachments), sizeof(K::num_color_attachments)},
+        {184, offsetof(K, color_buffers), sizeof(K::color_buffers)},
+        {248, offsetof(K, blend_controls), sizeof(K::blend_controls)},
+        {280, offsetof(K, write_masks), sizeof(K::write_masks)},
+        {312, offsetof(K, cb_shader_mask), sizeof(K::cb_shader_mask)},
+        {316, offsetof(K, logic_op), sizeof(K::logic_op)},
+        {320, offsetof(K, num_samples), sizeof(K::num_samples)},
+        {321, offsetof(K, depth_samples), sizeof(K::depth_samples)},
+        {322, offsetof(K, color_samples), sizeof(K::color_samples)},
+        {330, offsetof(K, unused_gap), sizeof(K::unused_gap)},
+        {332, offsetof(K, mrt_mask), sizeof(K::mrt_mask)},
+        {336, offsetof(K, motion_vectors), sizeof(K::motion_vectors)},
+        {340, 340, 2 * sizeof(u32)},
+        {348, offsetof(K, unused_tail), sizeof(K::unused_tail)},
+    };
+    size_t end = 0;
+    for (const auto& [file_offset, offset, size] : members) {
+        if (offset != file_offset || offset != end) {
+            return false;
+        }
+        end = offset + size;
+    }
+    return end == sizeof(K);
+}());
 
 class GraphicsPipeline : public Pipeline {
 public:
