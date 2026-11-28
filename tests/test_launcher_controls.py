@@ -923,12 +923,29 @@ class LinuxLauncherTest(unittest.TestCase):
         pad = launcher.LinuxPad()
         pad.keys, pad.axes = (0x130, 0x131, 0x133, 0x134, 0x136, 0x137, 0x13a, 0x13b), (0x00, 0x01, 0x10, 0x11)
         event = lambda value, kind, number: struct.pack('<IhBB', 0, value, kind, number)
-        pad.feed(event(0, 0x81, 0) + event(0, 0x82, 1))  # the starting state: nothing held
+        pad.feed(event(0, 0x81, 0) + b''.join(event(0, 0x82, axis) for axis in range(4)))  # at open: nothing held
         self.assertEqual(pad.buttons(), 0)
         pad.feed(event(1, 1, 0) + event(-32767, 2, 1) + event(1, 1, 7))  # A, stick up, Start
         self.assertEqual(pad.buttons(), 0x1000 | 0x1 | 0x10)
         pad.feed(event(0, 1, 0) + event(0, 2, 1) + event(32767, 2, 2))  # released; hat right
         self.assertEqual(pad.buttons(), 0x10 | 0x8)
+
+    def test_stuck_joystick_input_does_not_move_the_launcher(self):
+        # #225: the cursor ran through the options by itself until a key opened a list's popdown.
+        pad = launcher.LinuxPad()
+        pad.keys, pad.axes = (0x130, 0x131), (0x00, 0x01)
+        event = lambda value, kind, number: struct.pack('<IhBB', 0, value, kind, number)
+        pad.feed(event(1, 0x81, 0) + event(32767, 0x82, 0) + event(-32767, 0x82, 1))  # held at open, axes at an end
+        pad.feed(event(32767, 2, 0))
+        self.assertEqual(pad.buttons(), 0)
+        pad.feed(event(0, 2, 1) + event(-32767, 2, 1))  # the stick comes back to the middle: it counts
+        self.assertEqual(pad.buttons(), 0x1)
+        root = mock.Mock()
+        root.tk.call.return_value = '.!combobox.popdown.f.l'  # a Tk widget tkinter has no object for
+        with mock.patch.object(launcher, 'WINDOWS', False):
+            self.assertTrue(launcher.Launcher.in_front(mock.Mock(root=root)))
+            root.tk.call.return_value = ''
+            self.assertFalse(launcher.Launcher.in_front(mock.Mock(root=root)))
 
     def test_linux_offers_the_appimage_and_swaps_it_in(self):
         import io

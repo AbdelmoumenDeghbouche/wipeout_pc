@@ -478,23 +478,28 @@ JS_DEFAULT_AXES = (0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x10, 0x11)
 
 class LinuxPad:
     def __init__(self):
-        self.fd, self.keys, self.axes, self.down, self.values, self.next_try = None, JS_DEFAULT_KEYS, JS_DEFAULT_AXES, set(), {}, 0.0
+        self.fd, self.keys, self.axes, self.down, self.values, self.centered, self.next_try = \
+            None, JS_DEFAULT_KEYS, JS_DEFAULT_AXES, set(), {}, set(), 0.0
 
     def feed(self, data):
-        """js_event records (u32 time, s16 value, u8 type, u8 number), JS_EVENT_INIT ones included."""
+        """js_event records (u32 time, s16 value, u8 type, u8 number), JS_EVENT_INIT ones included.
+        #225: a button down at open (JS_EVENT_INIT) and an axis never seen near its middle (one that
+        rests at an end, as a trigger or a pedal) are stuck, not pressed: they moved the cursor alone."""
         for offset in range(0, len(data) - 7, 8):
             _time, value, kind, number = struct.unpack_from('<IhBB', data, offset)
-            if kind & 0x7f == 1 and number < len(self.keys):
+            if kind & 0x7f == 1 and number < len(self.keys) and not (kind & 0x80 and value):
                 (self.down.add if value else self.down.discard)(self.keys[number])
             elif kind & 0x7f == 2 and number < len(self.axes):
                 self.values[self.axes[number]] = value
+                if abs(value) < 16000:
+                    self.centered.add(self.axes[number])
 
     def buttons(self):
         bits = 0
         for code in self.down:
             bits |= JS_KEYS.get(code, 0)
         for code, (negative, positive) in JS_AXES.items():
-            value = self.values.get(code, 0)
+            value = self.values.get(code, 0) if code in self.centered else 0
             bits |= negative if value < -16000 else positive if value > 16000 else 0
         return bits
 
@@ -507,7 +512,8 @@ class LinuxPad:
             for path in sorted(glob.glob('/dev/input/js*')):
                 with contextlib.suppress(OSError):
                     self.fd = os.open(path, os.O_RDONLY | os.O_NONBLOCK)
-                    self.keys, self.axes, self.down, self.values = JS_DEFAULT_KEYS, JS_DEFAULT_AXES, set(), {}
+                    self.keys, self.axes, self.down, self.values, self.centered = \
+                        JS_DEFAULT_KEYS, JS_DEFAULT_AXES, set(), {}, set()
                     with contextlib.suppress(OSError, ImportError):
                         import array
                         import fcntl
@@ -1978,8 +1984,8 @@ class Launcher:
         """Whether the launcher window has the focus (its gamepad input is only for itself)."""
         if WINDOWS:
             return ctypes.windll.user32.GetForegroundWindow() == int(self.root.wm_frame(), 16)
-        try:
-            return self.root.focus_displayof() is not None
+        try:  # #225: not focus_displayof(), whose name lookup raised KeyError in a list's popdown
+            return str(self.root.tk.call('focus', '-displayof', self.root._w)) not in ('', 'none')
         except self.tk.TclError:
             return False
 
