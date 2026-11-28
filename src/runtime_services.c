@@ -510,17 +510,20 @@ static ABI int32_t trophy_unlock_state(int32_t ctx,int32_t handle,uint32_t *flag
 static ABI int32_t trophy_release(int32_t id) { return id>0 ? 0 : TROPHY_INVALID; }
 
 /* ---- PlayGo: fully installed package ---- */
-static int playgo_handle, playgo_chunks=-1;
+/* #238: some PKG extractors leave out sce_sys/playgo-chunk.dat. Without it every chunk id counts as
+ * installed: WipEout asks for chunks 1-4 (HD, Fury, 2048 tracks) and locked them as not installed. */
+static int playgo_handle, playgo_chunks=-1, playgo_listed;
 static ABI int32_t playgo_init(const void *params) {
     (void)params;
     int fd=(int)runtime_file_open("/app0/sce_sys/playgo-chunk.dat",0,0);
     unsigned char header[12];
-    playgo_chunks=1;
+    playgo_chunks=1; playgo_listed=0;
     if (fd>=0) {
-        if (runtime_file_read(fd,header,sizeof(header))==sizeof(header)) playgo_chunks=header[10]|header[11]<<8;
+        if (runtime_file_read(fd,header,sizeof(header))==sizeof(header)) { playgo_chunks=header[10]|header[11]<<8; playgo_listed=1; }
         runtime_file_close(fd);
     }
-    printf("Runtime: PlayGo initialized; %d chunks, all installed locally\n",playgo_chunks);
+    if (playgo_listed) printf("Runtime: PlayGo initialized; %d chunks, all installed locally\n",playgo_chunks);
+    else printf("Runtime: PlayGo initialized; no sce_sys/playgo-chunk.dat, every chunk counts as installed\n");
     return 0;
 }
 static ABI int32_t playgo_open(int32_t *handle,const void *param) {
@@ -542,7 +545,7 @@ static ABI int32_t playgo_locus(int32_t handle,const uint16_t *ids,uint32_t coun
     if (!ids || !loci) return PLAYGO_BAD_POINTER;
     if (!count) return PLAYGO_BAD_SIZE;
     for (uint32_t i=0;i<count;++i) {
-        if (ids[i]>=playgo_chunks) return PLAYGO_BAD_CHUNK;
+        if (playgo_listed && ids[i]>=playgo_chunks) return PLAYGO_BAD_CHUNK;
         loci[i]=3; /* LocalFast */
     }
     return 0;
@@ -558,7 +561,7 @@ static ABI int32_t playgo_progress(int32_t handle,const uint16_t *ids,uint32_t c
     if (handle!=playgo_handle || !handle) return PLAYGO_BAD_HANDLE;
     if (!ids || !out) return PLAYGO_BAD_POINTER;
     if (!count) return PLAYGO_BAD_SIZE;
-    for (uint32_t i=0;i<count;++i) if (ids[i]>=playgo_chunks) return PLAYGO_BAD_CHUNK;
+    for (uint32_t i=0;i<count;++i) if (playgo_listed && ids[i]>=playgo_chunks) return PLAYGO_BAD_CHUNK;
     out[0]=out[1]=1; return 0;
 }
 static ABI int32_t playgo_todo(int32_t handle,const void *list,uint32_t count) {

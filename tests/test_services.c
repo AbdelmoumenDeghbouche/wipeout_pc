@@ -80,6 +80,10 @@ int main(void) {
     assert(playgo_get_speed(handle,&speed)==0 && speed==2);
     assert(playgo_progress(handle,&chunk,1,progress)==0 && progress[0]==progress[1] && progress[1]);
     assert(playgo_progress(handle,&chunk,0,progress)==PLAYGO_BAD_SIZE);
+    /* #238: no playgo-chunk.dat (the stub finds no file): later chunks are installed too. */
+    uint16_t later=4; int8_t locus=0;
+    assert(playgo_locus(handle,&later,1,&locus)==0 && locus==3);
+    assert(playgo_progress(handle,&later,1,progress)==0);
     assert(playgo_todo(handle,&chunk,1)==0 && playgo_todo(handle,NULL,1)==PLAYGO_BAD_POINTER);
     assert(playgo_close(handle)==0 && playgo_close(handle)==PLAYGO_BAD_HANDLE && playgo_terminate()==0);
 
