@@ -50,7 +50,8 @@ GraphicsPipeline::GraphicsPipeline(
     vk::PipelineCache pipeline_cache, std::span<const Shader::Info*, MaxShaderStages> infos,
     std::span<const Shader::RuntimeInfo, MaxShaderStages> runtime_infos,
     std::optional<const Shader::Gcn::FetchShaderData> fetch_shader_,
-    std::span<const vk::ShaderModule> modules, SerializationSupport& sdata, bool preloading)
+    std::span<const vk::ShaderModule> modules, SerializationSupport& sdata, bool preloading,
+    PipelineBuild build)
     : Pipeline{instance, scheduler, desc_heap, profile, pipeline_cache}, key{key_},
       fetch_shader{std::move(fetch_shader_)} {
     const auto started = Clock::now();
@@ -440,7 +441,8 @@ GraphicsPipeline::GraphicsPipeline(
         Common::ElfInfo::Instance().GameSerial() / "pipeline-binaries";
     auto [pipeline_result, pipe] =
         CreateCachedGraphicsPipeline(device, pipeline_cache, pipeline_info, key,
-                                     instance.GetPipelineBinaryGlobalKey(), binary_directory);
+                                     instance.GetPipelineBinaryGlobalKey(), binary_directory,
+                                     build, &fast_build);
     // gow3: a cached pipeline the driver refuses at the start (a damaged cache after a crash, or a
     // driver error) stays out of the warm-up (Handle() is null) instead of stopping the game (#72).
     if (pipeline_result != vk::Result::eSuccess && preloading) {
@@ -449,11 +451,20 @@ GraphicsPipeline::GraphicsPipeline(
         PreloadMemoryStop().Report(static_cast<int>(pipeline_result)); // #149
         return;
     }
+    // gow3: a refused optimised rebuild (Handle() null) leaves the fast build in use.
+    const bool rebuild = build == PipelineBuild::Rebuild;
+    if (pipeline_result != vk::Result::eSuccess && rebuild) {
+        LOG_WARNING(Render_Vulkan, "Optimised rebuild of graphics pipeline {} failed ({})",
+                    debug_str, vk::to_string(pipeline_result));
+        return;
+    }
     ASSERT_MSG(pipeline_result == vk::Result::eSuccess, "Failed to create graphics pipeline: {}",
                vk::to_string(pipeline_result));
     pipeline = std::move(pipe);
     SetObjectName(device, *pipeline, "Graphics Pipeline {}", debug_str);
-    RecordWaveSizes();
+    if (!rebuild) {
+        RecordWaveSizes();
+    }
 
     if (needs_square_pass) {
         auto square_blending = color_blending;
@@ -461,9 +472,12 @@ GraphicsPipeline::GraphicsPipeline(
         square_blending.pAttachments = square_attachments.data();
         auto square_info = pipeline_info;
         square_info.pColorBlendState = &square_blending;
+        bool square_fast = false;
         auto [square_result, square] =
             CreateCachedGraphicsPipeline(device, pipeline_cache, square_info, key,
-                                         instance.GetPipelineBinaryGlobalKey(), binary_directory);
+                                         instance.GetPipelineBinaryGlobalKey(), binary_directory,
+                                         build, &square_fast);
+        fast_build |= square_fast;
         // gow3: a refused squaring pass leaves the whole cached pipeline out (#72, #149).
         if (square_result != vk::Result::eSuccess && preloading) {
             LOG_WARNING(Render_Vulkan,
@@ -473,16 +487,39 @@ GraphicsPipeline::GraphicsPipeline(
             pipeline.reset();
             return;
         }
+        if (square_result != vk::Result::eSuccess && rebuild) {
+            LOG_WARNING(Render_Vulkan, "Optimised rebuild of the squaring pass of {} failed ({})",
+                        debug_str, vk::to_string(square_result));
+            pipeline.reset();
+            return;
+        }
         ASSERT_MSG(square_result == vk::Result::eSuccess,
                    "Failed to create the squaring pipeline: {}", vk::to_string(square_result));
         square_pipeline = std::move(square);
         SetObjectName(device, *square_pipeline, "Graphics Pipeline {} squaring pass", debug_str);
     }
-    g_gow3_pipeline_total_ns += NsSince(started);
-    ++g_gow3_pipelines_built;
+    if (!rebuild) {
+        g_gow3_pipeline_total_ns += NsSince(started);
+        ++g_gow3_pipelines_built;
+    }
 }
 
 GraphicsPipeline::~GraphicsPipeline() = default;
+
+void GraphicsPipeline::AdoptOptimized(std::unique_ptr<GraphicsPipeline> rebuilt) {
+    std::swap(pipeline, rebuilt->pipeline);
+    std::swap(square_pipeline, rebuilt->square_pipeline);
+    // gow3: draws recorded this tick may still use the fast pipelines.
+    scheduler.DeferOperation([device = instance.GetDevice(), fast = rebuilt->pipeline.release(),
+                              fast_square = rebuilt->square_pipeline.release()] {
+        device.destroyPipeline(fast);
+        device.destroyPipeline(fast_square);
+    });
+    // Its stages pointed into the compile snapshot, which goes away with the rebuild job.
+    rebuilt->stages = stages;
+    optimized = std::move(rebuilt);
+    fast_build = false;
+}
 
 template <typename Attribute, typename Binding>
 void GraphicsPipeline::GetVertexInputs(
