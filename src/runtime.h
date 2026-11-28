@@ -97,6 +97,8 @@ void runtime_audio_report(void);
 int runtime_music_bgm(float *pcm, int frames, int channels);
 /* A game file opened (runtime_file.c): its sound banks tell menus from races (#66). */
 void runtime_music_scene(const char *guest_path);
+/* A touchpad click (runtime_pad.c): in a race it also skips the player's song (#242). */
+void runtime_music_skip_key(void);
 uintptr_t runtime_pad_resolve(const char *name);
 void runtime_pad_report(void);
 extern volatile int runtime_pad_opened; /* the game opened a pad (start watch, #113) */

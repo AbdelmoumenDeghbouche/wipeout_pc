@@ -23,6 +23,9 @@ int gow3gpu_stick_deadzone_percent(void) { return 0; }
 void gow3gpu_request_screenshot(void) {}
 int gow3gpu_mouse_prompt_distance(void) { return 0; }
 void gow3gpu_mouse_pause_key(void) {}
+static int skips;
+void runtime_music_skip_key(void) { ++skips; }
+void runtime_cube_budget_poll(void) {}
 int gow3gpu_mouse_aim_style(void) { return 0; }
 int gow3gpu_mouse_aim_sensitivity(void) { return 100; }
 uintptr_t runtime_lookup(const RuntimeExport *table, size_t count, const char *name) {
@@ -70,9 +73,12 @@ int main(void) {
     PadData data=read_pad();
     assert((data.buttons & (BTN_CROSS|BTN_L3))==(BTN_CROSS|BTN_L3));
     assert(!(data.buttons & BTN_TOUCHPAD) && touch_at(&data,480));
+    assert(skips==0);
     usleep(60000);
     data=read_pad();
     assert((data.buttons & BTN_TOUCHPAD) && touch_at(&data,480));
+    data=read_pad();
+    assert(skips==1); /* #242: one skip per click, not per read */
     usleep(60000);
     inject(path,"");
     data=read_pad();

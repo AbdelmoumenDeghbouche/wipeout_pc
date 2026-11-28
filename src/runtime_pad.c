@@ -755,6 +755,14 @@ static void note_pause_key(const PadData *d) {
     held=pause;
 }
 
+/* #242: the touchpad click is also the custom soundtrack's skip key (runtime_music.c). */
+static void note_skip_key(const PadData *d) {
+    static bool held;
+    const bool down=(d->buttons & BTN_TOUCHPAD)!=0;
+    if (down && !held) runtime_music_skip_key();
+    held=down;
+}
+
 /* GOW3_PAD_SCHEME=racer (#99, as WipEout 2048's "Racer" on the Vita): R2 accelerates, L2 brakes
  * (both air brakes), Square with the stick left or right is that air brake, Cross fires, Circle
  * absorbs. Turned into the game's default layout (Cross accelerate, L2/R2 air brakes, Square fire)
@@ -860,6 +868,7 @@ static void sample(PadData *d) {
     apply_mouse_aim(d);
     note_pause_key(d);
     play_click(d);
+    note_skip_key(d);
     if (hold_after_capture) {
         if (d->buttons) d->buttons=0;
         else hold_after_capture=0;

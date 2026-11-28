@@ -366,6 +366,12 @@ void runtime_music_step(int direction) {
 /* The game loaded a race's sound banks last, not the menus' (frame limit in the menus, #118). */
 int runtime_music_in_race(void) { return in_race; }
 
+/* #242: in a race the touchpad click skips the game's song; while the player's songs play
+ * (runtime_music_bgm), it skips theirs. */
+void runtime_music_skip_key(void) {
+    if (in_race && gow3gpu_music_on() && scene_has_songs()) runtime_music_step(1);
+}
+
 void runtime_music_scene(const char *guest_path) {
     const char *env=strstr(guest_path,"/audio/sound/") ? strstr(guest_path,"/env") : NULL;
     const int was=in_race, was_mode=mode;
